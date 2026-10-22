@@ -113,6 +113,10 @@ var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
 var bg_environment: WorldEnvironment
 var fire_light: OmniLight3D
 var mystic_light: OmniLight3D
+var fx_sounds: Array = []
+var audio_enabled := true
+var sfx_toggle_button: Button
+var last_hit_sound_msec := 0
 var auto_equip := true
 var auto_gear_button: Button
 var equipped_vfx: Node3D
@@ -123,6 +127,7 @@ func _ready() -> void:
     _load_game()
     _build_world()
     _build_ui()
+    _prepare_audio()
     _spawn_enemy()
     _sync_equipment_visuals()
     _apply_biome()
@@ -523,7 +528,9 @@ func _build_ui() -> void:
         var class_button := _ornate_button(hero_label, _select_class.bind(class_id), Vector2(495, 94))
         class_button.add_theme_font_size_override("font_size", 16)
         hero_column.add_child(class_button)
-    hero_column.add_child(_ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(495, 60)))
+    sfx_toggle_button = _ornate_button("SOUND: ON" if audio_enabled else "SOUND: OFF", _toggle_sound, Vector2(495, 48))
+    hero_column.add_child(sfx_toggle_button)
+    hero_column.add_child(_ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(495, 55)))
 
     inventory_overlay = PanelContainer.new()
     inventory_overlay.position = Vector2(63, (overlay.size.y - 780.0) * 0.5)
@@ -607,6 +614,7 @@ func _spawn_enemy() -> void:
         enemy_max = 50.0 + float(stage) * 20.0
         enemy_hp = enemy_max
         return
+    _clear_boss_telegraph()
     _spawn_horde()
     _update_wave_health()
 
@@ -658,6 +666,7 @@ func _fight() -> void:
         hp = minf(_max_hp(), hp + damage * 0.035)
     _hit_mob(target, damage, crit)
     _slash_trail(target.global_position, crit)
+    _play_audio(0)
     attack_animation_index += 1
     if attack_animation_index % 3 == 0:
         _trigger_combat_animation(hero)
@@ -680,6 +689,55 @@ func _fight() -> void:
         combat_note = "DEFEATED — AUTO-GRINDING PREVIOUS STAGE"
         _spawn_enemy()
     _refresh()
+
+func _toggle_sound() -> void:
+    audio_enabled = not audio_enabled
+    if sfx_toggle_button != null:
+        sfx_toggle_button.text = "SOUND: ON" if audio_enabled else "SOUND: OFF"
+    _save_game()
+
+func _prepare_audio() -> void:
+    # Royalty-free procedural sounds synthesized in memory. No external audio assets.
+    for effect_kind in range(5):
+        var duration: float = [0.13, 0.27, 0.45, 0.37, 0.58][effect_kind]
+        var frequency: float = [140.0, 610.0, 510.0, 290.0, 95.0][effect_kind]
+        var rate := 16000
+        var samples: int = int(float(rate) * duration)
+        var pcm := PackedByteArray()
+        pcm.resize(samples * 2)
+        for i in range(samples):
+            var t: float = float(i) / float(rate)
+            var progress: float = t / duration
+            var decay: float = pow(1.0 - progress, 2.6 if effect_kind == 0 else 1.65)
+            var frequency_at_t: float = frequency * (1.5 - progress * 0.85) if effect_kind == 0 else frequency * (1.0 + progress * 0.45)
+            var carrier: float = sin(TAU * frequency_at_t * t)
+            var overtone: float = sin(TAU * frequency_at_t * t * 1.98) * 0.36
+            var noise: float = sin(float(i) * 16.774) * sin(float(i) * 7.238) * (0.48 if effect_kind == 0 else 0.10)
+            var sample: float = (carrier * 0.64 + overtone + noise) * decay
+            if effect_kind == 2:
+                sample += sin(TAU * (760.0 + 420.0 * progress) * t) * decay * 0.28
+            pcm.encode_s16(i * 2, clampi(int(sample * 12000.0), -32000, 32000))
+        var clip := AudioStreamWAV.new()
+        clip.format = AudioStreamWAV.FORMAT_16_BITS
+        clip.mix_rate = rate
+        clip.stereo = false
+        clip.data = pcm
+        fx_sounds.append(clip)
+
+func _play_audio(effect_kind: int) -> void:
+    if not audio_enabled or effect_kind < 0 or effect_kind >= fx_sounds.size():
+        return
+    if effect_kind == 0:
+        var now: int = Time.get_ticks_msec()
+        if now - last_hit_sound_msec < 170:
+            return
+        last_hit_sound_msec = now
+    var output := AudioStreamPlayer.new()
+    output.stream = fx_sounds[effect_kind]
+    output.volume_db = -17.5 if effect_kind == 0 else -11.5
+    add_child(output)
+    output.finished.connect(output.queue_free)
+    output.play()
 
 func _choose_target() -> Node3D:
     if arena_mobs.is_empty():
@@ -854,6 +912,7 @@ func _kill_mob(target: Node3D) -> void:
     if boss or rng.randf() < 0.22:
         _drop_loot_at(drop_pos, boss)
     if boss:
+        _play_audio(4)
         earned_bosses[BOSS_NAMES[_boss_variant()]] = int(earned_bosses.get(BOSS_NAMES[_boss_variant()], 0)) + 1
         battle_statistics["bosses"] = int(battle_statistics.get("bosses", 0)) + 1
         _clear_boss_telegraph()
@@ -1012,6 +1071,7 @@ func _drop_loot_at(drop_pos: Vector3, boss_drop: bool) -> void:
     if gear.size() > 36:
         gear.pop_back()
     _loot_beam(drop_pos, loot_color, name)
+    _play_audio(2 if rarity == "LEGENDARY" else 1)
     battle_statistics["loot"] = int(battle_statistics.get("loot", 0)) + 1
     if auto_equip:
         _auto_equip_item(item)
@@ -1176,7 +1236,7 @@ func _save_game() -> void:
         "stage": stage, "highest": highest, "kills": kills, "hp": hp,
         "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents,
         "skill_points": skill_points, "auto_equip": auto_equip,
-        "boss_history": earned_bosses, "statistics": battle_statistics,
+        "boss_history": earned_bosses, "statistics": battle_statistics, "sound": audio_enabled,
         "saved_at": Time.get_unix_time_from_system()
     }
     var f = FileAccess.open(SAVE_FILE, FileAccess.WRITE)
@@ -1208,6 +1268,7 @@ func _load_game() -> void:
     auto_equip = bool(data.get("auto_equip", true))
     earned_bosses = data.get("boss_history", {})
     battle_statistics = data.get("statistics", {"bosses": 0, "loot": 0, "forged": 0})
+    audio_enabled = bool(data.get("sound", true))
     skills = data.get("skills", [0, 0, 0])
     if skills.size() != 3:
         skills = [0, 0, 0]
@@ -1413,6 +1474,7 @@ func _use_skill(index: int) -> void:
     ]
     var tint: Color = palettes[hero_class][index]
     _spell_burst(tint, 2.2 + float(index) * 0.7, 3 + index * 2)
+    _play_audio(3)
     var multiplier: float = [1.25, 1.60, 2.80][index]
     if hero_class == 2:
         multiplier *= 1.18
