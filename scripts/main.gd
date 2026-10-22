@@ -2,6 +2,7 @@ extends Node3D
 # Ashen Idle v0.2 — portrait mobile prototype, offline-safe save and auto combat.
 const CLASSES = ["Cinder Knight", "Ash Ranger", "Ember Mage", "Dusk Reaper"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
+const BOSS_NAMES = ["ASHEN WARDEN", "VOID HARBINGER", "BONE TYRANT"]
 const SLOTS = ["Weapon", "Armor", "Helm", "Ring"]
 const SAVE_FILE = "user://save_v2.json"
 
@@ -15,6 +16,8 @@ var kills = 0
 var hp = 112.0
 var enemy_hp = 48.0
 var enemy_max = 48.0
+var boss_health := 1.0
+var boss_max := 1.0
 var gear: Array = []
 var equipped: Dictionary = {}
 var skill_points = 0
@@ -522,6 +525,9 @@ func _bonus(key: String) -> float:
                 total += 28.0 if key == "damage" else 50.0
     return total
 
+func _boss_variant() -> int:
+    return posmod(floori(float(stage) / 5.0) - 1, BOSS_NAMES.size())
+
 func _spawn_enemy() -> void:
     if hero == null:
         enemy_max = 50.0 + float(stage) * 20.0
@@ -585,7 +591,7 @@ func _fight() -> void:
     var remaining_mobs: float = float(arena_mobs.size())
     var incoming: float = maxf(0.25, float(stage) * 0.085 + remaining_mobs * 0.075 - float(skills[2]) * 0.25)
     if stage % 5 == 0:
-        incoming *= 1.28
+        incoming *= [1.28, 1.10, 1.48][_boss_variant()]
     hp -= incoming
     if hp <= 0.0:
         hp = _max_hp()
@@ -660,11 +666,17 @@ func _kill_mob(target: Node3D) -> void:
 func _update_wave_health() -> void:
     enemy_hp = 0.0
     enemy_max = 0.0
+    boss_health = 0.0
+    boss_max = 0.0
     for mob in arena_mobs:
         if is_instance_valid(mob):
             enemy_hp += maxf(0.0, float(mob.get_meta("hp", 0.0)))
             enemy_max += float(mob.get_meta("max_hp", 0.0))
+            if bool(mob.get_meta("boss", false)):
+                boss_health += maxf(0.0, float(mob.get_meta("hp", 0.0)))
+                boss_max += float(mob.get_meta("max_hp", 0.0))
     enemy_max = maxf(enemy_max, 1.0)
+    boss_max = maxf(boss_max, 1.0)
 
 func _complete_wave() -> void:
     var was_boss: bool = stage % 5 == 0
@@ -901,12 +913,13 @@ func _refresh() -> void:
     if auto_gear_button != null:
         auto_gear_button.text = "AUTO: ON" if auto_equip else "AUTO: OFF"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
-    stage_banner.text = "STAGE %d%s" % [stage, " BOSS" if stage % 5 == 0 else ""]
+    stage_banner.text = "ACT %d  •  %d/5%s" % [floori(float(stage - 1) / 5.0) + 1, posmod(stage - 1, 5) + 1, "  BOSS" if stage % 5 == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
         boss_panel.visible = stage % 5 == 0
-        boss_hp_label.text = "ASHEN WARDEN  •  %.0f / %.0f HP" % [maxf(0.0, enemy_hp), enemy_max]
-        boss_hp_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.03, 1.0)
+        boss_hp_label.text = "%s  •  %.0f / %.0f HP" % [BOSS_NAMES[_boss_variant()], maxf(0.0, boss_health), boss_max]
+        boss_hp_bar.color = [Color("d94339"), Color("9e55e8"), Color("dc9c46")][_boss_variant()]
+        boss_hp_bar.scale.x = clampf(boss_health / maxf(1.0, boss_max), 0.03, 1.0)
     center_banner.modulate.a = 0.87 + sin(chaos_time * 4.0) * 0.13
     combat.text = combat_note
     info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
@@ -980,7 +993,26 @@ func _load_game() -> void:
             xp -= level * 30
             level += 1
             skill_points += 1
-        offline_note = "OFFLINE: %d SEGRAR / +%d GULD" % [offline_kills, offline_kills * (3 + stage * 2)]
+        var found_relics := mini(4, int(offline_kills / 35))
+        for relic_i in range(found_relics):
+            var slot: String = SLOTS[(relic_i + stage) % SLOTS.size()]
+            var prize: Dictionary = {
+                "slot": slot, "name": "Forgotten " + slot,
+                "damage": 4 + int(level * 0.9) + relic_i * 2,
+                "hp": 12 + int(level * 1.5) + relic_i * 5,
+                "set": "",
+                "rarity": "RARE",
+                "crit": 3 + int(level * 0.12),
+                "speed": 2 + int(level * 0.08),
+                "element": "FROST",
+                "elemental": 4 + int(level * 0.4)
+            }
+            gear.push_front(prize)
+            if gear.size() > 36:
+                gear.pop_back()
+            if auto_equip:
+                _auto_equip_item(prize)
+        offline_note = "OFFLINE: %d KILLS  +%d GOLD  +%d ITEMS" % [offline_kills, offline_kills * (3 + stage * 2), found_relics]
     hp = _max_hp()
     _spawn_enemy()
 
@@ -994,6 +1026,9 @@ func _skin(bg: Color, edge: Color) -> StyleBoxFlat:
     style.border_color = edge
     style.set_border_width_all(2)
     style.set_corner_radius_all(13)
+    style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
+    style.shadow_size = 5
+    style.anti_aliasing = true
     style.content_margin_left = 12
     style.content_margin_right = 12
     style.content_margin_top = 9
@@ -1007,6 +1042,10 @@ func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
     b.add_theme_font_size_override("font_size", 17)
     b.add_theme_stylebox_override("normal", _skin(Color("231c28ef"), Color("8b633c")))
     b.add_theme_stylebox_override("hover", _skin(Color("50323bed"), Color("ffc268")))
+    b.add_theme_stylebox_override("pressed", _skin(Color("7d472fe9"), Color("ffe3a4")))
+    b.add_theme_stylebox_override("focus", _skin(Color("382c38d8"), Color("e4b676")))
+    b.add_theme_color_override("font_color", Color("f8e8d2"))
+    b.add_theme_color_override("font_pressed_color", Color("ffffff"))
     b.pressed.connect(callback)
     return b
 
@@ -1068,19 +1107,34 @@ func _equip_from_armory(index: int) -> void:
 func _refresh_minimap() -> void:
     if map_dots == null:
         return
-    for n in map_dots.get_children():
-        n.queue_free()
-    for i in range(18):
-        var dot := ColorRect.new()
-        dot.color = Color("c25139") if i % 5 != 0 else Color("f8b855")
-        dot.position = Vector2(8 + float((i * 31) % 152), 8 + float((i * 17) % 65))
-        dot.size = Vector2(4, 4)
-        map_dots.add_child(dot)
-    var hero_dot := ColorRect.new()
-    hero_dot.color = Color("99e7f9")
-    hero_dot.size = Vector2(7, 7)
-    hero_dot.position = Vector2(91, 40)
-    map_dots.add_child(hero_dot)
+    for child in map_dots.get_children():
+        child.queue_free()
+    # Five real checkpoints per act, instead of a fake random minimap.
+    var rail := ColorRect.new()
+    rail.color = Color("594333")
+    rail.position = Vector2(15, 31)
+    rail.size = Vector2(154, 3)
+    map_dots.add_child(rail)
+    var checkpoint := posmod(stage - 1, 5)
+    for i in range(5):
+        var node := PanelContainer.new()
+        node.position = Vector2(9 + i * 37, 20)
+        node.size = Vector2(22, 22)
+        var style := StyleBoxFlat.new()
+        style.bg_color = Color("eac177") if i < checkpoint else Color("e46b39") if i == checkpoint else Color("1e202e")
+        style.border_color = Color("f4bd78") if i <= checkpoint else Color("78604b")
+        style.set_border_width_all(2)
+        style.set_corner_radius_all(11)
+        node.add_theme_stylebox_override("panel", style)
+        map_dots.add_child(node)
+        var number := _label(str(i + 1), 12, Color("10131b") if i <= checkpoint else Color("c2a98b"))
+        number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        node.add_child(number)
+    var hint := _label("BOSS AT THE FINAL GATE", 12, Color("d8b37d"))
+    hint.position = Vector2(9, 52)
+    hint.size = Vector2(165, 20)
+    hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    map_dots.add_child(hint)
 
 func _hide_legendary() -> void:
     popup_shade.visible = false
@@ -1145,7 +1199,8 @@ func _spawn_horde() -> void:
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
-        var model_name: String = "Skeleton_Warrior" if elite else ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
+        var boss_models := ["Skeleton_Warrior", "Skeleton_Mage", "Skeleton_Minion"]
+        var model_name: String = str(boss_models[_boss_variant()]) if elite else ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
         var root := Node3D.new()
         add_child(root)
         var packed := _get_asset_scene(model_name)
@@ -1153,27 +1208,34 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                instance.scale = Vector3.ONE * (1.24 if elite else 0.66 if i % 4 != 2 else 0.77)
+                instance.scale = Vector3.ONE * ([1.28, 1.48, 1.75][_boss_variant()] if elite else 0.66 if i % 4 != 2 else 0.77)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if elite:
+            var aura_tint := [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
             var halo := TorusMesh.new()
             halo.inner_radius = 1.07
             halo.outer_radius = 1.12
-            _mesh(root, halo, Vector3(0, 0.11, 0), _mat(Color("8a342c"), 0.0, true))
+            _mesh(root, halo, Vector3(0, 0.11, 0), _mat(aura_tint.darkened(0.40), 0.0, true))
+            for rune_i in range(5 + _boss_variant()):
+                var angle := TAU * float(rune_i) / float(5 + _boss_variant())
+                var shard_height := 0.30 + float(rune_i % 3) * 0.19
+                var shard := _cone(root, 0.13, 0.012, shard_height, Vector3(cos(angle) * 0.91, 0.22 + shard_height * 0.5, sin(angle) * 0.91), aura_tint.darkened(0.15))
+                shard.rotation.z = sin(angle) * 0.14
         if root.get_child_count() == 0:
             var body := CapsuleMesh.new()
             body.radius = 0.38 if not elite else 0.67
             body.height = 1.18 if not elite else 2.1
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
         root.position = _random_spawn()
-        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (13.0 if elite else 1.0)
+        var variant_hp := [13.0, 10.5, 16.0][_boss_variant()]
+        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 1.0)
         root.set_meta("hp", mob_health)
         root.set_meta("max_hp", mob_health)
         root.set_meta("boss", elite)
         root.set_meta("speed", 0.22 + rng.randf_range(0.01, 0.10))
         root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
-    combat_note = "BOSS: THE ASHEN WARDEN" if is_boss else "HORDE APPROACHING"
+    combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else "HORDE APPROACHING"
 
 func _impact(pos: Vector3, color: Color) -> void:
     var ball := SphereMesh.new()
