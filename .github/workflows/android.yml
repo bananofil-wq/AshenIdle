@@ -144,7 +144,10 @@ jobs:
               print("GLB DIAG TEXTURES",gltf.get("textures",[])[:3])
               print("GLB DIAG IMAGES",[{k:v for k,v in image.items() if k in ("uri","mimeType","bufferView")} for image in gltf.get("images",[])[:3]])
           PY
-          ls -lh assets/models/*_dark.glb assets/pbr/* 2>/dev/null || true
+          python3 -m venv "$RUNNER_TEMP/gltf-tools"
+          "$RUNNER_TEMP/gltf-tools/bin/pip" install --quiet pillow
+          "$RUNNER_TEMP/gltf-tools/bin/python" scripts/normalize_gltf_for_godot.py assets/models/ashen_*.glb
+          ls -lh assets/models/*_dark.glb assets/models/ashen_* assets/pbr/* 2>/dev/null || true
 
       - name: Download open-licensed fantasy heading font
         shell: bash
