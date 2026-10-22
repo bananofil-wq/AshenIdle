@@ -1,11 +1,29 @@
 extends SceneTree
-# Offscreen visual smoke test. Runs with a virtual X11 display and OpenGL renderer.
-# Captures what the portrait-mode Godot game actually draws, rather than a mockup.
+# Deterministic screenshot QA: real Godot renders without stale CI test save data.
 
 func _initialize() -> void:
     call_deferred("_render_test")
 
+func _save_capture(filename: String) -> bool:
+    await RenderingServer.frame_post_draw
+    var frame: Image = root.get_texture().get_image()
+    if frame.is_empty():
+        push_error("Cannot capture render: " + filename)
+        return false
+    var err: Error = frame.save_png("res://build/" + filename)
+    if err != OK:
+        push_error("Failed to save " + filename + ": " + str(err))
+        return false
+    print("Saved build/", filename, " (", frame.get_width(), "x", frame.get_height(), ")")
+    return true
+
 func _render_test() -> void:
+    # Game CI integration tests intentionally save unusual stats and gear;
+    # never let those leftovers make previews look like actual starting gameplay.
+    var save_path: String = ProjectSettings.globalize_path("user://save_v2.json")
+    if FileAccess.file_exists(save_path):
+        DirAccess.remove_absolute(save_path)
+
     var scene: PackedScene = load("res://scenes/main.tscn")
     if scene == null:
         push_error("Cannot load game scene")
@@ -15,25 +33,36 @@ func _render_test() -> void:
     root.add_child(game)
     current_scene = game
 
-    await create_timer(2.0).timeout
-    await RenderingServer.frame_post_draw
-
-    var frame: Image = root.get_texture().get_image()
-    if frame.is_empty():
-        push_error("Captured viewport is empty")
+    await create_timer(0.20).timeout
+    game.call("_hide_legendary")
+    game.set("stage", 8)
+    game.set("highest", 8)
+    game.set("level", 9)
+    game.set("gold", 840)
+    game.set("hp", game.call("_max_hp"))
+    game.call("_spawn_enemy")
+    game.call("_refresh")
+    await create_timer(0.45).timeout
+    game.call("_hide_legendary")
+    var suffix: String = OS.get_environment("ASHEN_CAPTURE_SUFFIX")
+    var gameplay_name: String = "gameplay-preview" + ("-" + suffix if suffix != "" else "") + ".png"
+    if not await _save_capture(gameplay_name):
         quit(3)
         return
-    var suffix: String = OS.get_environment("ASHEN_CAPTURE_SUFFIX")
-    var output_path: String = "res://build/gameplay-preview" + ("-" + suffix if suffix != "" else "") + ".png"
-    var err := frame.save_png(output_path)
-    if err != OK:
-        push_error("Cannot save gameplay preview: " + str(err))
-        quit(4)
-        return
-    print("Saved ", output_path, " ", frame.get_width(), "x", frame.get_height())
 
     if suffix == "tall":
+        # Second screenshot exposes the real boss health bar and boss model.
+        game.set("stage", 10)
+        game.set("highest", 10)
+        game.set("hp", game.call("_max_hp"))
+        game.call("_spawn_enemy")
+        game.call("_refresh")
+        await create_timer(0.20).timeout
         game.call("_hide_legendary")
+        if not await _save_capture("boss-preview.png"):
+            quit(4)
+            return
+
         var test_item := {
             "name": "Seven Star Greatsword",
             "slot": "Weapon",
@@ -41,28 +70,26 @@ func _render_test() -> void:
             "element": "VOID", "elemental": 32, "set": "Gravewarden"
         }
         game.call("_show_legendary", test_item)
-        await create_timer(0.18).timeout
-        await RenderingServer.frame_post_draw
-        var legendary_frame: Image = root.get_texture().get_image()
-        legendary_frame.save_png("res://build/legendary-preview.png")
+        await create_timer(0.16).timeout
+        if not await _save_capture("legendary-preview.png"):
+            quit(5)
+            return
 
         game.call("_hide_legendary")
         game.call("_open_talent_panel")
-        await create_timer(0.18).timeout
-        await RenderingServer.frame_post_draw
-        var talent_frame: Image = root.get_texture().get_image()
-        talent_frame.save_png("res://build/talent-preview.png")
+        await create_timer(0.16).timeout
+        if not await _save_capture("talent-preview.png"):
+            quit(6)
+            return
 
         game.call("_close_talent_panel")
         for i in range(6):
             game.call("_drop_loot")
         game.call("_hide_legendary")
         game.call("_show_inventory")
-        await create_timer(0.18).timeout
-        await RenderingServer.frame_post_draw
-        var inventory_frame: Image = root.get_texture().get_image()
-        inventory_frame.save_png("res://build/inventory-preview.png")
-
-        print("Captured gameplay, legendary, talent and inventory visual QA screenshots")
-
-    quit()
+        await create_timer(0.16).timeout
+        if not await _save_capture("inventory-preview.png"):
+            quit(7)
+            return
+        print("Visual QA PASS: portrait combat, boss, legendary loot, skill tree, inventory")
+    quit(0)
