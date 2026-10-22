@@ -117,6 +117,7 @@ var spark_texture: ImageTexture
 var pbr_floor: MeshInstance3D
 var art_brazier_lights: Array[OmniLight3D] = []
 var vfx_last_msec := 0
+var shared_animation_cache: Dictionary = {}
 var screen_flash: ColorRect
 var screen_flash_fade := 0.0
 var fx_sounds: Array = []
@@ -1541,7 +1542,7 @@ func _spawn_horde() -> void:
                 root.add_child(instance)
                 _fit_visual_model(instance, [3.15, 3.36, 3.4][_boss_variant()] if elite else 1.9)
                 _darken_character_materials(instance, elite)
-                if elite:
+                if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if elite:
@@ -1587,12 +1588,12 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     _burst_particles(center, color, 100 + shards * 9, size * 4.2, 0.67)
     if screen_flash != null:
         screen_flash.color = color
-        screen_flash_fade = 0.16
+        screen_flash_fade = 0.08
         screen_flash.modulate.a = screen_flash_fade
     _burst_particles(center + Vector3(0.0, 0.16, 0.0), Color("ffe4b6"), 32, size * 2.1, 0.37)
     var ground_glow := PlaneMesh.new()
     ground_glow.size = Vector2(size * 3.3, size * 3.3)
-    var ground_mat := _fx_material(color, 0.62)
+    var ground_mat := _fx_material(color, 0.24)
     ground_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
     var aoe := _mesh(self, ground_glow, Vector3(center.x, 0.104, center.z), ground_mat)
     aoe.scale = Vector3.ONE * 0.72
@@ -1600,7 +1601,7 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     var burst_light := OmniLight3D.new()
     burst_light.position = center + Vector3(0, 0.7, 0)
     burst_light.light_color = color
-    burst_light.light_energy = 3.1
+    burst_light.light_energy = 1.1
     burst_light.omni_range = 8.4
     add_child(burst_light)
     get_tree().create_timer(0.26).timeout.connect(burst_light.queue_free)
@@ -1613,11 +1614,11 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     var wave := _mesh(self, shock, hero.position + Vector3(0, 0.10, 0) if hero != null else Vector3.ZERO, ring_mat)
     wave.scale = Vector3.ONE * 0.3
     spell_fx.append({"node": wave, "time": 0.31, "total": 0.31, "type": "spell"})
-    for strike_i in range(mini(shards + 4, 13)):
-        var angle := TAU * float(strike_i) / float(shards + 4)
-        var origin := center + Vector3(0, 1.2, 0)
-        var end := center + Vector3(cos(angle) * size * 1.55, rng.randf_range(-0.55, 0.5), sin(angle) * size * 1.55)
-        _energy_arc(origin, end, color, 0.055 + 0.015 * float(strike_i % 3))
+    for strike_i in range(mini(shards + 1, 8)):
+        var angle := TAU * float(strike_i) / float(shards + 1)
+        var origin := center + Vector3(cos(angle) * 0.34, 0.85, sin(angle) * 0.34)
+        var end := center + Vector3(cos(angle) * size * 0.93, rng.randf_range(-0.45, 0.35), sin(angle) * size * 0.93)
+        _energy_arc(origin, end, color, 0.023 + 0.008 * float(strike_i % 3))
     # Beams of rising energy, individual sparks and sharp concentric shockwave.
     for i in range(mini(shards + 2, 12)):
         var theta := TAU * float(i) / float(shards + 2)
@@ -1637,7 +1638,7 @@ func _energy_arc(from: Vector3, to: Vector3, tint: Color, thickness: float) -> v
     cylinder.top_radius = thickness * 0.22
     cylinder.bottom_radius = thickness
     cylinder.height = distance
-    var shaft := _mesh(self, cylinder, (from + to) * 0.5, _beam_material(tint, 0.77))
+    var shaft := _mesh(self, cylinder, (from + to) * 0.5, _beam_material(tint, 0.35))
     shaft.quaternion = Quaternion(Vector3.UP, heading.normalized())
     spell_fx.append({"node": shaft, "time": 0.28, "total": 0.28, "type": "hit"})
 
@@ -1658,7 +1659,7 @@ func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
     mat.albedo_color = Color(color.r, color.g, color.b, alpha)
     mat.emission_enabled = true
     mat.emission = color
-    mat.emission_energy_multiplier = 4.7
+    mat.emission_energy_multiplier = 1.8
     return mat
 
 func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
@@ -1869,14 +1870,23 @@ func _attach_hero_clips(model: Node3D) -> void:
     var shared := _get_asset_scene("ashen_shared_anims")
     if shared == null:
         return
-    var donor: Node3D = shared.instantiate() as Node3D
-    if donor == null:
-        return
-    add_child(donor)
     var receiver_skeleton: Skeleton3D
     for part in model.find_children("*", "Skeleton3D", true, false):
         receiver_skeleton = part as Skeleton3D
         break
+    if receiver_skeleton == null:
+        return
+    var skeleton_path: String = String(model.get_path_to(receiver_skeleton))
+    if shared_animation_cache.has(skeleton_path):
+        var cached_player := AnimationPlayer.new()
+        cached_player.name = "CombatAnimationPlayer"
+        model.add_child(cached_player)
+        cached_player.add_animation_library("", shared_animation_cache[skeleton_path])
+        return
+    var donor: Node3D = shared.instantiate() as Node3D
+    if donor == null:
+        return
+    add_child(donor)
     var donor_player: AnimationPlayer
     for part in donor.find_children("*", "AnimationPlayer", true, false):
         donor_player = part as AnimationPlayer
@@ -1913,6 +1923,7 @@ func _attach_hero_clips(model: Node3D) -> void:
         if target_anim.get_track_count() > 0:
             result.add_animation(clip_name, target_anim)
     if result.get_animation_list().size() > 0:
+        shared_animation_cache[skeleton_path] = result
         var receiver := AnimationPlayer.new()
         receiver.name = "CombatAnimationPlayer"
         model.add_child(receiver)
