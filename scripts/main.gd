@@ -966,7 +966,7 @@ func _update_camera(delta: float) -> void:
         focus += (target.global_position - hero_target) * 0.12
     focus.y = 0.66
     camera_focus = camera_focus.lerp(focus, clampf(delta * 2.1, 0.0, 1.0))
-    var boss_fight := stage % 5 == 0
+    var boss_fight: bool = stage % 5 == 0
     var look_offset := Vector3(0, 13.6 if boss_fight else 13.4, 15.1 if boss_fight else 14.5)
     var subtle_orbit: float = sin(camera_time * 0.31) * 0.32
     var random_shake := Vector3(
