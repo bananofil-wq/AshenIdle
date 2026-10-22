@@ -89,6 +89,16 @@ var cached_model_scenes: Dictionary = {}
 var ember_motes: Array = []
 var ritual_marks: Array = []
 var attack_animation_index := 0
+var biome_index := -1
+var boss_telegraph: MeshInstance3D
+var boss_cast_timer := 4.5
+var boss_cast_windup := 0.0
+var hero_hit_flash := 0.0
+var earned_bosses: Dictionary = {}
+var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
+var bg_environment: WorldEnvironment
+var fire_light: OmniLight3D
+var mystic_light: OmniLight3D
 var auto_equip := true
 var auto_gear_button: Button
 var equipped_vfx: Node3D
@@ -101,6 +111,7 @@ func _ready() -> void:
     _build_ui()
     _spawn_enemy()
     _sync_equipment_visuals()
+    _apply_biome()
     _refresh()
 
 func _mat(color: Color, metallic: float = 0.0, emission: bool = false) -> StandardMaterial3D:
@@ -164,6 +175,7 @@ func _fighter(at: Vector3, color: Color, enemy: bool) -> Node3D:
 
 func _build_world() -> void:
     var world := WorldEnvironment.new()
+    bg_environment = world
     var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color("070a12")
@@ -192,12 +204,14 @@ func _build_world() -> void:
     sun.light_energy = 0.9
     sun.shadow_enabled = true
     var ember := OmniLight3D.new()
+    fire_light = ember
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
     ember.light_color = Color("ff6332")
     ember.light_energy = 1.25
     ember.omni_range = 13.0
     var arcane := OmniLight3D.new()
+    mystic_light = arcane
     add_child(arcane)
     arcane.position = Vector3(-3.6, 4.0, -2.0)
     arcane.light_color = Color("965eff")
@@ -575,14 +589,15 @@ func _process(delta: float) -> void:
     tick += delta
     save_timer += delta
     if hero != null:
-        hero.rotation.y = 0.20 + sin(chaos_time * 2.6) * 0.12
-        hero.position.y = sin(chaos_time * 2.8) * 0.05
+        pass # hero movement is handled by _move_hero
     if foe != null:
         foe.rotation.y = sin(chaos_time * 2.0) * 0.10
     if foe_body != null:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
+    _move_hero(delta)
+    _update_boss_cast(delta)
     _update_ember_motes()
     minimap_refresh_timer += delta
     if tick > 0.36 and popup_shade.visible:
@@ -599,12 +614,13 @@ func _fight() -> void:
     if arena_mobs.is_empty():
         _complete_wave()
         return
-    var target: Node3D = arena_mobs[rng.randi_range(0, arena_mobs.size() - 1)] as Node3D
+    var target: Node3D = _choose_target()
     if target == null or not is_instance_valid(target):
         return
     var crit: bool = rng.randf() < clampf(0.22 + _bonus("crit") / 100.0, 0.22, 0.68)
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     _hit_mob(target, damage, crit)
+    _slash_trail(target.global_position, crit)
     attack_animation_index += 1
     if attack_animation_index % 3 == 0:
         _trigger_combat_animation(hero)
@@ -627,6 +643,126 @@ func _fight() -> void:
         combat_note = "DEFEATED — AUTO-GRINDING PREVIOUS STAGE"
         _spawn_enemy()
     _refresh()
+
+func _choose_target() -> Node3D:
+    if arena_mobs.is_empty():
+        return null
+    var origin: Vector3 = hero.global_position if is_instance_valid(hero) else Vector3.ZERO
+    var best: Node3D
+    var best_distance: float = INF
+    for candidate in arena_mobs:
+        var mob: Node3D = candidate as Node3D
+        if mob == null or not is_instance_valid(mob):
+            continue
+        var distance: float = mob.global_position.distance_squared_to(origin)
+        if bool(mob.get_meta("boss", false)):
+            distance *= 0.4
+        if distance < best_distance:
+            best_distance = distance
+            best = mob
+    return best
+
+func _move_hero(delta: float) -> void:
+    if hero == null or not is_instance_valid(hero) or popup_shade.visible:
+        return
+    var destination := Vector3(-0.4, 0.0, 0.7)
+    var target: Node3D = _choose_target()
+    if target != null:
+        var retreat: Vector3 = hero.position - target.position
+        retreat.y = 0.0
+        if retreat.length_squared() < 0.01:
+            retreat = Vector3.RIGHT
+        destination = target.position + retreat.normalized() * (1.85 if hero_class == 1 or hero_class == 2 else 1.05)
+        destination.x = clampf(destination.x, -3.2, 3.2)
+        destination.z = clampf(destination.z, -3.2, 3.2)
+        var look_dir: Vector3 = target.position - hero.position
+        if look_dir.length_squared() > 0.1:
+            hero.rotation.y = lerp_angle(hero.rotation.y, atan2(look_dir.x, look_dir.z), clampf(delta * 6.0, 0.0, 1.0))
+    hero.position.x = move_toward(hero.position.x, destination.x, delta * 2.8)
+    hero.position.z = move_toward(hero.position.z, destination.z, delta * 2.8)
+    hero.position.y = sin(chaos_time * 7.0) * 0.03
+    if hero_hit_flash > 0.0:
+        hero_hit_flash = maxf(0.0, hero_hit_flash - delta)
+        hero.scale = Vector3.ONE * (1.02 if int(hero_hit_flash * 14.0) % 2 == 0 else 0.96)
+    else:
+        hero.scale = Vector3.ONE
+
+func _slash_trail(pos: Vector3, crit: bool) -> void:
+    var arc := TorusMesh.new()
+    arc.inner_radius = 0.49 if crit else 0.35
+    arc.outer_radius = 0.53 if crit else 0.39
+    var tint := Color("ffcc7c") if crit else Color("ef8b47") if hero_class == 0 else Color("73cef8") if hero_class == 2 else Color("a56de8")
+    var slash := _mesh(self, arc, pos + Vector3(0, 0.95, 0), _bright(tint))
+    slash.rotation.x = PI * 0.34
+    slash.scale = Vector3.ONE * 0.6
+    spell_fx.append({"node": slash, "time": 0.24, "total": 0.24, "type": "hit"})
+
+func _clear_boss_telegraph() -> void:
+    if boss_telegraph != null and is_instance_valid(boss_telegraph):
+        boss_telegraph.queue_free()
+    boss_telegraph = null
+    boss_cast_windup = 0.0
+    boss_cast_timer = 4.5
+
+func _update_boss_cast(delta: float) -> void:
+    if stage % 5 != 0 or popup_shade.visible:
+        return
+    var has_boss := false
+    for candidate in arena_mobs:
+        if is_instance_valid(candidate) and bool(candidate.get_meta("boss", false)):
+            has_boss = true
+            break
+    if not has_boss:
+        return
+    if boss_cast_windup > 0.0:
+        boss_cast_windup -= delta
+        if boss_telegraph != null and is_instance_valid(boss_telegraph):
+            var urgency: float = clampf(1.0 - boss_cast_windup / 1.35, 0.0, 1.0)
+            boss_telegraph.scale = Vector3.ONE * (0.8 + urgency * 0.4)
+        if boss_cast_windup <= 0.0:
+            var impact_damage: float = (10.0 + float(stage) * 0.9) * [1.1, 0.9, 1.4][_boss_variant()]
+            var reduced: float = impact_damage * (1.0 - clampf(_bonus("defense") / 100.0, 0.0, 0.52))
+            hp -= reduced
+            _spell_burst([Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()], 2.0, 7)
+            _damage_popup(int(reduced), hero.position + Vector3(0, 0.15, 0), true)
+            hero_hit_flash = 0.3
+            combat_note = "BOSS POWER ATTACK!"
+            if hp <= 0.0:
+                hp = _max_hp()
+                grind_mode = true
+                stage = maxi(1, highest - 1)
+                combat_note = "DEFEATED — FARMING FOR BETTER GEAR"
+                _spawn_enemy()
+                _apply_biome()
+            _clear_boss_telegraph()
+            _refresh()
+        return
+    boss_cast_timer -= delta
+    if boss_cast_timer <= 0.0:
+        boss_cast_windup = 1.35
+        boss_cast_timer = 6.0
+        var ring := TorusMesh.new()
+        ring.inner_radius = 1.4
+        ring.outer_radius = 1.5
+        boss_telegraph = _mesh(self, ring, hero.position + Vector3(0, 0.15, 0), _bright([Color("b92c23"), Color("7140d3"), Color("db8537")][_boss_variant()]))
+        combat_note = "DANGER — BOSS CHARGING!"
+        _refresh()
+
+func _apply_biome() -> void:
+    var next_biome: int = posmod(floori(float(stage - 1) / 5.0), 3)
+    if biome_index == next_biome or bg_environment == null:
+        return
+    biome_index = next_biome
+    var scene: Environment = bg_environment.environment
+    scene.background_color = [Color("070a12"), Color("07121b"), Color("170b1e")][next_biome]
+    scene.ambient_light_color = [Color("677186"), Color("5b8ea2"), Color("91617b")][next_biome]
+    if fire_light != null:
+        fire_light.light_color = [Color("ff6332"), Color("59a5f7"), Color("d53f8c")][next_biome]
+    if mystic_light != null:
+        mystic_light.light_color = [Color("965eff"), Color("6fcad8"), Color("d18d4b")][next_biome]
+    if center_banner != null:
+        center_banner.text = ["THE CINDER CRYPT", "THE FROST WASTES", "THE VOID CITADEL"][next_biome]
+        center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("f2bddc")][next_biome])
 
 func _trigger_combat_animation(actor: Node3D) -> void:
     if actor == null or not is_instance_valid(actor):
@@ -681,6 +817,9 @@ func _kill_mob(target: Node3D) -> void:
     if boss or rng.randf() < 0.22:
         _drop_loot_at(drop_pos, boss)
     if boss:
+        earned_bosses[BOSS_NAMES[_boss_variant()]] = int(earned_bosses.get(BOSS_NAMES[_boss_variant()], 0)) + 1
+        battle_statistics["bosses"] = int(battle_statistics.get("bosses", 0)) + 1
+        _clear_boss_telegraph()
         combat_note = "BOSS DEFEATED — LEGENDARY REWARDS"
     while xp >= level * 30:
         xp -= level * 30
@@ -720,6 +859,7 @@ func _complete_wave() -> void:
         combat_note = "BOSS CLEARED — NEXT AREA" if was_boss else "AREA CLEARED"
     hp = _max_hp()
     _spawn_enemy()
+    _apply_biome()
     _save_game()
 
 func _try_boss() -> void:
@@ -815,10 +955,12 @@ func _drop_loot_at(drop_pos: Vector3, boss_drop: bool) -> void:
     if gear.size() > 36:
         gear.pop_back()
     _loot_beam(drop_pos, loot_color, name)
-    if auto_equip and rarity != "LEGENDARY":
+    battle_statistics["loot"] = int(battle_statistics.get("loot", 0)) + 1
+    if auto_equip:
         _auto_equip_item(item)
     if rarity == "LEGENDARY":
-        _show_legendary(item)
+        # Legendary drops must not freeze an unattended idle run.
+        combat_note = "LEGENDARY FOUND — " + name.to_upper()
 
 func _item_score(item: Dictionary) -> float:
     if item.is_empty():
@@ -881,6 +1023,7 @@ func _forge_weakest() -> void:
     upgraded["damage"] = int(upgraded.get("damage", 0)) + 2 + maxi(1, int(level / 5))
     upgraded["hp"] = int(upgraded.get("hp", 0)) + 7 + maxi(1, int(level / 3))
     equipped[target_slot] = upgraded
+    battle_statistics["forged"] = int(battle_statistics.get("forged", 0)) + 1
     hp = minf(_max_hp(), hp + 15.0)
     _sync_equipment_visuals()
     _spell_burst(Color("ffbb62"), 1.4, 4)
@@ -975,7 +1118,9 @@ func _save_game() -> void:
         "class": hero_class, "level": level, "xp": xp, "gold": gold,
         "stage": stage, "highest": highest, "kills": kills, "hp": hp,
         "gear": gear, "equipped": equipped, "skills": skills,
-        "skill_points": skill_points, "auto_equip": auto_equip, "saved_at": Time.get_unix_time_from_system()
+        "skill_points": skill_points, "auto_equip": auto_equip,
+        "boss_history": earned_bosses, "statistics": battle_statistics,
+        "saved_at": Time.get_unix_time_from_system()
     }
     var f = FileAccess.open(SAVE_FILE, FileAccess.WRITE)
     if f:
@@ -1004,6 +1149,8 @@ func _load_game() -> void:
     gear = data.get("gear", [])
     equipped = data.get("equipped", {})
     auto_equip = bool(data.get("auto_equip", true))
+    earned_bosses = data.get("boss_history", {})
+    battle_statistics = data.get("statistics", {"bosses": 0, "loot": 0, "forged": 0})
     skills = data.get("skills", [0, 0, 0])
     if skills.size() != 3:
         skills = [0, 0, 0]
@@ -1347,13 +1494,22 @@ func _damage_popup(value: int, pos: Vector3, crit: bool) -> void:
 
 func _update_chaos(delta: float) -> void:
     for i in range(arena_mobs.size()):
-        var mob = arena_mobs[i]
+        var mob: Node3D = arena_mobs[i] as Node3D
         if not is_instance_valid(mob):
             continue
-        var a := float(i) * 2.39996 + chaos_time * (0.2 if i % 2 == 0 else -0.17)
-        var r := (1.55 if bool(mob.get_meta("boss", false)) else 2.0 + float(i % 8) * 0.39)
-        mob.position = Vector3(cos(a) * r, sin(chaos_time * 4.0 + float(i)) * 0.07, sin(a) * r)
-        mob.rotation.y = a + PI
+        var a: float = float(i) * 2.39996 + chaos_time * (0.27 if i % 2 == 0 else -0.19)
+        var radius: float = 1.6 if bool(mob.get_meta("boss", false)) else 2.1 + float(i % 7) * 0.3
+        var orbit_center: Vector3 = hero.position if hero != null else Vector3.ZERO
+        var desired: Vector3 = orbit_center + Vector3(cos(a) * radius, 0, sin(a) * radius)
+        desired.x = clampf(desired.x, -5.1, 5.1)
+        desired.z = clampf(desired.z, -5.1, 5.1)
+        var speed: float = 0.45 + float(mob.get_meta("speed", 0.25)) * 1.6
+        mob.position = mob.position.lerp(desired, clampf(delta * speed, 0.0, 1.0))
+        mob.position.y = sin(chaos_time * 4.0 + float(i)) * 0.04
+        if hero != null:
+            var towards_hero: Vector3 = hero.position - mob.position
+            if towards_hero.length_squared() > 0.01:
+                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(towards_hero.x, towards_hero.z), clampf(delta * 3.5, 0.0, 1.0))
     for i in range(spell_fx.size() - 1, -1, -1):
         var fx: Dictionary = spell_fx[i]
         fx["time"] = float(fx["time"]) - delta
