@@ -180,6 +180,7 @@ func _run() -> void:
     game.set("stage", 6)
     game.call("_spawn_enemy")
     var moving_hero: Node3D = game.get("hero")
+    moving_hero.position = Vector3(0, 0, 6.5)
     var origin: Vector3 = moving_hero.position
     game.call("_move_hero", 0.4)
     if not _check(moving_hero.position.distance_to(origin) > 0.01, "Hero should visibly seek enemies"):
