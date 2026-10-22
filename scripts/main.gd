@@ -58,6 +58,7 @@ var screen_note: Label
 var popup_shade: ColorRect
 var last_inventory_signature := ""
 var minimap_refresh_timer := 10.0
+var cached_model_scenes: Dictionary = {}
 
 
 func _ready() -> void:
@@ -186,8 +187,8 @@ func _build_world() -> void:
             continue
         _box(self, Vector3(rng.randf_range(0.2,0.6),0.12,rng.randf_range(0.2,0.6)), Vector3(x,0.02,z), Color("52373c"))
 
-    hero = _fighter(Vector3(-0.45, 0, 0.65), Color("507b81"), false)
-    foe = _fighter(Vector3(1.55, 0, -0.8), Color("a43f52"), true)
+    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
+    foe = _make_animated_character("Skeleton_Warrior", Vector3(1.55, 0, -0.8), true)
     _spawn_horde()
 
 func _panel_color() -> StyleBoxFlat:
@@ -490,6 +491,9 @@ func _forward() -> void:
 
 func _switch_class() -> void:
     hero_class = (hero_class + 1) % 4
+    if hero != null:
+        hero.queue_free()
+    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     hp = _max_hp()
     combat_note = "NY KLASS: " + CLASSES[hero_class]
     _save_game()
@@ -729,30 +733,29 @@ func _random_spawn() -> Vector3:
     var d := rng.randf_range(1.7, 4.8)
     return Vector3(cos(a) * d, 0, sin(a) * d)
 
+
 func _spawn_horde() -> void:
     for mob in arena_mobs:
         if is_instance_valid(mob):
             mob.queue_free()
     arena_mobs.clear()
-    for i in range(15 + mini(stage / 5, 14)):
+    var mob_count: int = 9 + mini(int(stage / 6), 7)
+    for i in range(mob_count):
+        var model_name: String = ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
         var root := Node3D.new()
-        root.position = _random_spawn()
-        root.rotation.y = rng.randf_range(0.0, TAU)
         add_child(root)
-        var c := Color("8f3545") if i % 5 != 0 else Color("bd7b39")
-        var sphere := SphereMesh.new()
-        sphere.radius = 0.30 if i % 5 != 0 else 0.46
-        sphere.height = 0.75 if i % 5 != 0 else 1.0
-        _mesh(root, sphere, Vector3(0, 0.42, 0), _mat(c))
-        var head := SphereMesh.new()
-        head.radius = 0.18
-        _mesh(root, head, Vector3(0, 0.94, 0), _mat(Color("30252d")))
-        _box(root, Vector3(0.11, 0.12, 0.09), Vector3(-0.1, 0.99, 0.15), Color("ff6a32"), true)
-        _box(root, Vector3(0.11, 0.12, 0.09), Vector3(0.1, 0.99, 0.15), Color("ff6a32"), true)
-        for limb in range(4):
-            var side := -1.0 if limb < 2 else 1.0
-            var z := -0.22 if limb % 2 == 0 else 0.22
-            _box(root, Vector3(0.45, 0.1, 0.11), Vector3(side * 0.29, 0.35, z), Color("261d27"))
+        var packed := _get_asset_scene(model_name)
+        if packed != null:
+            var instance := packed.instantiate()
+            root.add_child(instance)
+            instance.scale = Vector3.ONE * (0.73 if i % 4 != 2 else 0.9)
+            _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
+        else:
+            var body := CapsuleMesh.new()
+            body.radius = 0.38
+            body.height = 1.18
+            _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
+        root.position = _random_spawn()
         arena_mobs.append(root)
 
 func _impact(pos: Vector3, color: Color) -> void:
@@ -883,3 +886,44 @@ func _sphere_part(parent: Node3D, radius: float, pos: Vector3, color: Color) -> 
     mesh.radius = radius
     mesh.height = radius * 2.0
     return _mesh(parent, mesh, pos, _mat(color, 0.12))
+
+func _get_asset_scene(short_name: String) -> PackedScene:
+    if cached_model_scenes.has(short_name):
+        return cached_model_scenes[short_name] as PackedScene
+    var path: String = "res://assets/models/" + short_name + ".glb"
+    if not ResourceLoader.exists(path):
+        return null
+    var scene: PackedScene = ResourceLoader.load(path) as PackedScene
+    if scene != null:
+        cached_model_scenes[short_name] = scene
+    return scene
+
+func _play_animation(model: Node, candidates: Array) -> void:
+    var players: Array[Node] = model.find_children("*", "AnimationPlayer", true, false)
+    for found in players:
+        var player: AnimationPlayer = found as AnimationPlayer
+        if player == null:
+            continue
+        var names := player.get_animation_list()
+        for candidate in candidates:
+            for name in names:
+                if str(name).to_lower().contains(str(candidate).to_lower()):
+                    player.play(name)
+                    return
+        if names.size() > 0:
+            player.play(names[0])
+            return
+
+func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> Node3D:
+    var packed := _get_asset_scene(model_name)
+    if packed == null:
+        return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
+    var root := Node3D.new()
+    root.position = at
+    add_child(root)
+    var model := packed.instantiate()
+    root.add_child(model)
+    model.scale = Vector3.ONE * (1.05 if enemy else 1.18)
+    model.rotation.y = PI
+    _play_animation(model, ["Idle_A", "Idle", "idle"])
+    return root
