@@ -158,6 +158,7 @@ jobs:
           path: |
             build/gameplay-preview*.png
             build/boss-preview.png
+            build/hero-selection-preview.png
             build/legendary-preview.png
             build/talent-preview.png
             build/inventory-preview.png
