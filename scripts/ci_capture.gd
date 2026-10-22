@@ -23,7 +23,9 @@ func _render_test() -> void:
         push_error("Captured viewport is empty")
         quit(3)
         return
-    var err := frame.save_png("res://build/gameplay-preview.png")
+    var suffix: String = OS.get_environment("ASHEN_CAPTURE_SUFFIX")
+    var output_path: String = "res://build/gameplay-preview" + ("-" + suffix if suffix != "" else "") + ".png"
+    var err := frame.save_png(output_path)
     if err != OK:
         push_error("Cannot save gameplay preview: " + str(err))
         quit(4)
