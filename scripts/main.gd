@@ -274,6 +274,9 @@ func _label(t: String, font_size: int, color: Color = Color("e8d8c1")) -> Label:
             if display_font != null:
                 l.add_theme_font_override("font", display_font)
     l.add_theme_color_override("font_color", color)
+    l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.92))
+    l.add_theme_constant_override("shadow_offset_x", 1)
+    l.add_theme_constant_override("shadow_offset_y", 2)
     l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     return l
 
@@ -295,65 +298,65 @@ func _build_ui() -> void:
     layer.add_child(overlay)
 
     var portrait := PanelContainer.new()
-    portrait.position = Vector2(14, 20)
-    portrait.size = Vector2(295, 128)
-    portrait.add_theme_stylebox_override("panel", _skin(Color("12141fe8"), Color("b66b48")))
+    portrait.position = Vector2(14, 18)
+    portrait.size = Vector2(280, 120)
+    portrait.add_theme_stylebox_override("panel", _skin(Color("0a0c12ed"), Color("65594d")))
     overlay.add_child(portrait)
     var portrait_box := VBoxContainer.new()
     portrait.add_child(portrait_box)
-    portrait_box.add_child(_label("CINDER RECKONING", 19, Color("f6be79")))
-    status = _label("", 23, Color("ffe2be"))
+    portrait_box.add_child(_label("ASHEN IDLE  •  RECKONING", 17, Color("d9b78d")))
+    status = _label("", 21, Color("e7e2d6"))
     portrait_box.add_child(status)
     details = _label("", 15, Color("f1d7c1"))
     portrait_box.add_child(details)
     hero_heart = ColorRect.new()
-    hero_heart.color = Color("d53c3c")
-    hero_heart.custom_minimum_size = Vector2(270, 7)
+    hero_heart.color = Color("ab342a")
+    hero_heart.custom_minimum_size = Vector2(250, 5)
     portrait_box.add_child(hero_heart)
     power_label = _label("", 16, Color("ffd375"))
     portrait_box.add_child(power_label)
 
     var map_panel := PanelContainer.new()
-    map_panel.position = Vector2(496, 20)
-    map_panel.size = Vector2(208, 175)
-    map_panel.add_theme_stylebox_override("panel", _skin(Color("11121bed"), Color("785a43")))
+    map_panel.position = Vector2(512, 18)
+    map_panel.size = Vector2(192, 145)
+    map_panel.add_theme_stylebox_override("panel", _skin(Color("0a0c12ed"), Color("65594d")))
     overlay.add_child(map_panel)
     var map_column := VBoxContainer.new()
     map_panel.add_child(map_column)
-    map_column.add_child(_label("THE LOST LANDS", 16, Color("ead2b0")))
+    map_column.add_child(_label("THE LOST LANDS", 15, Color("cabbad")))
     map_dots = Control.new()
-    map_dots.custom_minimum_size = Vector2(180, 80)
+    map_dots.custom_minimum_size = Vector2(167, 70)
     map_column.add_child(map_dots)
-    stage_banner = _label("", 24, Color("ffca77"))
+    stage_banner = _label("", 19, Color("f0c997"))
     map_column.add_child(stage_banner)
 
     var controls := VBoxContainer.new()
-    controls.position = Vector2(14, 205)
-    controls.add_theme_constant_override("separation", 10)
+    controls.position = Vector2(14, 193)
+    controls.add_theme_constant_override("separation", 7)
     overlay.add_child(controls)
-    controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(112, 51)))
-    controls.add_child(_ornate_button("HERO", _show_hero_panel, Vector2(112, 51)))
-    controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(112, 51)))
-    auto_gear_button = _ornate_button("AUTO GEAR", _toggle_auto_gear, Vector2(112, 51))
+    controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(105, 43)))
+    controls.add_child(_ornate_button("HERO", _show_hero_panel, Vector2(105, 43)))
+    controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(105, 43)))
+    auto_gear_button = _ornate_button("AUTO GEAR", _toggle_auto_gear, Vector2(105, 43))
     controls.add_child(auto_gear_button)
 
     var banner := PanelContainer.new()
-    banner.position = Vector2(166, 219)
-    banner.size = Vector2(391, 70)
-    banner.add_theme_stylebox_override("panel", _skin(Color("120f1bd2"), Color("ba823e")))
+    banner.position = Vector2(175, 202)
+    banner.size = Vector2(367, 62)
+    banner.add_theme_stylebox_override("panel", _skin(Color("090a10ba"), Color("5e4e4b")))
     overlay.add_child(banner)
     var banner_column := VBoxContainer.new()
     banner.add_child(banner_column)
-    center_banner = _label("THE ASHEN HUNT", 25, Color("ffd08c"))
+    center_banner = _label("THE ASHEN HUNT", 22, Color("ffd08c"))
     center_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(center_banner)
-    combat = _label("", 18, Color("dbceda"))
+    combat = _label("", 15, Color("ded4ce"))
     combat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(combat)
     var boss_panel := PanelContainer.new()
-    boss_panel.position = Vector2(182, 309)
-    boss_panel.size = Vector2(356, 57)
-    boss_panel.add_theme_stylebox_override("panel", _skin(Color("160d19ea"), Color("b14b3f")))
+    boss_panel.position = Vector2(189, 273)
+    boss_panel.size = Vector2(342, 52)
+    boss_panel.add_theme_stylebox_override("panel", _skin(Color("100a12c9"), Color("aa5143")))
     overlay.add_child(boss_panel)
     var boss_col := VBoxContainer.new()
     boss_panel.add_child(boss_col)
@@ -362,23 +365,23 @@ func _build_ui() -> void:
     boss_col.add_child(boss_hp_label)
     boss_hp_bar = ColorRect.new()
     boss_hp_bar.color = Color("e13b46")
-    boss_hp_bar.custom_minimum_size = Vector2(326, 8)
+    boss_hp_bar.custom_minimum_size = Vector2(310, 6)
     boss_col.add_child(boss_hp_bar)
     boss_panel.name = "BossHPPanel"
 
 
     var bottom := PanelContainer.new()
-    bottom.position = Vector2(16, overlay.size.y - 228)
-    bottom.size = Vector2(688, 213)
-    bottom.add_theme_stylebox_override("panel", _skin(Color("10111de9"), Color("695344")))
+    bottom.position = Vector2(16, overlay.size.y - 190)
+    bottom.size = Vector2(688, 177)
+    bottom.add_theme_stylebox_override("panel", _skin(Color("090b11ea"), Color("68615c")))
     overlay.add_child(bottom)
     var col := VBoxContainer.new()
     bottom.add_child(col)
-    info = _label("", 17, Color("edddc7"))
+    info = _label("", 15, Color("c8bdad"))
     col.add_child(info)
     combat_bar = ColorRect.new()
-    combat_bar.color = Color("ad653c")
-    combat_bar.custom_minimum_size = Vector2(640, 5)
+    combat_bar.color = Color("ba4d32")
+    combat_bar.custom_minimum_size = Vector2(640, 4)
     col.add_child(combat_bar)
     var action_line := HBoxContainer.new()
     action_line.add_theme_constant_override("separation", 6)
@@ -390,7 +393,7 @@ func _build_ui() -> void:
     action_line.add_child(_ornate_button("FORGE", _forge_weakest, Vector2(106, 46)))
     action_line.add_child(_ornate_button("SKILL+", _open_talent_panel, Vector2(106, 46)))
     var scroll := ScrollContainer.new()
-    scroll.custom_minimum_size = Vector2(630, 68)
+    scroll.custom_minimum_size = Vector2(630, 50)
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     col.add_child(scroll)
     inventory = VBoxContainer.new()
@@ -400,11 +403,13 @@ func _build_ui() -> void:
     col.add_child(offline)
 
     var skill_bar := HBoxContainer.new()
-    skill_bar.position = Vector2(385, overlay.size.y - 337)
-    skill_bar.add_theme_constant_override("separation", 10)
+    skill_bar.position = Vector2(419, overlay.size.y - 285)
+    skill_bar.add_theme_constant_override("separation", 7)
     overlay.add_child(skill_bar)
     for spell_name in CLASS_SPELLS[hero_class]:
-        var b := _ornate_button(str(spell_name), _use_skill.bind(skill_buttons.size()), Vector2(97, 91))
+        var b := _ornate_button(str(spell_name), _use_skill.bind(skill_buttons.size()), Vector2(80, 76))
+        b.add_theme_font_size_override("font_size", 14)
+        b.add_theme_stylebox_override("normal", _skin(Color("1a1624e8"), Color("a7775c")))
         skill_buttons.append(b)
         skill_bar.add_child(b)
 
@@ -1325,25 +1330,25 @@ func _skin(bg: Color, edge: Color) -> StyleBoxFlat:
     var style := StyleBoxFlat.new()
     style.bg_color = bg
     style.border_color = edge
-    style.set_border_width_all(2)
-    style.set_corner_radius_all(13)
-    style.shadow_color = Color(0.0, 0.0, 0.0, 0.45)
-    style.shadow_size = 5
+    style.set_border_width_all(1)
+    style.set_corner_radius_all(7)
+    style.shadow_color = Color(0.0, 0.0, 0.0, 0.67)
+    style.shadow_size = 7
     style.anti_aliasing = true
-    style.content_margin_left = 12
-    style.content_margin_right = 12
-    style.content_margin_top = 9
-    style.content_margin_bottom = 9
+    style.content_margin_left = 11
+    style.content_margin_right = 11
+    style.content_margin_top = 8
+    style.content_margin_bottom = 8
     return style
 
 func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
     var b := Button.new()
     b.text = title
     b.custom_minimum_size = dims
-    b.add_theme_font_size_override("font_size", 17)
-    b.add_theme_stylebox_override("normal", _skin(Color("231c28ef"), Color("8b633c")))
-    b.add_theme_stylebox_override("hover", _skin(Color("50323bed"), Color("ffc268")))
-    b.add_theme_stylebox_override("pressed", _skin(Color("7d472fe9"), Color("ffe3a4")))
+    b.add_theme_font_size_override("font_size", 15)
+    b.add_theme_stylebox_override("normal", _skin(Color("101016ed"), Color("68605f")))
+    b.add_theme_stylebox_override("hover", _skin(Color("26212be9"), Color("e4a568")))
+    b.add_theme_stylebox_override("pressed", _skin(Color("51382ce9"), Color("f4bc77")))
     b.add_theme_stylebox_override("focus", _skin(Color("382c38d8"), Color("e4b676")))
     b.add_theme_color_override("font_color", Color("f8e8d2"))
     b.add_theme_color_override("font_pressed_color", Color("ffffff"))
