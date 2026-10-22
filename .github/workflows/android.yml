@@ -151,6 +151,7 @@ jobs:
             build/gameplay-preview*.png
             build/legendary-preview.png
             build/talent-preview.png
+            build/inventory-preview.png
           if-no-files-found: ignore
           retention-days: 30
 
