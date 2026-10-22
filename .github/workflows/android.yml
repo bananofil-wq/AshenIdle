@@ -210,6 +210,29 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+      - name: Render and encode genuine moving gameplay QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/motion
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" \
+            godot --resolution 720x1280 --path . --rendering-driver opengl3 \
+            --script res://scripts/ci_motion.gd 2>&1 | tee build/motion.log
+          test "$(find build/motion -name '*.jpg' | wc -l)" -eq 54
+          ffmpeg -hide_banner -loglevel error -y -framerate 15 \
+            -i build/motion/%03d.jpg -c:v libx264 -preset veryfast -crf 29 \
+            -pix_fmt yuv420p -movflags +faststart build/gameplay-motion.mp4
+          test -s build/gameplay-motion.mp4
+          ffprobe -v error -show_entries format=duration \
+            -of default=noprint_wrappers=1 build/gameplay-motion.mp4
+
+      - name: Upload real moving gameplay preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: AshenIdle-Motion-Preview
+          path: build/gameplay-motion.mp4
+          retention-days: 30
+
       - name: Export signed ARM64 Android APK
         shell: bash
         run: |
@@ -233,7 +256,9 @@ jobs:
           body: Automated portrait-mode Android prototype, debug-signed for direct installation. Download AshenIdle.apk below.
           prerelease: true
           make_latest: false
-          files: build/AshenIdle.apk
+          files: |
+            build/AshenIdle.apk
+            build/gameplay-motion.mp4
 
       - name: Upload diagnostics
         if: failure()
