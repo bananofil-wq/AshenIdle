@@ -79,6 +79,9 @@ var cached_model_scenes: Dictionary = {}
 var ember_motes: Array = []
 var ritual_marks: Array = []
 var attack_animation_index := 0
+var auto_equip := true
+var auto_gear_button: Button
+var equipped_vfx: Node3D
 
 
 func _ready() -> void:
@@ -87,6 +90,7 @@ func _ready() -> void:
     _build_world()
     _build_ui()
     _spawn_enemy()
+    _sync_equipment_visuals()
     _refresh()
 
 func _mat(color: Color, metallic: float = 0.0, emission: bool = false) -> StandardMaterial3D:
@@ -287,6 +291,8 @@ func _build_ui() -> void:
     controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(112, 51)))
     controls.add_child(_ornate_button("HERO", _switch_class, Vector2(112, 51)))
     controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(112, 51)))
+    auto_gear_button = _ornate_button("AUTO GEAR", _toggle_auto_gear, Vector2(112, 51))
+    controls.add_child(auto_gear_button)
 
     var banner := PanelContainer.new()
     banner.position = Vector2(166, 219)
@@ -338,7 +344,7 @@ func _build_ui() -> void:
     action_line.add_child(_ornate_button("BOSS", _try_boss, Vector2(106, 46)))
     action_line.add_child(_ornate_button("FARM", _grind, Vector2(106, 46)))
     action_line.add_child(_ornate_button("PUSH", _forward, Vector2(106, 46)))
-    action_line.add_child(_ornate_button("HEAL", _heal, Vector2(106, 46)))
+    action_line.add_child(_ornate_button("FORGE", _forge_weakest, Vector2(106, 46)))
     action_line.add_child(_ornate_button("SKILL+", _open_talent_panel, Vector2(106, 46)))
     var scroll := ScrollContainer.new()
     scroll.custom_minimum_size = Vector2(630, 68)
@@ -709,7 +715,8 @@ func _switch_class() -> void:
         hero.queue_free()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     hp = _max_hp()
-    combat_note = "NY KLASS: " + CLASSES[hero_class]
+    combat_note = "NEW CLASS: " + CLASSES[hero_class]
+    _sync_equipment_visuals()
     _save_game()
     _refresh()
 
@@ -770,8 +777,109 @@ func _drop_loot_at(drop_pos: Vector3, boss_drop: bool) -> void:
     if gear.size() > 36:
         gear.pop_back()
     _loot_beam(drop_pos, loot_color, name)
+    if auto_equip and rarity != "LEGENDARY":
+        _auto_equip_item(item)
     if rarity == "LEGENDARY":
         _show_legendary(item)
+
+func _item_score(item: Dictionary) -> float:
+    if item.is_empty():
+        return 0.0
+    return float(item.get("damage", 0)) * 2.5 + float(item.get("hp", 0)) * 0.30 + float(item.get("crit", 0)) * 1.15 + float(item.get("speed", 0)) * 1.35 + float(item.get("elemental", 0)) * 0.75
+
+func _toggle_auto_gear() -> void:
+    auto_equip = not auto_equip
+    combat_note = "AUTO EQUIP ENABLED" if auto_equip else "MANUAL EQUIPMENT MODE"
+    _save_game()
+    _refresh()
+
+func _auto_equip_item(item: Dictionary) -> bool:
+    var slot: String = str(item.get("slot", "Weapon"))
+    var old: Dictionary = equipped.get(slot, {})
+    var minimum: float = _item_score(old) + 1.5
+    if not old.is_empty():
+        var set_name: String = str(old.get("set", ""))
+        if set_name != "":
+            var pieces := 0
+            for other in equipped.values():
+                if str(other.get("set", "")) == set_name:
+                    pieces += 1
+            if pieces == 2 or pieces == 4:
+                minimum += 34.0
+    if not old.is_empty() and _item_score(item) <= minimum:
+        return false
+    equipped[slot] = item.duplicate(true)
+    hp = minf(_max_hp(), hp + 8.0)
+    _sync_equipment_visuals()
+    combat_note = "UPGRADED: " + str(item.get("name", "Equipment"))
+    return true
+
+func _forge_weakest() -> void:
+    if equipped.is_empty():
+        combat_note = "EQUIP AN ITEM TO FORGE IT"
+        _refresh()
+        return
+    var target_slot := ""
+    var lowest_score := INF
+    for slot in SLOTS:
+        if not equipped.has(slot):
+            continue
+        var candidate: Dictionary = equipped[slot]
+        var current_score := _item_score(candidate)
+        if current_score < lowest_score:
+            lowest_score = current_score
+            target_slot = slot
+    if target_slot == "":
+        return
+    var upgraded: Dictionary = equipped[target_slot].duplicate(true)
+    var forging_level := int(upgraded.get("forge", 0))
+    var cost := 25 + level * 4 + forging_level * (18 + level)
+    if gold < cost:
+        combat_note = "FORGE %s: NEED %d GOLD" % [target_slot.to_upper(), cost]
+        _refresh()
+        return
+    gold -= cost
+    upgraded["forge"] = forging_level + 1
+    upgraded["damage"] = int(upgraded.get("damage", 0)) + 2 + maxi(1, int(level / 5))
+    upgraded["hp"] = int(upgraded.get("hp", 0)) + 7 + maxi(1, int(level / 3))
+    equipped[target_slot] = upgraded
+    hp = minf(_max_hp(), hp + 15.0)
+    _sync_equipment_visuals()
+    _spell_burst(Color("ffbb62"), 1.4, 4)
+    combat_note = "%s FORGED TO +%d" % [target_slot.to_upper(), forging_level + 1]
+    _save_game()
+    _refresh()
+
+func _sync_equipment_visuals() -> void:
+    if hero == null:
+        return
+    if equipped_vfx != null and is_instance_valid(equipped_vfx):
+        equipped_vfx.queue_free()
+    equipped_vfx = Node3D.new()
+    hero.add_child(equipped_vfx)
+    var set_pieces: Dictionary = {}
+    for item in equipped.values():
+        var set_name: String = str(item.get("set", ""))
+        if set_name != "":
+            set_pieces[set_name] = int(set_pieces.get(set_name, 0)) + 1
+    var aura_color := Color("6a879b")
+    for set_name in set_pieces.keys():
+        if int(set_pieces[set_name]) >= 2:
+            aura_color = Color("ff824d") if set_name == "Cinderborn" else Color("9c78e0") if set_name == "Gravewarden" else Color("d1bd74")
+    var underglow := TorusMesh.new()
+    underglow.inner_radius = 0.64
+    underglow.outer_radius = 0.68
+    _mesh(equipped_vfx, underglow, Vector3(0, 0.10, 0), _mat(aura_color.darkened(0.38), 0.0, true))
+    if equipped.has("Armor"):
+        var armor_item: Dictionary = equipped["Armor"]
+        var armor_color := Color("7e3f35") if str(armor_item.get("element", "")) == "FIRE" else Color("494e71")
+        var mantle := _box(equipped_vfx, Vector3(0.75, 1.05, 0.09), Vector3(0, 1.03, -0.45), armor_color)
+        mantle.rotation.x = 0.20
+    if equipped.has("Helm"):
+        var helm_item: Dictionary = equipped["Helm"]
+        var gem_color := Color("ffb66c") if str(helm_item.get("element", "")) == "FIRE" else Color("a1c9ea")
+        var gem := _sphere_part(equipped_vfx, 0.12, Vector3(0, 2.64, 0), gem_color)
+        gem.material_override = _bright(gem_color)
 
 func _equip(index: int) -> void:
     if index < 0 or index >= gear.size():
@@ -779,7 +887,8 @@ func _equip(index: int) -> void:
     var item: Dictionary = gear[index]
     equipped[str(item.get("slot", "Weapon"))] = item.duplicate(true)
     hp = minf(hp, _max_hp())
-    combat_note = "UTRUSTAD: " + str(item.get("name", "Item"))
+    _sync_equipment_visuals()
+    combat_note = "EQUIPPED: " + str(item.get("name", "Item"))
     _save_game()
     _refresh()
 
@@ -789,6 +898,8 @@ func _refresh() -> void:
     status.text = "%s   LVL %d" % [CLASSES[hero_class], level]
     details.text = "HP %.0f / %.0f    XP %d / %d" % [hp, _max_hp(), xp, level * 30]
     power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
+    if auto_gear_button != null:
+        auto_gear_button.text = "AUTO: ON" if auto_equip else "AUTO: OFF"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
     stage_banner.text = "STAGE %d%s" % [stage, " BOSS" if stage % 5 == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
@@ -824,7 +935,7 @@ func _save_game() -> void:
         "class": hero_class, "level": level, "xp": xp, "gold": gold,
         "stage": stage, "highest": highest, "kills": kills, "hp": hp,
         "gear": gear, "equipped": equipped, "skills": skills,
-        "skill_points": skill_points, "saved_at": Time.get_unix_time_from_system()
+        "skill_points": skill_points, "auto_equip": auto_equip, "saved_at": Time.get_unix_time_from_system()
     }
     var f = FileAccess.open(SAVE_FILE, FileAccess.WRITE)
     if f:
@@ -852,6 +963,7 @@ func _load_game() -> void:
     kills = maxi(0, int(data.get("kills", 0)))
     gear = data.get("gear", [])
     equipped = data.get("equipped", {})
+    auto_equip = bool(data.get("auto_equip", true))
     skills = data.get("skills", [0, 0, 0])
     if skills.size() != 3:
         skills = [0, 0, 0]
@@ -980,6 +1092,7 @@ func _equip_legendary() -> void:
     equipped[str(last_legendary.get("slot", "Weapon"))] = last_legendary.duplicate(true)
     combat_note = "LEGENDARY EQUIPPED!"
     hp = _max_hp()
+    _sync_equipment_visuals()
     _hide_legendary()
     _save_game()
     _refresh()
