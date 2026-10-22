@@ -76,6 +76,7 @@ var boss_hp_bar: ColorRect
 var legendary_item_display: Node3D
 var legendary_item_viewport: SubViewport
 var cached_model_scenes: Dictionary = {}
+var ember_motes: Array = []
 
 
 func _ready() -> void:
@@ -149,14 +150,14 @@ func _build_world() -> void:
     var world := WorldEnvironment.new()
     var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color("07080d")
+    environment.background_color = Color("070a12")
     environment.adjustment_enabled = true
-    environment.adjustment_brightness = 0.78
-    environment.adjustment_contrast = 1.13
-    environment.adjustment_saturation = 0.80
+    environment.adjustment_brightness = 0.83
+    environment.adjustment_contrast = 1.22
+    environment.adjustment_saturation = 0.85
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color("746475")
-    environment.ambient_light_energy = 0.43
+    environment.ambient_light_color = Color("677186")
+    environment.ambient_light_energy = 0.42
     environment.glow_enabled = true
     environment.glow_intensity = 0.34
     world.environment = environment
@@ -171,31 +172,32 @@ func _build_world() -> void:
     var sun := DirectionalLight3D.new()
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
-    sun.light_color = Color("e9bd9d")
-    sun.light_energy = 0.95
+    sun.light_color = Color("f5b990")
+    sun.light_energy = 0.9
     sun.shadow_enabled = true
     var ember := OmniLight3D.new()
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
     ember.light_color = Color("ff6332")
-    ember.light_energy = 1.55
+    ember.light_energy = 1.25
     ember.omni_range = 13.0
     var arcane := OmniLight3D.new()
     add_child(arcane)
     arcane.position = Vector3(-3.6, 4.0, -2.0)
     arcane.light_color = Color("965eff")
-    arcane.light_energy = 0.60
+    arcane.light_energy = 0.82
     arcane.omni_range = 12
 
-    _box(self, Vector3(17, 0.6, 18), Vector3(0, -0.35, 0), Color("251c25"))
+    _box(self, Vector3(17, 0.6, 18), Vector3(0, -0.35, 0), Color("171b27"))
     for x in range(-6, 7):
         for z in range(-6, 7):
             var v := float((x * 3 + z * 7 + 100) % 7) / 36.0
-            var stone := Color(0.17 + v, 0.14 + v * 0.7, 0.17 + v * 0.7)
+            var stone := Color(0.112 + v * 0.64, 0.126 + v * 0.62, 0.168 + v * 0.72)
             var t := BoxMesh.new()
             t.size = Vector3(1.27, 0.08 + v * 0.1, 1.27)
             _mesh(self, t, Vector3(float(x) * 1.3, -0.04, float(z) * 1.3), _mat(stone))
     _place_dungeon_detail()
+    _scatter_embers()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     foe = _make_animated_character("Skeleton_Warrior", Vector3(1.55, 0, -0.8), true)
     _spawn_horde()
@@ -535,6 +537,7 @@ func _process(delta: float) -> void:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
+    _update_ember_motes()
     minimap_refresh_timer += delta
     if tick > 0.36 and popup_shade.visible:
         tick = 0.36
@@ -1018,7 +1021,7 @@ func _spawn_horde() -> void:
 
 func _impact(pos: Vector3, color: Color) -> void:
     var ball := SphereMesh.new()
-    ball.radius = 0.23
+    ball.radius = 0.12
     var node := _mesh(self, ball, pos, _bright(color))
     spell_fx.append({"node": node, "time": 0.40, "total": 0.40, "type": "hit"})
     if spell_fx.size() > 45:
@@ -1200,6 +1203,26 @@ func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, fac
     model.position = at
     model.rotation.y = yaw
     model.scale = Vector3.ONE * factor
+
+func _scatter_embers() -> void:
+    # Tiny drifting emissive ash sparks provide depth without a heavy particle shader.
+    for i in range(44):
+        var mesh := SphereMesh.new()
+        mesh.radius = rng.randf_range(0.025, 0.054)
+        mesh.height = mesh.radius * 2.0
+        mesh.radial_segments = 8
+        mesh.rings = 4
+        var spark := _mesh(self, mesh, Vector3(rng.randf_range(-5.8, 5.8), 0.2, rng.randf_range(-5.8, 5.8)), _bright(Color("f47c3d") if i % 3 else Color("ffca78")))
+        var phase := rng.randf_range(0.0, TAU)
+        ember_motes.append({"node": spark, "x": spark.position.x, "z": spark.position.z, "phase": phase, "rate": rng.randf_range(0.22, 0.53)})
+
+func _update_ember_motes() -> void:
+    for mote in ember_motes:
+        var spark: MeshInstance3D = mote["node"]
+        if not is_instance_valid(spark):
+            continue
+        var t: float = chaos_time * float(mote["rate"]) + float(mote["phase"])
+        spark.position = Vector3(float(mote["x"]) + sin(t * 1.4) * 0.28, 0.15 + fposmod(t, 3.2), float(mote["z"]) + cos(t * 1.1) * 0.24)
 
 func _place_dungeon_detail() -> void:
     # Geometry and materials supplied by the CC0 KayKit Dungeon Remastered pack.
