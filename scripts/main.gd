@@ -77,6 +77,8 @@ var legendary_item_display: Node3D
 var legendary_item_viewport: SubViewport
 var cached_model_scenes: Dictionary = {}
 var ember_motes: Array = []
+var ritual_marks: Array = []
+var attack_animation_index := 0
 
 
 func _ready() -> void:
@@ -164,10 +166,10 @@ func _build_world() -> void:
     add_child(world)
 
     camera_ref = Camera3D.new()
-    camera_ref.position = Vector3(0.0, 15.2, 17.6)
+    camera_ref.position = Vector3(0.0, 13.4, 14.9)
     add_child(camera_ref)
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
-    camera_ref.fov = 42.0
+    camera_ref.fov = 40.0
     camera_ref.current = true
     var sun := DirectionalLight3D.new()
     add_child(sun)
@@ -197,6 +199,7 @@ func _build_world() -> void:
             t.size = Vector3(1.27, 0.08 + v * 0.1, 1.27)
             _mesh(self, t, Vector3(float(x) * 1.3, -0.04, float(z) * 1.3), _mat(stone))
     _place_dungeon_detail()
+    _decorate_arena()
     _scatter_embers()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     foe = _make_animated_character("Skeleton_Warrior", Vector3(1.55, 0, -0.8), true)
@@ -281,20 +284,20 @@ func _build_ui() -> void:
     controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(112, 51)))
 
     var banner := PanelContainer.new()
-    banner.position = Vector2(159, 213)
-    banner.size = Vector2(402, 83)
+    banner.position = Vector2(166, 219)
+    banner.size = Vector2(391, 70)
     banner.add_theme_stylebox_override("panel", _skin(Color("120f1bd2"), Color("ba823e")))
     overlay.add_child(banner)
     var banner_column := VBoxContainer.new()
     banner.add_child(banner_column)
-    center_banner = _label("AUTO-BATTLING...", 29, Color("ffd08c"))
+    center_banner = _label("THE ASHEN HUNT", 25, Color("ffd08c"))
     center_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(center_banner)
     combat = _label("", 18, Color("dbceda"))
     combat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(combat)
     var boss_panel := PanelContainer.new()
-    boss_panel.position = Vector2(182, 317)
+    boss_panel.position = Vector2(182, 309)
     boss_panel.size = Vector2(356, 57)
     boss_panel.add_theme_stylebox_override("panel", _skin(Color("160d19ea"), Color("b14b3f")))
     overlay.add_child(boss_panel)
@@ -1002,7 +1005,7 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                instance.scale = Vector3.ONE * (1.45 if elite else 0.57 if i % 4 != 2 else 0.68)
+                instance.scale = Vector3.ONE * (1.48 if elite else 0.66 if i % 4 != 2 else 0.77)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if root.get_child_count() == 0:
             var body := CapsuleMesh.new()
@@ -1190,7 +1193,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    model.scale = Vector3.ONE * (0.72 if enemy else 0.86)
+    model.scale = Vector3.ONE * (0.72 if enemy else 1.05)
     model.rotation.y = PI
     _play_animation(model, ["Idle_A", "Idle", "idle"])
     return root
@@ -1219,6 +1222,77 @@ func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, fac
                     var colored_mat := source_mat.duplicate() as BaseMaterial3D
                     colored_mat.albedo_color = colored_mat.albedo_color * tint
                     part.set_surface_override_material(surface_i, colored_mat)
+
+func _rift_line(point_a: Vector3, point_b: Vector3, width: float, color: Color) -> void:
+    # Angular low glowing seams on the dungeon floor; entirely procedural and lightweight.
+    var segment := point_b - point_a
+    var length := segment.length()
+    if length < 0.05:
+        return
+    var stone := BoxMesh.new()
+    stone.size = Vector3(width + 0.10, 0.025, length + 0.04)
+    var dark := _mesh(self, stone, (point_a + point_b) * 0.5 + Vector3(0, 0.078, 0), _mat(Color("0c0c13"), 0.11))
+    dark.rotation.y = atan2(segment.x, segment.z)
+    var crack_mesh := BoxMesh.new()
+    crack_mesh.size = Vector3(width, 0.028, length)
+    var crack := _mesh(self, crack_mesh, (point_a + point_b) * 0.5 + Vector3(0, 0.094, 0), _mat(color.darkened(0.54), 0.0, true))
+    crack.rotation.y = atan2(segment.x, segment.z)
+
+func _decorate_arena() -> void:
+    # A broken ritual seal, basalt shards and twin flaming beacons bring the arena to life.
+    # Geometry is intentionally inexpensive so GL Compatibility remains fast on Android.
+    var ring := TorusMesh.new()
+    ring.inner_radius = 2.68
+    ring.outer_radius = 2.74
+    _mesh(self, ring, Vector3(0, 0.11, 0), _mat(Color("5d251f"), 0.1, true))
+    var outer_ring := TorusMesh.new()
+    outer_ring.inner_radius = 4.23
+    outer_ring.outer_radius = 4.27
+    _mesh(self, outer_ring, Vector3(0, 0.105, 0), _mat(Color("37252d"), 0.1, true))
+    for mark_i in range(12):
+        var a := TAU * float(mark_i) / 12.0
+        var axis := Vector3(cos(a), 0, sin(a))
+        var transverse := Vector3(-axis.z, 0, axis.x)
+        var from := axis * 2.80
+        var to := axis * 3.70
+        _rift_line(from, to, 0.028, Color("d46035") if mark_i % 3 == 0 else Color("6d3640"))
+        if mark_i % 3 == 0:
+            _rift_line(to + transverse * 0.10, to + transverse * 0.63, 0.02, Color("dc7841"))
+    for branch_i in range(16):
+        var a := TAU * float(branch_i) / 16.0 + 0.22
+        var start := Vector3(cos(a), 0, sin(a)) * rng.randf_range(4.3, 5.0)
+        var mid := start + Vector3(cos(a + 0.32), 0, sin(a + 0.32)) * rng.randf_range(0.34, 0.86)
+        var end := mid + Vector3(cos(a - 0.19), 0, sin(a - 0.19)) * rng.randf_range(0.36, 1.02)
+        _rift_line(start, mid, 0.018 + rng.randf() * 0.018, Color("ae4a2c"))
+        _rift_line(mid, end, 0.014, Color("9b422e"))
+    for pillar_i in range(9):
+        var angle := TAU * float(pillar_i) / 9.0 + 0.35
+        var radius := 5.1 + float(pillar_i % 3) * 0.28
+        var at := Vector3(cos(angle) * radius, 0, sin(angle) * radius)
+        var shard_height := 0.55 + float(pillar_i % 4) * 0.30
+        var rock := _cone(self, 0.27, 0.0, shard_height, at + Vector3(0, shard_height * 0.49, 0), Color("1a202c"))
+        rock.rotation.z = (-0.15 if pillar_i % 2 else 0.16)
+        var seam := _box(self, Vector3(0.025, shard_height * 0.47, 0.026), at + Vector3(0.06, shard_height * 0.52, 0.21), Color("a34529"), true)
+        seam.rotation.z = rock.rotation.z
+    for beacon_i in range(2):
+        var x := -5.35 if beacon_i == 0 else 5.35
+        var beacon_z := -2.8
+        var base := Vector3(x, 0, beacon_z)
+        _cone(self, 0.43, 0.33, 1.20, base + Vector3(0, 0.60, 0), Color("242937"))
+        _cone(self, 0.37, 0.37, 0.13, base + Vector3(0, 1.27, 0), Color("775039"))
+        var fire := _sphere_part(self, 0.28, base + Vector3(0, 1.66, 0), Color("ff8c39"))
+        fire.material_override = _bright(Color("ff7c25"))
+        var fire_tip := _cone(self, 0.22, 0.015, 0.60, base + Vector3(0, 1.92, 0), Color("ffb23c"))
+        fire_tip.material_override = _bright(Color("ff9634"))
+    # Distinct center sigil becomes a memorable landmark underneath the combatants.
+    var center := CylinderMesh.new()
+    center.top_radius = 0.60
+    center.bottom_radius = 0.60
+    center.height = 0.035
+    _mesh(self, center, Vector3(0, 0.075, 0), _mat(Color("222632"), 0.62))
+    for spoke in range(6):
+        var ang := TAU * float(spoke) / 6.0
+        _rift_line(Vector3.ZERO, Vector3(cos(ang) * 0.64, 0, sin(ang) * 0.64), 0.044, Color("9e4b34"))
 
 func _scatter_embers() -> void:
     # Tiny drifting emissive ash sparks provide depth without a heavy particle shader.
