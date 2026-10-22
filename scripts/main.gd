@@ -747,7 +747,9 @@ func _spawn_horde() -> void:
         add_child(root)
         var packed := _get_asset_scene(model_name)
         if packed != null:
-            var instance := packed.instantiate()
+            var instance: Node3D = packed.instantiate() as Node3D
+            if instance == null:
+                continue
             root.add_child(instance)
             instance.scale = Vector3.ONE * (0.73 if i % 4 != 2 else 0.9)
             _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
@@ -922,7 +924,10 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     var root := Node3D.new()
     root.position = at
     add_child(root)
-    var model := packed.instantiate()
+    var model: Node3D = packed.instantiate() as Node3D
+    if model == null:
+        root.queue_free()
+        return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
     model.scale = Vector3.ONE * (1.05 if enemy else 1.18)
     model.rotation.y = PI
