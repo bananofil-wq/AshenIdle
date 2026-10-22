@@ -223,7 +223,7 @@ func _build_ui() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
     overlay = Control.new()
-    overlay.size = Vector2(720, 1280)
+    overlay.size = get_viewport().get_visible_rect().size
     overlay.mouse_filter = Control.MOUSE_FILTER_PASS
     layer.add_child(overlay)
 
@@ -283,7 +283,7 @@ func _build_ui() -> void:
     banner_column.add_child(combat)
 
     var bottom := PanelContainer.new()
-    bottom.position = Vector2(16, 1052)
+    bottom.position = Vector2(16, overlay.size.y - 228)
     bottom.size = Vector2(688, 213)
     bottom.add_theme_stylebox_override("panel", _skin(Color("10111de9"), Color("695344")))
     overlay.add_child(bottom)
@@ -315,7 +315,7 @@ func _build_ui() -> void:
     col.add_child(offline)
 
     var skill_bar := HBoxContainer.new()
-    skill_bar.position = Vector2(385, 943)
+    skill_bar.position = Vector2(385, overlay.size.y - 337)
     skill_bar.add_theme_constant_override("separation", 10)
     overlay.add_child(skill_bar)
     for s in ["FIRE", "VOID", "ULT"]:
@@ -323,23 +323,50 @@ func _build_ui() -> void:
         skill_buttons.append(b)
         skill_bar.add_child(b)
 
+
+    popup_shade = ColorRect.new()
+    popup_shade.color = Color(0.015, 0.015, 0.024, 0.78)
+    popup_shade.size = overlay.size
+    popup_shade.visible = false
+    popup_shade.mouse_filter = Control.MOUSE_FILTER_STOP
+    popup_shade.z_index = 40
+    overlay.add_child(popup_shade)
+
     legendary_overlay = PanelContainer.new()
-    legendary_overlay.position = Vector2(152, 340)
-    legendary_overlay.size = Vector2(428, 410)
+    legendary_overlay.position = Vector2(96, (overlay.size.y - 546.0) * 0.5)
+    legendary_overlay.size = Vector2(528, 546)
+    legendary_overlay.z_index = 41
     legendary_overlay.visible = false
-    legendary_overlay.add_theme_stylebox_override("panel", _skin(Color("110e19f5"), Color("e2ad58")))
+    legendary_overlay.add_theme_stylebox_override("panel", _skin(Color("0f1119"), Color("e2ad58")))
     overlay.add_child(legendary_overlay)
     var leg_col := VBoxContainer.new()
+    leg_col.add_theme_constant_override("separation", 12)
     legendary_overlay.add_child(leg_col)
-    leg_col.add_child(_label("LEGENDARY DROP", 24, Color("ffc76a")))
-    legendary_name = _label("", 27, Color("fff0bb"))
+    var rare_title := _label("✦  LEGENDARY EQUIPMENT  ✦", 21, Color("ffc76a"))
+    rare_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    leg_col.add_child(rare_title)
+    var split := HSeparator.new()
+    leg_col.add_child(split)
+    legendary_name = _label("", 26, Color("fff0bb"))
+    legendary_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    legendary_name.custom_minimum_size = Vector2(480, 68)
     leg_col.add_child(legendary_name)
-    legendary_stats = _label("", 18, Color("e8dfd4"))
-    legendary_stats.custom_minimum_size = Vector2(385, 185)
+    var symbol := _label("⚔", 74, Color("ffcf6c"))
+    symbol.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    symbol.custom_minimum_size = Vector2(480, 76)
+    leg_col.add_child(symbol)
+    legendary_stats = _label("", 19, Color("eadcc9"))
+    legendary_stats.custom_minimum_size = Vector2(480, 175)
     leg_col.add_child(legendary_stats)
-    leg_col.add_child(_label("Forged in the ashes of fallen worlds.", 15, Color("cf9b79")))
-    leg_col.add_child(_ornate_button("EQUIP", _equip_legendary, Vector2(270, 52)))
-    leg_col.add_child(_ornate_button("CLOSE", _hide_legendary, Vector2(270, 48)))
+    var flavor := _label("Forged in the ashes of fallen worlds.", 15, Color("bca88d"))
+    flavor.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    leg_col.add_child(flavor)
+    var popup_buttons := HBoxContainer.new()
+    popup_buttons.add_theme_constant_override("separation", 12)
+    leg_col.add_child(popup_buttons)
+    popup_buttons.add_child(_ornate_button("EQUIP", _equip_legendary, Vector2(230, 58)))
+    popup_buttons.add_child(_ornate_button("KEEP", _hide_legendary, Vector2(230, 58)))
+
 
 func _max_hp() -> float:
     var modifier = [1.2, 0.9, 0.85, 1.0][hero_class]
@@ -385,7 +412,10 @@ func _process(delta: float) -> void:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
-    if tick >= 0.35:
+    minimap_refresh_timer += delta
+    if tick > 0.36 and legendary_overlay.visible:
+        tick = 0.36
+    if tick >= 0.35 and not legendary_overlay.visible:
         tick -= 0.35
         _fight()
     if save_timer >= 15.0:
@@ -542,7 +572,13 @@ func _refresh() -> void:
     info.text = "%.0f DMG   •   %d KILLS   •   %d TALENT POINTS" % [_damage(), kills, skill_points]
     offline.text = offline_note
     combat_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.02, 1.0)
-    _refresh_minimap()
+    if minimap_refresh_timer > 3.0:
+        minimap_refresh_timer = 0.0
+        _refresh_minimap()
+    var signature := str(gear.size()) + ":" + str(gear[0].get("name", "")) if not gear.is_empty() else "empty"
+    if signature == last_inventory_signature:
+        return
+    last_inventory_signature = signature
     for child in inventory.get_children():
         inventory.remove_child(child)
         child.queue_free()
@@ -655,6 +691,7 @@ func _refresh_minimap() -> void:
     map_dots.add_child(hero_dot)
 
 func _hide_legendary() -> void:
+    popup_shade.visible = false
     legendary_overlay.visible = false
 
 func _equip_legendary() -> void:
@@ -663,14 +700,17 @@ func _equip_legendary() -> void:
     equipped[str(last_legendary.get("slot", "Weapon"))] = last_legendary.duplicate(true)
     combat_note = "LEGENDARY EQUIPPED!"
     hp = _max_hp()
-    legendary_overlay.visible = false
+    _hide_legendary()
     _save_game()
     _refresh()
 
 func _show_legendary(item: Dictionary) -> void:
+    if legendary_overlay.visible:
+        return
     last_legendary = item.duplicate(true)
     legendary_name.text = str(item.get("name", "Ashen Relic")).to_upper()
-    legendary_stats.text = "POWER %d\n\nAttack +%d\nVitality +%d\nCritical Rate +8.5%%\nFire Damage +32.6%%\nSet: %s" % [int(item.get("damage", 0)) * 78, int(item.get("damage", 0)), int(item.get("hp", 0)), str(item.get("set", "Cinderborn"))]
+    legendary_stats.text = "POWER   %d\nATTACK   +%d\nVITALITY   +%d\nCRITICAL CHANCE   +8.5%%\nFIRE DAMAGE   +32.6%%\nSET   %s" % [int(item.get("damage", 0)) * 78, int(item.get("damage", 0)), int(item.get("hp", 0)), str(item.get("set", "Cinderborn"))]
+    popup_shade.visible = true
     legendary_overlay.visible = true
 
 func _use_skill(index: int) -> void:
