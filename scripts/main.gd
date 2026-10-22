@@ -71,6 +71,8 @@ var wave_size := 1
 var inventory_overlay: PanelContainer
 var inventory_list: VBoxContainer
 var inventory_summary: Label
+var legendary_item_display: Node3D
+var legendary_item_viewport: SubViewport
 var cached_model_scenes: Dictionary = {}
 
 
@@ -357,10 +359,38 @@ func _build_ui() -> void:
     legendary_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     legendary_name.custom_minimum_size = Vector2(480, 68)
     leg_col.add_child(legendary_name)
-    var symbol := _label("⚔", 74, Color("ffcf6c"))
-    symbol.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    symbol.custom_minimum_size = Vector2(480, 76)
-    leg_col.add_child(symbol)
+    var item_frame := SubViewportContainer.new()
+    item_frame.custom_minimum_size = Vector2(480, 105)
+    item_frame.stretch = true
+    leg_col.add_child(item_frame)
+    legendary_item_viewport = SubViewport.new()
+    legendary_item_viewport.size = Vector2i(480, 105)
+    legendary_item_viewport.transparent_bg = true
+    legendary_item_viewport.own_world_3d = true
+    legendary_item_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+    item_frame.add_child(legendary_item_viewport)
+    legendary_item_display = Node3D.new()
+    legendary_item_viewport.add_child(legendary_item_display)
+    var item_camera := Camera3D.new()
+    item_camera.position = Vector3(3.4, 1.8, 4.5)
+    item_camera.look_at(Vector3(0, 0.4, 0), Vector3.UP)
+    item_camera.fov = 43
+    item_camera.current = true
+    legendary_item_viewport.add_child(item_camera)
+    var item_light := DirectionalLight3D.new()
+    item_light.rotation_degrees = Vector3(-48, -30, 0)
+    item_light.light_color = Color("ffe0ae")
+    item_light.light_energy = 2.0
+    legendary_item_viewport.add_child(item_light)
+    var item_env := WorldEnvironment.new()
+    var item_env_resource := Environment.new()
+    item_env_resource.background_mode = Environment.BG_COLOR
+    item_env_resource.background_color = Color(0.0, 0.0, 0.0, 0.0)
+    item_env_resource.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    item_env_resource.ambient_light_color = Color("f4d5a0")
+    item_env_resource.ambient_light_energy = 0.7
+    item_env.environment = item_env_resource
+    legendary_item_viewport.add_child(item_env)
     legendary_stats = _label("", 19, Color("eadcc9"))
     legendary_stats.custom_minimum_size = Vector2(480, 175)
     leg_col.add_child(legendary_stats)
@@ -468,6 +498,8 @@ func _spawn_enemy() -> void:
 
 func _process(delta: float) -> void:
     chaos_time += delta
+    if legendary_item_display != null and legendary_overlay.visible:
+        legendary_item_display.rotation.y += delta * 0.64
     for i in range(skill_cooldowns.size()):
         skill_cooldowns[i] = maxf(0.0, float(skill_cooldowns[i]) - delta)
     for i in range(skill_buttons.size()):
@@ -892,6 +924,7 @@ func _show_legendary(item: Dictionary) -> void:
     if legendary_overlay.visible:
         return
     last_legendary = item.duplicate(true)
+    _update_item_preview(item)
     legendary_name.text = str(item.get("name", "Ashen Relic")).to_upper()
     legendary_stats.text = "POWER   %d\nATTACK   +%d\nVITALITY   +%d\nCRITICAL CHANCE   +%d%%\nATTACK SPEED   +%d%%\n%s DAMAGE   +%d\nSET   %s" % [int(item.get("damage", 0)) * 78, int(item.get("damage", 0)), int(item.get("hp", 0)), int(item.get("crit", 0)), int(item.get("speed", 0)), str(item.get("element", "FIRE")), int(item.get("elemental", 0)), str(item.get("set", "Cinderborn"))]
     popup_shade.visible = true
@@ -1195,3 +1228,30 @@ func _invest_talent(index: int) -> void:
     _update_talent_labels()
     _save_game()
     _refresh()
+
+func _update_item_preview(item: Dictionary) -> void:
+    if legendary_item_display == null:
+        return
+    for child in legendary_item_display.get_children():
+        child.queue_free()
+    legendary_item_display.rotation = Vector3.ZERO
+    var name: String = str(item.get("name", "")).to_lower()
+    var model_name := "sword_2handed"
+    if name.contains("staff") or name.contains("scepter"):
+        model_name = "staff"
+    elif name.contains("dagger") or name.contains("ring"):
+        model_name = "dagger"
+    var asset_path := "res://assets/weapons/" + model_name + ".gltf"
+    if ResourceLoader.exists(asset_path):
+        var packed: PackedScene = load(asset_path) as PackedScene
+        if packed != null:
+            var weapon: Node3D = packed.instantiate() as Node3D
+            if weapon != null:
+                legendary_item_display.add_child(weapon)
+                weapon.scale = Vector3.ONE * 0.9
+                weapon.position = Vector3(0, -0.40, 0)
+                return
+    # Mesh fallback if asset import fails: no blank loot card.
+    var blade := _box(legendary_item_display, Vector3(0.18, 1.80, 0.11), Vector3(0, 0.55, 0), Color("d5e3ec"), true)
+    blade.rotation.z = 0.2
+    _box(legendary_item_display, Vector3(0.67, 0.12, 0.16), Vector3(0, -0.12, 0), Color("f2be61"), true)
