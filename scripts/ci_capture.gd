@@ -30,5 +30,28 @@ func _render_test() -> void:
         push_error("Cannot save gameplay preview: " + str(err))
         quit(4)
         return
-    print("Saved gameplay-preview.png ", frame.get_width(), "x", frame.get_height())
+    print("Saved ", output_path, " ", frame.get_width(), "x", frame.get_height())
+
+    if suffix == "tall":
+        game.call("_hide_legendary")
+        var test_item := {
+            "name": "Seven Star Greatsword",
+            "slot": "Weapon",
+            "damage": 68, "hp": 98, "crit": 12, "speed": 8,
+            "element": "VOID", "elemental": 32, "set": "Gravewarden"
+        }
+        game.call("_show_legendary", test_item)
+        await create_timer(0.18).timeout
+        await RenderingServer.frame_post_draw
+        var legendary_frame: Image = root.get_texture().get_image()
+        legendary_frame.save_png("res://build/legendary-preview.png")
+
+        game.call("_hide_legendary")
+        game.call("_open_talent_panel")
+        await create_timer(0.18).timeout
+        await RenderingServer.frame_post_draw
+        var talent_frame: Image = root.get_texture().get_image()
+        talent_frame.save_png("res://build/talent-preview.png")
+        print("Captured legendary and talent modal QA screenshots")
+
     quit()
