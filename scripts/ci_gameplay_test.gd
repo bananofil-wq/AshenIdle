@@ -19,6 +19,10 @@ func _run() -> void:
     current_scene = game
     await process_frame
 
+    game.set("stage", 1)
+    game.set("highest", 1)
+    game.set("grind_mode", false)
+    game.call("_spawn_enemy")
     var enemies: Array = game.get("arena_mobs")
     if not _check(enemies.size() >= 5, "Initial wave should contain several real enemies"):
         quit(11)
@@ -61,6 +65,7 @@ func _run() -> void:
     if not _check(not (game.get("equipped") as Dictionary).is_empty(), "Equip must change equipment state"):
         quit(18)
         return
+    game.call("_hide_legendary")
     game.call("_show_inventory")
     if not _check(game.get("inventory_overlay").visible, "LOOT opens full inventory"):
         quit(19)
