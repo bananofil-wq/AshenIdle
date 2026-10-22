@@ -46,6 +46,12 @@ jobs:
           use-dotnet: false
           include-templates: true
 
+      - name: Restore stable development signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: ashenidle-debug-key-v1
+
       - name: Configure Godot Android export
         shell: bash
         run: |
@@ -57,7 +63,9 @@ jobs:
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/java_sdk_path = "$JAVA_HOME"
           EOF
-          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US" -noprompt
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US" -noprompt
+          fi
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
@@ -81,6 +89,7 @@ jobs:
           godot --headless --path . --export-debug Android build/AshenIdle.apk 2>&1 | tee build/export.log
           test -s build/AshenIdle.apk
           unzip -t build/AshenIdle.apk | tail -1
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose build/AshenIdle.apk
 
       - name: Upload APK for installation
         uses: actions/upload-artifact@v4
