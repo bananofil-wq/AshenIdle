@@ -913,6 +913,7 @@ func _kill_mob(target: Node3D) -> void:
     if boss or rng.randf() < 0.22:
         _drop_loot_at(drop_pos, boss)
     if boss:
+        _burst_particles(drop_pos + Vector3(0, 1.1, 0), Color("ff9142"), 160, 5.6, 1.15)
         _play_audio(4)
         earned_bosses[BOSS_NAMES[_boss_variant()]] = int(earned_bosses.get(BOSS_NAMES[_boss_variant()], 0)) + 1
         battle_statistics["bosses"] = int(battle_statistics.get("bosses", 0)) + 1
@@ -1072,6 +1073,8 @@ func _drop_loot_at(drop_pos: Vector3, boss_drop: bool) -> void:
     if gear.size() > 36:
         gear.pop_back()
     _loot_beam(drop_pos, loot_color, name)
+    if rarity == "LEGENDARY":
+        _burst_particles(drop_pos + Vector3(0, 1.1, 0), loot_color, 110, 4.0, 0.92)
     _play_audio(2 if rarity == "LEGENDARY" else 1)
     battle_statistics["loot"] = int(battle_statistics.get("loot", 0)) + 1
     if auto_equip:
@@ -1491,6 +1494,8 @@ func _use_skill(index: int) -> void:
         if is_instance_valid(mob) and arena_mobs.has(mob):
             _hit_mob(mob, _damage() * multiplier, index == 2)
     combat_note = str(CLASS_SPELLS[hero_class][index]) + "!"
+    if index == 2:
+        _burst_particles(hero.position + Vector3(0, 1.6, 0), tint, 155, 5.5, 0.85)
     if arena_mobs.is_empty():
         _complete_wave()
     _refresh()
@@ -1554,56 +1559,87 @@ func _spawn_horde() -> void:
     combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else "HORDE APPROACHING"
 
 func _impact(pos: Vector3, color: Color) -> void:
-    var ball := SphereMesh.new()
-    ball.radius = 0.12
-    ball.height = 0.24
-    var node := _mesh(self, ball, pos, _bright(color))
-    spell_fx.append({"node": node, "time": 0.40, "total": 0.40, "type": "hit"})
-    if spell_fx.size() > 45:
-        var old = spell_fx.pop_front()
-        if is_instance_valid(old["node"]):
-            old["node"].queue_free()
+    _burst_particles(pos, color, 12, 2.6, 0.33)
+    var flare := QuadMesh.new()
+    flare.size = Vector2(0.70, 0.70)
+    var spark := _mesh(self, flare, pos, _fx_material(color, 0.85))
+    spell_fx.append({"node": spark, "time": 0.18, "total": 0.18, "type": "hit"})
+    if spell_fx.size() > 90:
+        var previous: Dictionary = spell_fx.pop_front()
+        if is_instance_valid(previous["node"]):
+            previous["node"].queue_free()
 
 func _spell_burst(color: Color, size: float, shards: int) -> void:
-    var ring := TorusMesh.new()
-    ring.inner_radius = size * 0.38
-    ring.outer_radius = size * 0.395
-    var pulse_mesh := _mesh(self, ring, Vector3(0, 0.12, 0), _bright(color))
-    pulse_mesh.scale = Vector3.ONE * 0.65
-    spell_fx.append({"node": pulse_mesh, "time": 0.34, "total": 0.34, "type": "spell"})
-    for i in range(shards):
-        var a := TAU * float(i) / float(shards)
-        var p := Vector3(cos(a) * size * 0.42, rng.randf_range(0.3,1.3), sin(a) * size * 0.42)
-        _impact(p, color)
+    var center: Vector3 = hero.position + Vector3(0.0, 1.05, 0.0) if hero != null else Vector3(0.0, 1.05, 0.0)
+    _burst_particles(center, color, 88 + shards * 8, size * 4.2, 0.67)
+    _burst_particles(center + Vector3(0.0, 0.16, 0.0), Color("ffe4b6"), 32, size * 2.1, 0.37)
+    var shock := TorusMesh.new()
+    shock.inner_radius = size * 0.65
+    shock.outer_radius = size * 0.70
+    var ring_mat := _fx_material(color, 0.43)
+    ring_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+    ring_mat.albedo_texture = null
+    var wave := _mesh(self, shock, hero.position + Vector3(0, 0.10, 0) if hero != null else Vector3.ZERO, ring_mat)
+    wave.scale = Vector3.ONE * 0.3
+    spell_fx.append({"node": wave, "time": 0.42, "total": 0.42, "type": "spell"})
+    # Beams of rising energy, individual sparks and sharp concentric shockwave.
+    for i in range(mini(shards, 9)):
+        var theta := TAU * float(i) / float(shards)
+        var point := center + Vector3(cos(theta) * size * 0.25, -0.45, sin(theta) * size * 0.25)
+        var ray := _mesh(self, QuadMesh.new(), point, _fx_material(color, 0.62))
+        ray.scale = Vector3(0.22, 1.65, 0.22)
+        spell_fx.append({"node": ray, "time": 0.27, "total": 0.27, "type": "hit"})
 
 func _bright(color: Color) -> Material:
-    var m := _mat(color.darkened(0.20))
+    var m := _mat(color.darkened(0.16))
     m.emission_enabled = true
     m.emission = color
-    m.emission_energy_multiplier = 0.8
+    m.emission_energy_multiplier = 2.9
     return m
 
+func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
+    var mat := StandardMaterial3D.new()
+    mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+    mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+    mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+    mat.albedo_color = Color(color.r, color.g, color.b, alpha)
+    mat.emission_enabled = true
+    mat.emission = color
+    mat.emission_energy_multiplier = 4.7
+    return mat
+
 func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
-    var column := CylinderMesh.new()
-    column.top_radius = 0.018
-    column.bottom_radius = 0.065
-    column.height = 1.65
-    var mesh := _mesh(self, column, pos + Vector3(0, 0.94, 0), _bright(color.darkened(0.35)))
-    var base := CylinderMesh.new()
-    base.top_radius = 0.25
-    base.bottom_radius = 0.25
-    base.height = 0.025
-    var disc := _mesh(self, base, pos + Vector3(0, 0.08, 0), _bright(color))
-    var label := _label(title, 18, color)
-    label.size = Vector2(260, 36)
+    var pillar := CylinderMesh.new()
+    pillar.top_radius = 0.06
+    pillar.bottom_radius = 0.12
+    pillar.height = 3.9
+    var column := _mesh(self, pillar, pos + Vector3(0, 2.0, 0), _beam_material(color, 0.23))
+    var core := CylinderMesh.new()
+    core.top_radius = 0.017
+    core.bottom_radius = 0.039
+    core.height = 4.2
+    var core_mesh := _mesh(self, core, pos + Vector3(0, 2.10, 0), _beam_material(color.lightened(0.52), 0.84))
+    var pool := CylinderMesh.new()
+    pool.top_radius = 0.26
+    pool.bottom_radius = 0.26
+    pool.height = 0.015
+    var disc := _mesh(self, pool, pos + Vector3(0, 0.07, 0), _beam_material(color, 0.40))
+    _burst_particles(pos + Vector3(0, 0.75, 0), color, 18, 1.3, 0.66)
+    var label := _label(title, 18, color.lightened(0.35))
+    label.size = Vector2(260, 32)
     label.visible = false
+    label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+    label.add_theme_constant_override("shadow_offset_x", 1)
+    label.add_theme_constant_override("shadow_offset_y", 2)
     overlay.add_child(label)
-    loot_beams.append({"mesh": mesh, "disc": disc, "label": label, "pos": pos, "time": 5.2})
-    if loot_beams.size() > 12:
+    loot_beams.append({"mesh": column, "core": core_mesh, "disc": disc, "label": label, "pos": pos, "time": 5.0})
+    if loot_beams.size() > 13:
         _clear_beam(loot_beams.pop_front())
 
 func _clear_beam(beam: Dictionary) -> void:
-    for key in ["mesh", "disc", "label"]:
+    for key in ["mesh", "core", "disc", "label"]:
         if is_instance_valid(beam[key]):
             beam[key].queue_free()
 
@@ -1612,6 +1648,9 @@ func _damage_popup(value: int, pos: Vector3, crit: bool) -> void:
         return
     var label := _label(str(value), 25 if crit else 18, Color("ffdf83") if crit else Color("f3e2dc"))
     label.size = Vector2(135, 34)
+    label.add_theme_color_override("font_shadow_color", Color("08060d"))
+    label.add_theme_constant_override("shadow_offset_x", 2)
+    label.add_theme_constant_override("shadow_offset_y", 3)
     label.visible = false
     overlay.add_child(label)
     hit_texts.append({"label": label, "pos": pos, "time": 0.84})
