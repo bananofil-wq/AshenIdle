@@ -88,6 +88,10 @@ jobs:
           for character in Skeleton_Minion Skeleton_Warrior Skeleton_Rogue Skeleton_Mage; do
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_MOB/$character.glb" -o "assets/models/$character.glb"
           done
+          BASE_DUNGEON="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0/main/addons/kaykit_dungeon_remastered/Assets/gltf"
+          for asset in floor_tile_large floor_tile_large_rocks floor_tile_small_broken_A pillar_decorated wall_broken torch_lit; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_DUNGEON/$asset.gltf.glb" -o "assets/models/$asset.glb"
+          done
           test "$(stat -c %s assets/models/Knight.glb)" -gt 1000000
           test "$(stat -c %s assets/models/Skeleton_Minion.glb)" -gt 1000000
           ls -lh assets/models
