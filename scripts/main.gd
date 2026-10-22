@@ -53,6 +53,8 @@ var last_legendary: Dictionary = {}
 var hero_heart: ColorRect
 var combat_bar: ColorRect
 var skill_buttons: Array = []
+var spawned_boss := false
+var screen_note: Label
 
 
 func _ready() -> void:
@@ -358,37 +360,53 @@ func _bonus(key: String) -> float:
     return total
 
 func _spawn_enemy() -> void:
-    enemy_max = 30.0 + float(stage) * 17.0 + (65.0 + float(stage) * 7.0 if stage % 5 == 0 else 0.0)
+    enemy_max = 45.0 + float(stage) * 23.0 + (180.0 + float(stage) * 11.0 if stage % 5 == 0 else 0.0)
     enemy_hp = enemy_max
+    if arena_mobs.size() > 0:
+        _spawn_horde()
 
 func _process(delta: float) -> void:
+    chaos_time += delta
     tick += delta
     save_timer += delta
     if hero != null:
-        hero.rotation.y = sin(float(Time.get_ticks_msec()) / 370.0) * 0.08
+        hero.rotation.y = 0.20 + sin(chaos_time * 2.6) * 0.12
+        hero.position.y = sin(chaos_time * 2.8) * 0.05
     if foe != null:
-        foe.rotation.y = sin(float(Time.get_ticks_msec()) / 580.0) * 0.1
+        foe.rotation.y = sin(chaos_time * 2.0) * 0.10
     if foe_body != null:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
-    if tick >= 1.0:
-        tick -= 1.0
+    _update_chaos(delta)
+    if tick >= 0.35:
+        tick -= 0.35
         _fight()
     if save_timer >= 15.0:
         save_timer = 0.0
         _save_game()
 
 func _fight() -> void:
-    var damage = _damage() * rng.randf_range(0.85, 1.15)
+    var crit := rng.randf() < 0.28
+    var damage := _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     enemy_hp -= damage
     attack_flash = 1.0
-    combat_note = "SLAG  -%.0f" % damage
+    if arena_mobs.size() > 0:
+        var target = arena_mobs[rng.randi_range(0, arena_mobs.size()-1)]
+        if is_instance_valid(target):
+            _impact(target.global_position + Vector3(0, 0.8, 0), Color("ff8d3e") if crit else Color("ae74ff"))
+            _damage_popup(int(damage), target.global_position + Vector3(0, 1.7, 0), crit)
+            if rng.randf() < 0.48:
+                target.position = _random_spawn()
+    if rng.randf() < 0.25:
+        _spell_burst(Color("fd6d3d") if rng.randf() < 0.5 else Color("a354ff"), rng.randf_range(1.2,3.0), 4)
+    combat_note = "CRITICAL %d!" % int(damage) if crit else "BURNING THE HORDE"
     if enemy_hp <= 0.0:
-        var boss_won = stage % 5 == 0
+        var boss_won := stage % 5 == 0
         kills += 1
         gold += 3 + stage * 2
         xp += 8 + stage * 3
-        if rng.randf() < 0.35 or boss_won:
+        _impact(foe.position + Vector3(0, 1.2, 0), Color("ffd060"))
+        if rng.randf() < 0.80 or boss_won:
             _drop_loot()
         while xp >= level * 30:
             xp -= level * 30
@@ -397,18 +415,18 @@ func _fight() -> void:
             hp = _max_hp()
         highest = maxi(highest, stage + 1)
         stage = highest
-        combat_note = "BOSS FÄLLD!" if boss_won else "SEGER! NYTT OMRÅDE"
+        combat_note = "BOSS DESTROYED!" if boss_won else "STAGE CLEARED!"
         _spawn_enemy()
         _save_game()
     else:
-        var incoming = maxf(1.0, float(stage) * 0.85 - float(skills[2]) * 1.2)
+        var incoming := maxf(1.0, float(stage) * 0.55 + float(arena_mobs.size()) * 0.1 - float(skills[2]) * 1.2)
         if stage % 5 == 0:
-            incoming *= 1.7
+            incoming *= 1.4
         hp -= incoming
         if hp <= 0.0:
             hp = _max_hp()
             stage = maxi(1, stage - 1)
-            combat_note = "FÖRLUST – GRINDAR FÖR ATT BLI STARKARE"
+            combat_note = "DEFEATED — FARMING EARLIER STAGE"
             _spawn_enemy()
     _refresh()
 
@@ -460,19 +478,39 @@ func _heal() -> void:
 
 func _drop_loot() -> void:
     var slot: String = SLOTS[rng.randi_range(0, SLOTS.size() - 1)]
-    var prefixes = ["Smoldering", "Forsaken", "Infernal", "Ancient", "Hollow", "Ruinous"]
-    var item = {
-        "slot": slot,
-        "name": prefixes[rng.randi_range(0, prefixes.size() - 1)] + " " + slot,
-        "damage": rng.randi_range(1, 5) + stage,
-        "hp": rng.randi_range(4, 13) + stage * 2,
-        "set": ""
+    var rarity_roll := rng.randf()
+    var rarity := "COMMON"
+    var loot_color := Color("b6d2d6")
+    if rarity_roll > 0.985 or stage % 15 == 0:
+        rarity = "LEGENDARY"
+        loot_color = Color("ffd060")
+    elif rarity_roll > 0.87:
+        rarity = "EPIC"
+        loot_color = Color("ff642d")
+    elif rarity_roll > 0.62:
+        rarity = "RARE"
+        loot_color = Color("a25cff")
+    elif rarity_roll > 0.30:
+        rarity = "MAGIC"
+        loot_color = Color("54baff")
+    var prefixes := ["Seven Star", "Flameveil", "Abyssblood", "Celestial", "Gravewarden", "Ghost"]
+    var weapon_names := ["Demon Blade", "Soul Scythe", "Greatsword", "Cinder Staff", "Scepter"]
+    var name: String = prefixes[rng.randi_range(0, prefixes.size()-1)] + " " + (weapon_names[rng.randi_range(0, weapon_names.size()-1)] if slot == "Weapon" else slot)
+    var power := 1 if rarity == "COMMON" else 2 if rarity == "MAGIC" else 3 if rarity == "RARE" else 5 if rarity == "EPIC" else 9
+    var item := {
+        "slot": slot, "name": name,
+        "damage": rng.randi_range(1, 5) * power + stage,
+        "hp": rng.randi_range(4, 13) * power + stage * 2,
+        "set": SETS[rng.randi_range(0, SETS.size()-1)] if rarity in ["EPIC", "LEGENDARY"] else "",
+        "rarity": rarity
     }
-    if rng.randf() < 0.35:
-        item["set"] = SETS[rng.randi_range(0, SETS.size() - 1)]
     gear.push_front(item)
     if gear.size() > 36:
         gear.pop_back()
+    var pos := _random_spawn() * 0.75
+    _loot_beam(pos, loot_color, name)
+    if rarity == "LEGENDARY":
+        _show_legendary(item)
 
 func _equip(index: int) -> void:
     if index < 0 or index >= gear.size():
@@ -631,10 +669,149 @@ func _show_legendary(item: Dictionary) -> void:
 func _use_skill(index: int) -> void:
     var palette := [Color("ff6b20"), Color("9653ff"), Color("fff1a8")]
     _spell_burst(palette[index], 2.5 + float(index), 3 + index * 2)
-    var multiplier := [1.3, 1.9, 3.4][index]
+    var multiplier: float = [1.3, 1.9, 3.4][index]
     enemy_hp -= _damage() * multiplier
     combat_note = ["FIRE NOVA!", "VOID STORM!", "ASHEN APOCALYPSE!"][index]
     if enemy_hp <= 0.0:
         _fight()
     else:
         _refresh()
+
+func _random_spawn() -> Vector3:
+    var a := rng.randf_range(0.0, TAU)
+    var d := rng.randf_range(1.7, 4.8)
+    return Vector3(cos(a) * d, 0, sin(a) * d)
+
+func _spawn_horde() -> void:
+    for mob in arena_mobs:
+        if is_instance_valid(mob):
+            mob.queue_free()
+    arena_mobs.clear()
+    for i in range(15 + mini(stage / 5, 14)):
+        var root := Node3D.new()
+        root.position = _random_spawn()
+        root.rotation.y = rng.randf_range(0.0, TAU)
+        add_child(root)
+        var c := Color("8f3545") if i % 5 != 0 else Color("bd7b39")
+        var sphere := SphereMesh.new()
+        sphere.radius = 0.30 if i % 5 != 0 else 0.46
+        sphere.height = 0.75 if i % 5 != 0 else 1.0
+        _mesh(root, sphere, Vector3(0, 0.42, 0), _mat(c))
+        var head := SphereMesh.new()
+        head.radius = 0.18
+        _mesh(root, head, Vector3(0, 0.94, 0), _mat(Color("30252d")))
+        _box(root, Vector3(0.11, 0.12, 0.09), Vector3(-0.1, 0.99, 0.15), Color("ff6a32"), true)
+        _box(root, Vector3(0.11, 0.12, 0.09), Vector3(0.1, 0.99, 0.15), Color("ff6a32"), true)
+        for limb in range(4):
+            var side := -1.0 if limb < 2 else 1.0
+            var z := -0.22 if limb % 2 == 0 else 0.22
+            _box(root, Vector3(0.45, 0.1, 0.11), Vector3(side * 0.29, 0.35, z), Color("261d27"))
+        arena_mobs.append(root)
+
+func _impact(pos: Vector3, color: Color) -> void:
+    var ball := SphereMesh.new()
+    ball.radius = 0.23
+    var node := _mesh(self, ball, pos, _bright(color))
+    spell_fx.append({"node": node, "time": 0.40, "total": 0.40, "type": "hit"})
+    if spell_fx.size() > 45:
+        var old = spell_fx.pop_front()
+        if is_instance_valid(old["node"]):
+            old["node"].queue_free()
+
+func _spell_burst(color: Color, size: float, shards: int) -> void:
+    var ring := CylinderMesh.new()
+    ring.top_radius = size * 0.45
+    ring.bottom_radius = size * 0.45
+    ring.height = 0.05
+    var pulse_mesh := _mesh(self, ring, Vector3(0, 0.12, 0), _bright(color))
+    spell_fx.append({"node": pulse_mesh, "time": 0.65, "total": 0.65, "type": "spell"})
+    for i in range(shards):
+        var a := TAU * float(i) / float(shards)
+        var p := Vector3(cos(a) * size * 0.42, rng.randf_range(0.3,2.5), sin(a) * size * 0.42)
+        _impact(p, color)
+
+func _bright(color: Color) -> Material:
+    var m := _mat(color)
+    m.emission_enabled = true
+    m.emission = color
+    m.emission_energy_multiplier = 2.5
+    return m
+
+func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
+    var column := CylinderMesh.new()
+    column.top_radius = 0.08
+    column.bottom_radius = 0.16
+    column.height = 6.1
+    var mesh := _mesh(self, column, pos + Vector3(0, 3, 0), _bright(color))
+    var base := CylinderMesh.new()
+    base.top_radius = 0.43
+    base.bottom_radius = 0.43
+    base.height = 0.08
+    var disc := _mesh(self, base, pos + Vector3(0, 0.08, 0), _bright(color))
+    var label := _label(title, 18, color)
+    label.size = Vector2(260, 36)
+    overlay.add_child(label)
+    loot_beams.append({"mesh": mesh, "disc": disc, "label": label, "pos": pos, "time": 5.2})
+    if loot_beams.size() > 12:
+        _clear_beam(loot_beams.pop_front())
+
+func _clear_beam(beam: Dictionary) -> void:
+    for key in ["mesh", "disc", "label"]:
+        if is_instance_valid(beam[key]):
+            beam[key].queue_free()
+
+func _damage_popup(value: int, pos: Vector3, crit: bool) -> void:
+    if overlay == null:
+        return
+    var label := _label(str(value), 25 if crit else 18, Color("ffdf83") if crit else Color("f3e2dc"))
+    label.size = Vector2(135, 34)
+    overlay.add_child(label)
+    hit_texts.append({"label": label, "pos": pos, "time": 0.84})
+    if hit_texts.size() > 30:
+        var old = hit_texts.pop_front()
+        if is_instance_valid(old["label"]):
+            old["label"].queue_free()
+
+func _update_chaos(delta: float) -> void:
+    for i in range(arena_mobs.size()):
+        var mob = arena_mobs[i]
+        if not is_instance_valid(mob):
+            continue
+        var a := float(i) * 2.39996 + chaos_time * (0.2 if i % 2 == 0 else -0.17)
+        var r := 2.0 + float(i % 8) * 0.39
+        mob.position = Vector3(cos(a) * r, sin(chaos_time * 4.0 + float(i)) * 0.07, sin(a) * r)
+        mob.rotation.y = a + PI
+    for i in range(spell_fx.size() - 1, -1, -1):
+        var fx: Dictionary = spell_fx[i]
+        fx["time"] = float(fx["time"]) - delta
+        var m: MeshInstance3D = fx["node"]
+        if is_instance_valid(m):
+            var p := 1.0 - float(fx["time"]) / float(fx["total"])
+            m.scale = Vector3.ONE * (0.9 + p * (4.2 if fx["type"] == "spell" else 2.2))
+        if float(fx["time"]) <= 0.0:
+            if is_instance_valid(m):
+                m.queue_free()
+            spell_fx.remove_at(i)
+    for i in range(loot_beams.size() - 1, -1, -1):
+        var beam: Dictionary = loot_beams[i]
+        beam["time"] = float(beam["time"]) - delta
+        var label: Label = beam["label"]
+        if camera_ref != null and is_instance_valid(label):
+            var p := camera_ref.unproject_position(Vector3(beam["pos"]) + Vector3(0, 3.3, 0))
+            label.position = p - Vector2(100, 14)
+            label.modulate.a = clampf(float(beam["time"]), 0.0, 1.0)
+        if float(beam["time"]) <= 0.0:
+            _clear_beam(beam)
+            loot_beams.remove_at(i)
+    for i in range(hit_texts.size() - 1, -1, -1):
+        var hit: Dictionary = hit_texts[i]
+        hit["time"] = float(hit["time"]) - delta
+        hit["pos"] = Vector3(hit["pos"]) + Vector3(0, delta * 2.1, 0)
+        var label: Label = hit["label"]
+        if is_instance_valid(label):
+            label.position = camera_ref.unproject_position(Vector3(hit["pos"])) - Vector2(50, 15)
+            label.modulate.a = clampf(float(hit["time"]) / 0.84, 0.0, 1.0)
+        if float(hit["time"]) <= 0.0:
+            if is_instance_valid(label):
+                label.queue_free()
+            hit_texts.remove_at(i)
