@@ -409,7 +409,7 @@ func _max_hp() -> float:
 
 func _damage() -> float:
     var modifier = [1.0, 1.15, 1.32, 1.10][hero_class]
-    return (8.0 + float(level) * 2.5 + float(skills[0]) * 4.0 + _bonus("damage")) * modifier
+    return (8.0 + float(level) * 2.5 + float(skills[0]) * 4.0 + _bonus("damage") + _bonus("elemental") * 0.45) * modifier
 
 func _bonus(key: String) -> float:
     var total = 0.0
@@ -421,11 +421,12 @@ func _bonus(key: String) -> float:
         var set_name: String = str(item.get("set", ""))
         if set_name != "":
             counts[set_name] = int(counts.get(set_name, 0)) + 1
-    for count in counts.values():
-        if int(count) >= 2:
-            total += 12.0 if key == "damage" else 25.0
-        if int(count) >= 4:
-            total += 28.0 if key == "damage" else 50.0
+    if key == "damage" or key == "hp":
+        for count in counts.values():
+            if int(count) >= 2:
+                total += 12.0 if key == "damage" else 25.0
+            if int(count) >= 4:
+                total += 28.0 if key == "damage" else 50.0
     return total
 
 func _spawn_enemy() -> void:
@@ -450,15 +451,16 @@ func _process(delta: float) -> void:
     minimap_refresh_timer += delta
     if tick > 0.36 and popup_shade.visible:
         tick = 0.36
-    if tick >= 0.35 and not popup_shade.visible:
-        tick -= 0.35
+    var attack_interval := 0.35 / (1.0 + minf(1.0, _bonus("speed") / 100.0))
+    if tick >= attack_interval and not popup_shade.visible:
+        tick -= attack_interval
         _fight()
     if save_timer >= 15.0:
         save_timer = 0.0
         _save_game()
 
 func _fight() -> void:
-    var crit := rng.randf() < 0.28
+    var crit := rng.randf() < clampf(0.22 + _bonus("crit") / 100.0, 0.22, 0.68)
     var damage := _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     enemy_hp -= damage
     attack_flash = 1.0
@@ -577,7 +579,11 @@ func _drop_loot() -> void:
         "damage": rng.randi_range(1, 5) * power + stage,
         "hp": rng.randi_range(4, 13) * power + stage * 2,
         "set": SETS[rng.randi_range(0, SETS.size()-1)] if rarity in ["EPIC", "LEGENDARY"] else "",
-        "rarity": rarity
+        "rarity": rarity,
+        "crit": rng.randi_range(1, 3) * power,
+        "speed": rng.randi_range(1, 2) * power,
+        "element": ["FIRE", "FROST", "VOID", "LIGHTNING"][rng.randi_range(0, 3)],
+        "elemental": rng.randi_range(1, 4) * power
     }
     gear.push_front(item)
     if gear.size() > 36:
@@ -747,7 +753,7 @@ func _show_legendary(item: Dictionary) -> void:
         return
     last_legendary = item.duplicate(true)
     legendary_name.text = str(item.get("name", "Ashen Relic")).to_upper()
-    legendary_stats.text = "POWER   %d\nATTACK   +%d\nVITALITY   +%d\nCRITICAL CHANCE   +8.5%%\nFIRE DAMAGE   +32.6%%\nSET   %s" % [int(item.get("damage", 0)) * 78, int(item.get("damage", 0)), int(item.get("hp", 0)), str(item.get("set", "Cinderborn"))]
+    legendary_stats.text = "POWER   %d\nATTACK   +%d\nVITALITY   +%d\nCRITICAL CHANCE   +%d%%\nATTACK SPEED   +%d%%\n%s DAMAGE   +%d\nSET   %s" % [int(item.get("damage", 0)) * 78, int(item.get("damage", 0)), int(item.get("hp", 0)), int(item.get("crit", 0)), int(item.get("speed", 0)), str(item.get("element", "FIRE")), int(item.get("elemental", 0)), str(item.get("set", "Cinderborn"))]
     popup_shade.visible = true
     legendary_overlay.visible = true
 
