@@ -166,7 +166,7 @@ func _build_world() -> void:
     add_child(world)
 
     camera_ref = Camera3D.new()
-    camera_ref.position = Vector3(0.0, 13.4, 14.9)
+    camera_ref.position = Vector3(0.0, 14.1, 16.0)
     add_child(camera_ref)
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
     camera_ref.fov = 40.0
@@ -364,8 +364,8 @@ func _build_ui() -> void:
     overlay.add_child(popup_shade)
 
     legendary_overlay = PanelContainer.new()
-    legendary_overlay.position = Vector2(96, (overlay.size.y - 567.0) * 0.5)
-    legendary_overlay.size = Vector2(528, 567)
+    legendary_overlay.position = Vector2(84, (overlay.size.y - 640.0) * 0.5)
+    legendary_overlay.size = Vector2(552, 640)
     legendary_overlay.z_index = 41
     legendary_overlay.visible = false
     legendary_overlay.add_theme_stylebox_override("panel", _skin(Color("0f1119"), Color("e2ad58")))
@@ -380,14 +380,14 @@ func _build_ui() -> void:
     leg_col.add_child(split)
     legendary_name = _label("", 26, Color("fff0bb"))
     legendary_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    legendary_name.custom_minimum_size = Vector2(480, 68)
+    legendary_name.custom_minimum_size = Vector2(492, 56)
     leg_col.add_child(legendary_name)
     var item_frame := SubViewportContainer.new()
-    item_frame.custom_minimum_size = Vector2(480, 120)
+    item_frame.custom_minimum_size = Vector2(490, 208)
     item_frame.stretch = true
     leg_col.add_child(item_frame)
     legendary_item_viewport = SubViewport.new()
-    legendary_item_viewport.size = Vector2i(480, 120)
+    legendary_item_viewport.size = Vector2i(490, 208)
     legendary_item_viewport.transparent_bg = true
     legendary_item_viewport.own_world_3d = true
     legendary_item_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -395,9 +395,9 @@ func _build_ui() -> void:
     legendary_item_display = Node3D.new()
     legendary_item_viewport.add_child(legendary_item_display)
     var item_camera := Camera3D.new()
-    item_camera.position = Vector3(2.8, 1.5, 3.2)
-    item_camera.look_at(Vector3(0, 0.4, 0), Vector3.UP)
-    item_camera.fov = 43
+    item_camera.position = Vector3(3.0, 1.5, 4.9)
+    item_camera.look_at(Vector3(0, 0.25, 0), Vector3.UP)
+    item_camera.fov = 35
     item_camera.current = true
     legendary_item_viewport.add_child(item_camera)
     var item_light := DirectionalLight3D.new()
@@ -414,8 +414,8 @@ func _build_ui() -> void:
     item_env_resource.ambient_light_energy = 0.7
     item_env.environment = item_env_resource
     legendary_item_viewport.add_child(item_env)
-    legendary_stats = _label("", 19, Color("eadcc9"))
-    legendary_stats.custom_minimum_size = Vector2(480, 175)
+    legendary_stats = _label("", 17, Color("eadcc9"))
+    legendary_stats.custom_minimum_size = Vector2(490, 142)
     leg_col.add_child(legendary_stats)
     var flavor := _label("Forged in the ashes of fallen worlds.", 15, Color("bca88d"))
     flavor.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1005,7 +1005,7 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                instance.scale = Vector3.ONE * (1.48 if elite else 0.66 if i % 4 != 2 else 0.77)
+                instance.scale = Vector3.ONE * (1.24 if elite else 0.66 if i % 4 != 2 else 0.77)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if root.get_child_count() == 0:
             var body := CapsuleMesh.new()
@@ -1065,6 +1065,7 @@ func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
     var disc := _mesh(self, base, pos + Vector3(0, 0.08, 0), _bright(color))
     var label := _label(title, 18, color)
     label.size = Vector2(260, 36)
+    label.visible = false
     overlay.add_child(label)
     loot_beams.append({"mesh": mesh, "disc": disc, "label": label, "pos": pos, "time": 5.2})
     if loot_beams.size() > 12:
@@ -1080,6 +1081,7 @@ func _damage_popup(value: int, pos: Vector3, crit: bool) -> void:
         return
     var label := _label(str(value), 25 if crit else 18, Color("ffdf83") if crit else Color("f3e2dc"))
     label.size = Vector2(135, 34)
+    label.visible = false
     overlay.add_child(label)
     hit_texts.append({"label": label, "pos": pos, "time": 0.84})
     if hit_texts.size() > 30:
@@ -1093,7 +1095,7 @@ func _update_chaos(delta: float) -> void:
         if not is_instance_valid(mob):
             continue
         var a := float(i) * 2.39996 + chaos_time * (0.2 if i % 2 == 0 else -0.17)
-        var r := 2.0 + float(i % 8) * 0.39
+        var r := (1.55 if bool(mob.get_meta("boss", false)) else 2.0 + float(i % 8) * 0.39)
         mob.position = Vector3(cos(a) * r, sin(chaos_time * 4.0 + float(i)) * 0.07, sin(a) * r)
         mob.rotation.y = a + PI
     for i in range(spell_fx.size() - 1, -1, -1):
@@ -1113,6 +1115,7 @@ func _update_chaos(delta: float) -> void:
         var label: Label = beam["label"]
         if camera_ref != null and is_instance_valid(label):
             var p := camera_ref.unproject_position(Vector3(beam["pos"]) + Vector3(0, 3.3, 0))
+            label.visible = p.y > 406.0 and p.y < overlay.size.y - 310.0 and p.x > 85.0 and p.x < overlay.size.x - 85.0
             label.position = p - Vector2(100, 14)
             label.modulate.a = clampf(float(beam["time"]), 0.0, 1.0)
         if float(beam["time"]) <= 0.0:
@@ -1193,7 +1196,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    model.scale = Vector3.ONE * (0.72 if enemy else 1.05)
+    model.scale = Vector3.ONE * (0.72 if enemy else 0.98)
     model.rotation.y = PI
     _play_animation(model, ["Idle_A", "Idle", "idle"])
     return root
@@ -1229,13 +1232,9 @@ func _rift_line(point_a: Vector3, point_b: Vector3, width: float, color: Color) 
     var length := segment.length()
     if length < 0.05:
         return
-    var stone := BoxMesh.new()
-    stone.size = Vector3(width + 0.10, 0.025, length + 0.04)
-    var dark := _mesh(self, stone, (point_a + point_b) * 0.5 + Vector3(0, 0.078, 0), _mat(Color("0c0c13"), 0.11))
-    dark.rotation.y = atan2(segment.x, segment.z)
     var crack_mesh := BoxMesh.new()
-    crack_mesh.size = Vector3(width, 0.028, length)
-    var crack := _mesh(self, crack_mesh, (point_a + point_b) * 0.5 + Vector3(0, 0.094, 0), _mat(color.darkened(0.54), 0.0, true))
+    crack_mesh.size = Vector3(width * 0.72, 0.007, length)
+    var crack := _mesh(self, crack_mesh, (point_a + point_b) * 0.5 + Vector3(0, 0.078, 0), _mat(color.darkened(0.66), 0.0, true))
     crack.rotation.y = atan2(segment.x, segment.z)
 
 func _decorate_arena() -> void:
@@ -1243,11 +1242,11 @@ func _decorate_arena() -> void:
     # Geometry is intentionally inexpensive so GL Compatibility remains fast on Android.
     var ring := TorusMesh.new()
     ring.inner_radius = 2.68
-    ring.outer_radius = 2.74
+    ring.outer_radius = 2.70
     _mesh(self, ring, Vector3(0, 0.11, 0), _mat(Color("5d251f"), 0.1, true))
     var outer_ring := TorusMesh.new()
     outer_ring.inner_radius = 4.23
-    outer_ring.outer_radius = 4.27
+    outer_ring.outer_radius = 4.25
     _mesh(self, outer_ring, Vector3(0, 0.105, 0), _mat(Color("37252d"), 0.1, true))
     for mark_i in range(12):
         var a := TAU * float(mark_i) / 12.0
@@ -1371,23 +1370,83 @@ func _update_item_preview(item: Dictionary) -> void:
     for child in legendary_item_display.get_children():
         child.queue_free()
     legendary_item_display.rotation = Vector3.ZERO
+    # Actual 3D equipment art instead of a distant low-detail imported placeholder.
+    var preview_root := Node3D.new()
+    legendary_item_display.add_child(preview_root)
+    preview_root.rotation.z = -0.11
+    var slot: String = str(item.get("slot", "Weapon"))
     var name: String = str(item.get("name", "")).to_lower()
-    var model_name := "sword_2handed"
-    if name.contains("staff") or name.contains("scepter"):
-        model_name = "staff"
-    elif name.contains("dagger") or name.contains("ring"):
-        model_name = "dagger"
-    var asset_path := "res://assets/weapons/" + model_name + ".gltf"
-    if ResourceLoader.exists(asset_path):
-        var packed: PackedScene = load(asset_path) as PackedScene
-        if packed != null:
-            var weapon: Node3D = packed.instantiate() as Node3D
-            if weapon != null:
-                legendary_item_display.add_child(weapon)
-                weapon.scale = Vector3.ONE * 2.2
-                weapon.position = Vector3(0, -0.75, 0)
-                return
-    # Mesh fallback if asset import fails: no blank loot card.
-    var blade := _box(legendary_item_display, Vector3(0.18, 1.80, 0.11), Vector3(0, 0.55, 0), Color("d5e3ec"), true)
-    blade.rotation.z = 0.2
-    _box(legendary_item_display, Vector3(0.67, 0.12, 0.16), Vector3(0, -0.12, 0), Color("f2be61"), true)
+    var element: String = str(item.get("element", "FIRE")).to_upper()
+    var gem_color := Color("ff873d")
+    if element == "VOID":
+        gem_color = Color("aa73f0")
+    elif element == "FROST":
+        gem_color = Color("73e1f5")
+    elif element == "LIGHTNING":
+        gem_color = Color("ffe388")
+    # Floating circular etched seal frames every legendary item.
+    var seal := TorusMesh.new()
+    seal.inner_radius = 1.17
+    seal.outer_radius = 1.185
+    var halo := _mesh(preview_root, seal, Vector3(0, 0.16, -0.55), _mat(gem_color.darkened(0.73), 0.0, true))
+    halo.rotation.x = PI / 2.0
+    var seal_inner := TorusMesh.new()
+    seal_inner.inner_radius = 0.91
+    seal_inner.outer_radius = 0.921
+    var halo_inner := _mesh(preview_root, seal_inner, Vector3(0, 0.16, -0.57), _mat(Color("63513f"), 0.65))
+    halo_inner.rotation.x = PI / 2.0
+    if slot == "Ring":
+        var ring := TorusMesh.new()
+        ring.inner_radius = 0.48
+        ring.outer_radius = 0.69
+        var ring_mesh := _mesh(preview_root, ring, Vector3(0, 0.12, 0), _mat(Color("d4a34c"), 0.8))
+        ring_mesh.rotation.x = PI / 2.0
+        _sphere_part(preview_root, 0.29, Vector3(0, 0.77, 0.12), gem_color).material_override = _bright(gem_color)
+        for i in range(5):
+            var a := PI * float(i) / 4.0
+            _sphere_part(preview_root, 0.055, Vector3(cos(a) * 0.63, sin(a) * 0.63 + 0.12, 0.18), Color("eec67c"))
+    elif slot == "Helm":
+        _cone(preview_root, 0.62, 0.48, 0.85, Vector3(0, 0.10, 0), Color("3d4758"))
+        _cone(preview_root, 0.54, 0.04, 0.82, Vector3(0, 0.82, 0), Color("adb8c8"))
+        _box(preview_root, Vector3(1.33, 0.15, 0.43), Vector3(0, -0.19, 0.20), Color("bd8c4d"))
+        _box(preview_root, Vector3(0.85, 0.14, 0.16), Vector3(0, 0.19, 0.43), Color("151826"))
+        _sphere_part(preview_root, 0.20, Vector3(0, 0.51, 0.42), gem_color).material_override = _bright(gem_color)
+        for side in [-1, 1]:
+            var horn := _cone(preview_root, 0.17, 0.01, 0.76, Vector3(float(side) * 0.46, 0.87, 0), Color("ddcbb2"))
+            horn.rotation.z = float(side) * 0.29
+    elif slot == "Armor":
+        _cone(preview_root, 0.82, 0.56, 1.65, Vector3(0, 0, 0), Color("435265"))
+        _box(preview_root, Vector3(0.88, 1.12, 0.19), Vector3(0, 0.15, 0.50), Color("7c8794"))
+        _box(preview_root, Vector3(0.70, 0.10, 0.22), Vector3(0, -0.49, 0.54), Color("c89e5d"))
+        for side in [-1, 1]:
+            var shoulder := _sphere_part(preview_root, 0.40, Vector3(float(side) * 0.77, 0.63, 0.0), Color("354150"))
+            shoulder.scale = Vector3(1.35, 0.78, 1.0)
+            var rivet := _sphere_part(preview_root, 0.075, Vector3(float(side) * 0.80, 0.72, 0.38), Color("e0ae6d"))
+        var breast_gem := _sphere_part(preview_root, 0.22, Vector3(0, 0.29, 0.66), gem_color)
+        breast_gem.material_override = _bright(gem_color)
+    elif name.contains("staff") or name.contains("scepter"):
+        var wood := _cone(preview_root, 0.08, 0.11, 2.35, Vector3(0, 0.05, 0), Color("563b34"))
+        var shaft := _box(preview_root, Vector3(0.16, 0.16, 0.16), Vector3(0, -0.72, 0), Color("d4a557"))
+        var mount := _cone(preview_root, 0.35, 0.09, 0.61, Vector3(0, 1.04, 0), Color("c2a272"))
+        var crystal := _sphere_part(preview_root, 0.36, Vector3(0, 1.40, 0), gem_color)
+        crystal.scale = Vector3(0.75, 1.48, 0.72)
+        crystal.material_override = _bright(gem_color)
+        for side in [-1, 1]:
+            var spur := _cone(preview_root, 0.08, 0.015, 0.66, Vector3(float(side) * 0.27, 0.96, 0), Color("c99b57"))
+            spur.rotation.z = float(side) * 0.65
+    else:
+        # Detailed greatsword: broad two-tone blade, gold crossguard, glowing runic core.
+        var grip := _cone(preview_root, 0.10, 0.11, 0.77, Vector3(0, -0.77, 0), Color("594039"))
+        _sphere_part(preview_root, 0.15, Vector3(0, -1.19, 0), Color("d1a15e"))
+        _box(preview_root, Vector3(1.11, 0.15, 0.23), Vector3(0, -0.33, 0), Color("c7a05b"))
+        for side in [-1, 1]:
+            var quillon := _cone(preview_root, 0.11, 0.02, 0.47, Vector3(float(side) * 0.60, -0.21, 0), Color("d2ac6c"))
+            quillon.rotation.z = float(side) * -1.15
+        var blade_mesh := BoxMesh.new()
+        blade_mesh.size = Vector3(0.42, 1.54, 0.12)
+        _mesh(preview_root, blade_mesh, Vector3(0, 0.50, 0), _mat(Color("9ba9bc"), 0.8))
+        _box(preview_root, Vector3(0.13, 1.39, 0.16), Vector3(0, 0.47, 0.02), Color("dae5ed"))
+        _cone(preview_root, 0.275, 0.005, 0.72, Vector3(0, 1.56, 0), Color("d1ddeb"))
+        _box(preview_root, Vector3(0.065, 1.11, 0.03), Vector3(0, 0.45, 0.11), gem_color, true)
+        var gem := _sphere_part(preview_root, 0.15, Vector3(0, -0.31, 0.19), gem_color)
+        gem.material_override = _bright(gem_color)
