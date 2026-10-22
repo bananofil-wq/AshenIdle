@@ -876,7 +876,7 @@ func _trigger_combat_animation(actor: Node3D) -> void:
         var idle_name := ""
         for candidate in player.get_animation_list():
             var lower: String = str(candidate).to_lower()
-            if attack_name == "" and (lower.contains("attack") or lower.contains("slash") or lower.contains("melee") or lower.contains("cast")):
+            if attack_name == "" and (lower.contains("attack") or lower.contains("slash") or lower.contains("melee") or lower.contains("cast") or lower.contains("sword")):
                 attack_name = str(candidate)
             if idle_name == "" and lower.contains("idle"):
                 idle_name = str(candidate)
@@ -1522,8 +1522,8 @@ func _spawn_horde() -> void:
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
-        var boss_models := ["demon_dark", "ghost_dark", "knight_dark"]
-        var model_name: String = str(boss_models[_boss_variant()]) if elite else ["skeleton_dark", "ghost_dark", "skeleton_dark", "demon_dark"][i % 4]
+        var boss_models := ["ashen_shadow_knight", "ashen_mage", "ashen_armored_knight"]
+        var model_name: String = str(boss_models[_boss_variant()]) if elite else ["skeleton_dark", "skeleton_dark", "ashen_shadow_knight", "skeleton_dark"][i % 4]
         var root := Node3D.new()
         add_child(root)
         var packed := _get_asset_scene(model_name)
@@ -1533,8 +1533,10 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                _fit_visual_model(instance, [3.9, 3.6, 4.15][_boss_variant()] if elite else (2.08 if i % 4 != 1 else 2.36))
+                _fit_visual_model(instance, [3.15, 3.36, 3.4][_boss_variant()] if elite else 1.9)
                 _darken_character_materials(instance, elite)
+                if elite:
+                    _attach_hero_clips(instance)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if elite:
             var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
@@ -1771,11 +1773,12 @@ func _play_animation(model: Node, candidates: Array) -> void:
 
 func _dark_character_name(source_name: String, enemy: bool) -> String:
     match source_name:
-        "Knight", "Barbarian": return "knight_dark" if source_name == "Knight" else "demon_dark"
-        "Rogue": return "hero_dark"
-        "Mage": return "hero_dark"
-        "Skeleton_Warrior": return "demon_dark" if enemy else "skeleton_dark"
-        "Skeleton_Mage": return "ghost_dark"
+        "Knight": return "ashen_armored_knight"
+        "Barbarian": return "ashen_shadow_knight"
+        "Rogue": return "ashen_ranger"
+        "Mage": return "ashen_mage"
+        "Skeleton_Warrior": return "ashen_armored_knight" if enemy else "skeleton_dark"
+        "Skeleton_Mage": return "ashen_mage"
         "Skeleton_Minion": return "skeleton_dark"
         "Skeleton_Rogue": return "skeleton_dark"
     return source_name
@@ -1816,6 +1819,62 @@ func _darken_character_materials(model: Node3D, is_elite: bool) -> void:
             deeper.metallic = 0.10
             part.set_surface_override_material(surface_i, deeper)
 
+func _attach_hero_clips(model: Node3D) -> void:
+    # Quaternius Universal rigs are compatible; copy each Godot animation track
+    # to the matching destination bone rather than relying on FBX retarget services.
+    var shared := _get_asset_scene("ashen_shared_anims")
+    if shared == null:
+        return
+    var donor: Node3D = shared.instantiate() as Node3D
+    if donor == null:
+        return
+    add_child(donor)
+    var receiver_skeleton: Skeleton3D
+    for part in model.find_children("*", "Skeleton3D", true, false):
+        receiver_skeleton = part as Skeleton3D
+        break
+    var donor_player: AnimationPlayer
+    for part in donor.find_children("*", "AnimationPlayer", true, false):
+        donor_player = part as AnimationPlayer
+        break
+    if receiver_skeleton == null or donor_player == null:
+        donor.queue_free()
+        return
+    var result := AnimationLibrary.new()
+    for clip_name in donor_player.get_animation_list():
+        var source: Animation = donor_player.get_animation(clip_name)
+        if source == null:
+            continue
+        var target_anim := Animation.new()
+        target_anim.length = source.length
+        target_anim.loop_mode = source.loop_mode
+        for idx in range(source.get_track_count()):
+            var track_type: Animation.TrackType = source.track_get_type(idx)
+            if track_type != Animation.TYPE_POSITION_3D and track_type != Animation.TYPE_ROTATION_3D and track_type != Animation.TYPE_SCALE_3D:
+                continue
+            var raw_path: String = String(source.track_get_path(idx))
+            var sep: int = raw_path.rfind(":")
+            if sep < 0:
+                continue
+            var bone: String = raw_path.substr(sep + 1)
+            if receiver_skeleton.find_bone(bone) < 0:
+                continue
+            var idx_new: int = target_anim.add_track(track_type)
+            target_anim.track_set_path(idx_new, NodePath(String(model.get_path_to(receiver_skeleton)) + ":" + bone))
+            for key_idx in range(source.track_get_key_count(idx)):
+                target_anim.track_insert_key(idx_new,
+                    source.track_get_key_time(idx, key_idx),
+                    source.track_get_key_value(idx, key_idx),
+                    source.track_get_key_transition(idx, key_idx))
+        if target_anim.get_track_count() > 0:
+            result.add_animation(clip_name, target_anim)
+    if result.get_animation_list().size() > 0:
+        var receiver := AnimationPlayer.new()
+        receiver.name = "CombatAnimationPlayer"
+        model.add_child(receiver)
+        receiver.add_animation_library("", result)
+    donor.queue_free()
+
 func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> Node3D:
     var dark_name := _dark_character_name(model_name, enemy)
     var packed := _get_asset_scene(dark_name)
@@ -1831,9 +1890,11 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    _fit_visual_model(model, 2.50 if not enemy else 2.20)
+    _fit_visual_model(model, 2.35 if not enemy else 2.20)
     model.rotation.y = PI
     _darken_character_materials(model, false)
+    if not enemy:
+        _attach_hero_clips(model)
     _play_animation(model, ["Idle_A", "Idle", "idle"])
     return root
 
