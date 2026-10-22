@@ -1590,12 +1590,14 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     wave.scale = Vector3.ONE * 0.3
     spell_fx.append({"node": wave, "time": 0.42, "total": 0.42, "type": "spell"})
     # Beams of rising energy, individual sparks and sharp concentric shockwave.
-    for i in range(mini(shards, 9)):
-        var theta := TAU * float(i) / float(shards)
-        var point := center + Vector3(cos(theta) * size * 0.25, -0.45, sin(theta) * size * 0.25)
-        var ray := _mesh(self, QuadMesh.new(), point, _fx_material(color, 0.62))
-        ray.scale = Vector3(0.22, 1.65, 0.22)
-        spell_fx.append({"node": ray, "time": 0.27, "total": 0.27, "type": "hit"})
+    for i in range(mini(shards + 2, 12)):
+        var theta := TAU * float(i) / float(shards + 2)
+        var point := center + Vector3(cos(theta) * size * 0.26, 0.16, sin(theta) * size * 0.26)
+        var plume_mesh := QuadMesh.new()
+        plume_mesh.size = Vector2(0.82, 3.35)
+        var ray := _mesh(self, plume_mesh, point, _fx_material(color, 0.71))
+        ray.scale = Vector3(0.75, 1.0, 0.75)
+        spell_fx.append({"node": ray, "time": 0.45, "total": 0.45, "type": "hit"})
 
 func _bright(color: Color) -> Material:
     var m := _mat(color.darkened(0.16))
@@ -1961,25 +1963,52 @@ func _decorate_arena() -> void:
         var end := mid + Vector3(cos(a - 0.19), 0, sin(a - 0.19)) * rng.randf_range(0.36, 1.02)
         _rift_line(start, mid, 0.018 + rng.randf() * 0.018, Color("ae4a2c"))
         _rift_line(mid, end, 0.014, Color("9b422e"))
-    for pillar_i in range(9):
-        var angle := TAU * float(pillar_i) / 9.0 + 0.35
-        var radius := 5.1 + float(pillar_i % 3) * 0.28
+    var debris_mat := (pbr_floor.material_override as StandardMaterial3D).duplicate() as StandardMaterial3D
+    debris_mat.uv1_scale = Vector3(1.5, 1.5, 1.0)
+    debris_mat.albedo_color = Color("777c82")
+    for debris_idx in range(19):
+        var angle := TAU * float(debris_idx) / 19.0 + 0.35
+        var radius := 5.0 + float(debris_idx % 3) * 0.35
         var at := Vector3(cos(angle) * radius, 0, sin(angle) * radius)
-        var shard_height := 0.55 + float(pillar_i % 4) * 0.30
-        var rock := _cone(self, 0.27, 0.0, shard_height, at + Vector3(0, shard_height * 0.49, 0), Color("1a202c"))
-        rock.rotation.z = (-0.15 if pillar_i % 2 else 0.16)
-        var seam := _box(self, Vector3(0.025, shard_height * 0.47, 0.026), at + Vector3(0.06, shard_height * 0.52, 0.21), Color("a34529"), true)
-        seam.rotation.z = rock.rotation.z
+        var width := 0.16 + float(debris_idx % 3) * 0.14
+        var depth := 0.3 + float(debris_idx % 4) * 0.11
+        var stone_piece := BoxMesh.new()
+        stone_piece.size = Vector3(width, 0.18, depth)
+        var rubble := _mesh(self, stone_piece, at + Vector3(0, 0.08, 0), debris_mat)
+        rubble.rotation.y = float(debris_idx) * 1.43
+        rubble.rotation.x = 0.09 * sin(float(debris_idx) * 2.7)
     for beacon_i in range(2):
-        var x := -5.35 if beacon_i == 0 else 5.35
-        var beacon_z := -2.8
-        var base := Vector3(x, 0, beacon_z)
-        _cone(self, 0.43, 0.33, 1.20, base + Vector3(0, 0.60, 0), Color("242937"))
-        _cone(self, 0.37, 0.37, 0.13, base + Vector3(0, 1.27, 0), Color("775039"))
-        var fire := _sphere_part(self, 0.28, base + Vector3(0, 1.66, 0), Color("ff8c39"))
-        fire.material_override = _bright(Color("ff7c25"))
-        var fire_tip := _cone(self, 0.22, 0.015, 0.60, base + Vector3(0, 1.92, 0), Color("ffb23c"))
-        fire_tip.material_override = _bright(Color("ff9634"))
+        var x := -5.45 if beacon_i == 0 else 5.45
+        var base := Vector3(x, 0, -3.1)
+        var pedestal := BoxMesh.new()
+        pedestal.size = Vector3(0.72, 0.90, 0.72)
+        _mesh(self, pedestal, base + Vector3(0, 0.45, 0), debris_mat)
+        var brazier := CylinderMesh.new()
+        brazier.top_radius = 0.44
+        brazier.bottom_radius = 0.24
+        brazier.height = 0.22
+        _mesh(self, brazier, base + Vector3(0, 1.0, 0), _mat(Color("5c4a3c"), 0.66))
+        var flame := CPUParticles3D.new()
+        var flare_mesh := QuadMesh.new()
+        flare_mesh.size = Vector2(0.36, 0.48)
+        flare_mesh.material = _fx_material(Color("ff6d28"), 0.90)
+        flame.mesh = flare_mesh
+        flame.amount = 30
+        flame.lifetime = 0.80
+        flame.one_shot = false
+        flame.explosiveness = 0.0
+        flame.direction = Vector3(0, 1, 0)
+        flame.spread = 22.0
+        flame.initial_velocity_min = 0.8
+        flame.initial_velocity_max = 1.7
+        flame.gravity = Vector3.ZERO
+        flame.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+        flame.emission_sphere_radius = 0.21
+        flame.scale_amount_min = 0.5
+        flame.scale_amount_max = 1.35
+        flame.position = base + Vector3(0, 1.10, 0)
+        add_child(flame)
+        flame.emitting = true
     # Distinct center sigil becomes a memorable landmark underneath the combatants.
     var center := CylinderMesh.new()
     center.top_radius = 0.60
@@ -1993,12 +2022,9 @@ func _decorate_arena() -> void:
 func _scatter_embers() -> void:
     # Tiny drifting emissive ash sparks provide depth without a heavy particle shader.
     for i in range(44):
-        var mesh := SphereMesh.new()
-        mesh.radius = rng.randf_range(0.025, 0.054)
-        mesh.height = mesh.radius * 2.0
-        mesh.radial_segments = 8
-        mesh.rings = 4
-        var spark := _mesh(self, mesh, Vector3(rng.randf_range(-5.8, 5.8), 0.2, rng.randf_range(-5.8, 5.8)), _bright(Color("f47c3d") if i % 3 else Color("ffca78")))
+        var spark_mesh := QuadMesh.new()
+        spark_mesh.size = Vector2(rng.randf_range(0.07, 0.17), rng.randf_range(0.07, 0.17))
+        var spark := _mesh(self, spark_mesh, Vector3(rng.randf_range(-5.8, 5.8), 0.2, rng.randf_range(-5.8, 5.8)), _fx_material(Color("f27e34") if i % 3 else Color("ffbf5a"), 0.40))
         var phase := rng.randf_range(0.0, TAU)
         ember_motes.append({"node": spark, "x": spark.position.x, "z": spark.position.z, "phase": phase, "rate": rng.randf_range(0.22, 0.53)})
 
@@ -2031,14 +2057,14 @@ func _fx_material(tint: Color, opacity: float = 0.86) -> StandardMaterial3D:
     result.albedo_color = Color(tint.r, tint.g, tint.b, opacity)
     result.emission_enabled = true
     result.emission = tint
-    result.emission_energy_multiplier = 4.0
+    result.emission_energy_multiplier = 2.4
     return result
 
 func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float = 2.8, duration: float = 0.57) -> void:
     if get_tree() == null:
         return
     var sprite := QuadMesh.new()
-    sprite.size = Vector2(0.25, 0.25)
+    sprite.size = Vector2(0.47, 0.47)
     sprite.material = _fx_material(tint, 0.92)
     var parts := CPUParticles3D.new()
     parts.mesh = sprite
@@ -2050,7 +2076,7 @@ func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float =
     parts.emission_sphere_radius = 0.14
     parts.direction = Vector3(0.0, 0.7, 0.0)
     parts.spread = 180.0
-    parts.initial_velocity_min = radius * 0.55
+    parts.initial_velocity_min = radius * 0.45
     parts.initial_velocity_max = radius
     parts.gravity = Vector3(0, -1.1, 0)
     parts.scale_amount_min = 0.55
