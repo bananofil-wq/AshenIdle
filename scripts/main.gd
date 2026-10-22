@@ -59,6 +59,11 @@ var actions: HBoxContainer
 var attack_flash = 0.0
 var chaos_time := 0.0
 var camera_ref: Camera3D
+var camera_focus := Vector3.ZERO
+var camera_kick := 0.0
+var camera_shake := 0.0
+var camera_time := 0.0
+var cinematic_camera := true
 var arena_mobs: Array = []
 var spell_fx: Array = []
 var loot_beams: Array = []
@@ -226,6 +231,7 @@ func _build_world() -> void:
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
     camera_ref.fov = 40.0
     camera_ref.current = true
+    camera_focus = Vector3.ZERO
     var sun := DirectionalLight3D.new()
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
@@ -649,6 +655,7 @@ func _process(delta: float) -> void:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
+    _update_camera(delta)
     if screen_flash != null and screen_flash_fade > 0.0:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
@@ -681,8 +688,10 @@ func _fight() -> void:
     _slash_trail(target.global_position, crit)
     _play_audio(0)
     attack_animation_index += 1
-    if attack_animation_index % 3 == 0:
-        _trigger_combat_animation(hero)
+    _actor_attack(hero, hero_class == 2)
+    camera_kick = minf(1.0, camera_kick + (0.36 if crit else 0.11))
+    if crit:
+        camera_shake = maxf(camera_shake, 0.11)
     attack_flash = 1.0
     if rng.randf() < 0.23 and not arena_mobs.is_empty():
         _use_skill(rng.randi_range(0, 2))
@@ -774,6 +783,7 @@ func _move_hero(delta: float) -> void:
     if hero == null or not is_instance_valid(hero) or popup_shade.visible:
         return
     var destination := Vector3(-0.4, 0.0, 0.7)
+    var before_position: Vector3 = hero.position
     var target: Node3D = _choose_target()
     if target != null:
         var retreat: Vector3 = hero.position - target.position
@@ -786,9 +796,14 @@ func _move_hero(delta: float) -> void:
         var look_dir: Vector3 = target.position - hero.position
         if look_dir.length_squared() > 0.1:
             hero.rotation.y = lerp_angle(hero.rotation.y, atan2(look_dir.x, look_dir.z), clampf(delta * 6.0, 0.0, 1.0))
-    hero.position.x = move_toward(hero.position.x, destination.x, delta * 2.8)
-    hero.position.z = move_toward(hero.position.z, destination.z, delta * 2.8)
-    hero.position.y = sin(chaos_time * 7.0) * 0.03
+    var movement: Vector3 = destination - hero.position
+    movement.y = 0.0
+    var desired_speed: float = minf(3.6, movement.length() * 2.8)
+    if movement.length() > 0.08:
+        hero.position += movement.normalized() * minf(movement.length(), desired_speed * delta)
+    var velocity: float = Vector2(hero.position.x - before_position.x, hero.position.z - before_position.z).length() / maxf(0.001, delta)
+    _animate_actor(hero, velocity)
+    hero.position.y = 0.0
     if hero_hit_flash > 0.0:
         hero_hit_flash = maxf(0.0, hero_hit_flash - delta)
         hero.scale = Vector3.ONE * (1.02 if int(hero_hit_flash * 14.0) % 2 == 0 else 0.96)
@@ -832,6 +847,8 @@ func _update_boss_cast(delta: float) -> void:
             var reduced: float = impact_damage * (1.0 - clampf(_bonus("defense") / 100.0, 0.0, 0.52))
             hp -= reduced
             _spell_burst([Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()], 2.0, 7)
+            camera_shake = maxf(camera_shake, 0.34)
+            camera_kick = maxf(camera_kick, 1.0)
             _damage_popup(int(reduced), hero.position + Vector3(0, 0.15, 0), true)
             hero_hit_flash = 0.3
             combat_note = "BOSS POWER ATTACK!"
@@ -871,6 +888,98 @@ func _apply_biome() -> void:
     if center_banner != null:
         center_banner.text = ["THE CINDER CRYPT", "THE FROST WASTES", "THE VOID CITADEL"][next_biome]
         center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("f2bddc")][next_biome])
+
+func _bind_motion_driver(actor: Node3D) -> void:
+    if actor == null:
+        return
+    var preferred: AnimationPlayer
+    for candidate in actor.find_children("*", "AnimationPlayer", true, false):
+        var player: AnimationPlayer = candidate as AnimationPlayer
+        if player == null:
+            continue
+        if player.name == "CombatAnimationPlayer":
+            preferred = player
+            break
+        if preferred == null and player.get_animation_list().size() > 1:
+            preferred = player
+    if preferred != null:
+        actor.set_meta("animation_driver", preferred)
+        actor.set_meta("clip_state", "")
+        actor.set_meta("action_until", 0)
+
+func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: float = 1.0) -> bool:
+    if actor == null or not is_instance_valid(actor):
+        return false
+    var player: AnimationPlayer = actor.get_meta("animation_driver", null) as AnimationPlayer
+    if player == null or not is_instance_valid(player):
+        return false
+    var best := ""
+    for name in player.get_animation_list():
+        if str(name).to_lower() == clip.to_lower():
+            best = str(name)
+            break
+    if best == "":
+        for name in player.get_animation_list():
+            if str(name).to_lower().contains(clip.to_lower()):
+                best = str(name)
+                break
+    if best == "":
+        return false
+    if str(actor.get_meta("clip_state", "")) != best or not player.is_playing():
+        player.play(best, blend, rate)
+        actor.set_meta("clip_state", best)
+    return true
+
+func _animate_actor(actor: Node3D, speed: float) -> void:
+    if actor == null or not is_instance_valid(actor):
+        return
+    var now: int = Time.get_ticks_msec()
+    if now < int(actor.get_meta("action_until", 0)):
+        return
+    var wanted: String = "Jog_Fwd" if speed > 1.55 else "Walk" if speed > 0.22 else "Idle"
+    if not _play_actor_clip(actor, wanted, 0.16, 1.04 if speed > 0.22 else 1.0):
+        _play_actor_clip(actor, "Idle", 0.16)
+
+func _actor_attack(actor: Node3D, magic: bool = false) -> void:
+    if actor == null or not is_instance_valid(actor):
+        return
+    if Time.get_ticks_msec() < int(actor.get_meta("action_until", 0)) - 80:
+        return
+    var clip := "Spell_Simple_Shoot" if magic else "Sword_Regular_A"
+    if _play_actor_clip(actor, clip, 0.10, 1.65):
+        actor.set_meta("action_until", Time.get_ticks_msec() + 390)
+
+func _update_camera(delta: float) -> void:
+    if camera_ref == null or hero == null or not is_instance_valid(hero):
+        return
+    if not cinematic_camera:
+        return
+    camera_time += delta
+    # Follow combat from an isometric overhead boom. Avoid exaggerated camera
+    # movement that would disorient a portrait-screen player.
+    var hero_target: Vector3 = hero.global_position
+    hero_target.x = clampf(hero_target.x, -3.1, 3.1)
+    hero_target.z = clampf(hero_target.z, -3.1, 3.1)
+    var focus: Vector3 = hero_target * 0.63
+    var target: Node3D = _choose_target()
+    if target != null:
+        focus += (target.global_position - hero_target) * 0.12
+    focus.y = 0.66
+    camera_focus = camera_focus.lerp(focus, clampf(delta * 2.1, 0.0, 1.0))
+    var boss_fight := stage % 5 == 0
+    var look_offset := Vector3(0, 13.6 if boss_fight else 13.4, 15.1 if boss_fight else 14.5)
+    var subtle_orbit: float = sin(camera_time * 0.31) * 0.32
+    var random_shake := Vector3(
+        sin(camera_time * 83.0) * camera_shake,
+        cos(camera_time * 69.0) * camera_shake * 0.50,
+        sin(camera_time * 51.0) * camera_shake * 0.5
+    )
+    var destination: Vector3 = camera_focus + look_offset + Vector3(subtle_orbit, 0.0, -camera_kick * 0.26) + random_shake
+    camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.3, 0.0, 1.0))
+    camera_ref.look_at(camera_focus + Vector3(0.0, 0.6, 0.0), Vector3.UP)
+    camera_ref.fov = lerpf(camera_ref.fov, (37.5 if boss_fight else 39.0) - camera_kick * 0.7, clampf(delta * 2.0, 0.0, 1.0))
+    camera_kick = move_toward(camera_kick, 0.0, delta * 2.7)
+    camera_shake = move_toward(camera_shake, 0.0, delta * 0.95)
 
 func _trigger_combat_animation(actor: Node3D) -> void:
     if actor == null or not is_instance_valid(actor):
@@ -1490,6 +1599,9 @@ func _use_skill(index: int) -> void:
     ]
     var tint: Color = palettes[hero_class][index]
     _spell_burst(tint, 2.2 + float(index) * 0.7, 3 + index * 2)
+    _actor_attack(hero, true)
+    camera_kick = maxf(camera_kick, 0.9 if index == 2 else 0.4)
+    camera_shake = maxf(camera_shake, 0.28 if index == 2 else 0.09)
     _play_audio(3)
     var multiplier: float = [1.25, 1.60, 2.80][index]
     if hero_class == 2:
@@ -1544,7 +1656,8 @@ func _spawn_horde() -> void:
                 _darken_character_materials(instance, elite)
                 if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
-                _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
+                _bind_motion_driver(root)
+                _play_actor_clip(root, "Idle", 0.0, 1.0)
         if elite:
             var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
             var halo := TorusMesh.new()
@@ -1724,8 +1837,15 @@ func _update_chaos(delta: float) -> void:
         desired.x = clampf(desired.x, -5.1, 5.1)
         desired.z = clampf(desired.z, -5.1, 5.1)
         var speed: float = 0.45 + float(mob.get_meta("speed", 0.25)) * 1.6
-        mob.position = mob.position.lerp(desired, clampf(delta * speed, 0.0, 1.0))
-        mob.position.y = sin(chaos_time * 4.0 + float(i)) * 0.04
+        var last_position: Vector3 = mob.position
+        var chase: Vector3 = desired - mob.position
+        chase.y = 0.0
+        if chase.length() > 0.12:
+            var travel: float = minf(chase.length(), (1.0 + speed * 1.7) * delta)
+            mob.position += chase.normalized() * travel
+        var mob_velocity: float = Vector2(mob.position.x - last_position.x, mob.position.z - last_position.z).length() / maxf(0.001, delta)
+        _animate_actor(mob, mob_velocity)
+        mob.position.y = 0.0
         if hero != null:
             var towards_hero: Vector3 = hero.position - mob.position
             if towards_hero.length_squared() > 0.01:
@@ -1950,7 +2070,8 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     _darken_character_materials(model, false)
     if not enemy:
         _attach_hero_clips(model)
-    _play_animation(model, ["Idle_A", "Idle", "idle"])
+    _bind_motion_driver(root)
+    _play_actor_clip(root, "Idle", 0.0, 1.0)
     return root
 
 func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, factor: float = 1.0) -> void:
