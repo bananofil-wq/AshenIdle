@@ -1211,7 +1211,7 @@ func _spawn_horde() -> void:
                 instance.scale = Vector3.ONE * ([1.28, 1.48, 1.75][_boss_variant()] if elite else 0.66 if i % 4 != 2 else 0.77)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if elite:
-            var aura_tint := [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
+            var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
             var halo := TorusMesh.new()
             halo.inner_radius = 1.07
             halo.outer_radius = 1.12
@@ -1227,7 +1227,7 @@ func _spawn_horde() -> void:
             body.height = 1.18 if not elite else 2.1
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
         root.position = _random_spawn()
-        var variant_hp := [13.0, 10.5, 16.0][_boss_variant()]
+        var variant_hp: float = [13.0, 10.5, 16.0][_boss_variant()]
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 1.0)
         root.set_meta("hp", mob_health)
         root.set_meta("max_hp", mob_health)
