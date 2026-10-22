@@ -108,6 +108,30 @@ jobs:
           godot --headless --path . --quit-after 90 2>&1 | tee build/test.log
           if grep -E 'SCRIPT ERROR|Parse Error|Invalid call|Invalid access' build/test.log; then exit 1; fi
 
+      - name: Render portrait screenshot with virtual display
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p build
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          fi
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --path . --rendering-driver opengl3 --script res://scripts/ci_capture.gd 2>&1 | tee build/visual.log
+          if [ -s build/gameplay-preview.png ]; then
+            file build/gameplay-preview.png
+          fi
+
+      - name: Upload actual gameplay preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AshenIdle-Gameplay-Screenshot
+          path: build/gameplay-preview.png
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Export signed ARM64 Android APK
         shell: bash
         run: |
