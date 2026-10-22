@@ -769,22 +769,22 @@ func _impact(pos: Vector3, color: Color) -> void:
             old["node"].queue_free()
 
 func _spell_burst(color: Color, size: float, shards: int) -> void:
-    var ring := CylinderMesh.new()
-    ring.top_radius = size * 0.45
-    ring.bottom_radius = size * 0.45
-    ring.height = 0.05
+    var ring := TorusMesh.new()
+    ring.inner_radius = size * 0.38
+    ring.outer_radius = size * 0.43
     var pulse_mesh := _mesh(self, ring, Vector3(0, 0.12, 0), _bright(color))
-    spell_fx.append({"node": pulse_mesh, "time": 0.65, "total": 0.65, "type": "spell"})
+    pulse_mesh.scale = Vector3.ONE * 0.65
+    spell_fx.append({"node": pulse_mesh, "time": 0.55, "total": 0.55, "type": "spell"})
     for i in range(shards):
         var a := TAU * float(i) / float(shards)
-        var p := Vector3(cos(a) * size * 0.42, rng.randf_range(0.3,2.5), sin(a) * size * 0.42)
+        var p := Vector3(cos(a) * size * 0.42, rng.randf_range(0.3,1.3), sin(a) * size * 0.42)
         _impact(p, color)
 
 func _bright(color: Color) -> Material:
-    var m := _mat(color)
+    var m := _mat(color.darkened(0.20))
     m.emission_enabled = true
     m.emission = color
-    m.emission_energy_multiplier = 2.5
+    m.emission_energy_multiplier = 0.8
     return m
 
 func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
@@ -837,7 +837,7 @@ func _update_chaos(delta: float) -> void:
         var m: MeshInstance3D = fx["node"]
         if is_instance_valid(m):
             var p := 1.0 - float(fx["time"]) / float(fx["total"])
-            m.scale = Vector3.ONE * (0.9 + p * (4.2 if fx["type"] == "spell" else 2.2))
+            m.scale = Vector3.ONE * (0.65 + p * (0.58 if fx["type"] == "spell" else 1.1))
         if float(fx["time"]) <= 0.0:
             if is_instance_valid(m):
                 m.queue_free()
