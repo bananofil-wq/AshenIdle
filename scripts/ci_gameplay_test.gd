@@ -90,6 +90,23 @@ func _run() -> void:
     if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must have own HP and identity"):
         quit(25)
         return
+    # Verify the three collectible sets really give different 2-piece effects.
+    var equipped_for_set: Dictionary = game.get("equipped")
+    equipped_for_set["Weapon"] = {"slot": "Weapon", "name": "Set Sword", "set": "Cinderborn", "damage": 1}
+    equipped_for_set["Armor"] = {"slot": "Armor", "name": "Set Armor", "set": "Cinderborn", "damage": 1}
+    if not _check(float(game.call("_bonus", "damage")) >= 18.0, "Cinderborn two-piece should increase damage"):
+        quit(26)
+        return
+    equipped_for_set["Weapon"]["set"] = "Gravewarden"
+    equipped_for_set["Armor"]["set"] = "Gravewarden"
+    if not _check(float(game.call("_bonus", "hp")) >= 55.0, "Gravewarden two-piece should increase vitality"):
+        quit(27)
+        return
+    equipped_for_set["Weapon"]["set"] = "Ashen Crown"
+    equipped_for_set["Armor"]["set"] = "Ashen Crown"
+    if not _check(float(game.call("_bonus", "crit")) >= 10.0, "Ashen Crown two-piece should add critical chance"):
+        quit(28)
+        return
     game.call("_hide_legendary")
     game.call("_show_inventory")
     if not _check(game.get("inventory_overlay").visible, "LOOT opens full inventory"):
@@ -106,5 +123,5 @@ func _run() -> void:
     if not _check(float(cds[0]) > 0.0, "Using spell activates cooldown"):
         quit(21)
         return
-    print("GAMEPLAY TEST PASS: enemy HP, waves, multiple bosses, loot, smart auto-equip, forge, inventory, talent menu, spell cooldown")
+    print("GAMEPLAY TEST PASS: enemy HP, waves, multiple bosses, unique 2-piece set bonuses, loot, smart auto-equip, forge, inventory, talent menu, spell cooldown")
     quit(0)
