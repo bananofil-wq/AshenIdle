@@ -67,6 +67,7 @@ var screen_note: Label
 var popup_shade: ColorRect
 var last_inventory_signature := ""
 var minimap_refresh_timer := 10.0
+var last_map_stage := -1
 var skill_overlay: PanelContainer
 var skill_choice_buttons: Array = []
 var skill_count_label: Label
@@ -950,7 +951,8 @@ func _refresh() -> void:
     info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
     offline.text = offline_note
     combat_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.02, 1.0)
-    if minimap_refresh_timer > 3.0:
+    if stage != last_map_stage:
+        last_map_stage = stage
         minimap_refresh_timer = 0.0
         _refresh_minimap()
     var signature := str(gear.size()) + ":" + str(gear[0].get("name", "")) if not gear.is_empty() else "empty"
@@ -1369,7 +1371,7 @@ func _update_chaos(delta: float) -> void:
         var label: Label = beam["label"]
         if camera_ref != null and is_instance_valid(label):
             var p := camera_ref.unproject_position(Vector3(beam["pos"]) + Vector3(0, 3.3, 0))
-            label.visible = p.y > 406.0 and p.y < overlay.size.y - 310.0 and p.x > 85.0 and p.x < overlay.size.x - 85.0
+            label.visible = p.y > 455.0 and p.y < overlay.size.y - 360.0 and p.x > 160.0 and p.x < overlay.size.x - 150.0
             label.position = p - Vector2(100, 14)
             label.modulate.a = clampf(float(beam["time"]), 0.0, 1.0)
         if float(beam["time"]) <= 0.0:
@@ -1382,7 +1384,7 @@ func _update_chaos(delta: float) -> void:
         var label: Label = hit["label"]
         if is_instance_valid(label):
             var text_screen_pos := camera_ref.unproject_position(Vector3(hit["pos"]))
-            label.visible = text_screen_pos.x > 28.0 and text_screen_pos.x < overlay.size.x - 28.0 and text_screen_pos.y > 385.0 and text_screen_pos.y < overlay.size.y - 260.0
+            label.visible = text_screen_pos.x > 155.0 and text_screen_pos.x < overlay.size.x - 150.0 and text_screen_pos.y > 440.0 and text_screen_pos.y < overlay.size.y - 355.0
             label.position = text_screen_pos - Vector2(50, 15)
             label.modulate.a = clampf(float(hit["time"]) / 0.84, 0.0, 1.0)
         if float(hit["time"]) <= 0.0:
