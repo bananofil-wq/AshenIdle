@@ -134,6 +134,16 @@ jobs:
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_ARMOR/$source.glb" -o "assets/models/$target.glb"
             test "$(stat -c %s assets/models/$target.glb)" -gt 100000
           done
+          python3 - <<'PY'
+          import json,struct
+          for model in ["ashen_armored_knight","ashen_ranger","ashen_mage","ashen_shared_anims"]:
+              data=open("assets/models/"+model+".glb","rb").read()
+              size,kind=struct.unpack_from("<II",data,12)
+              gltf=json.loads(data[20:20+size])
+              print("GLB DIAG",model,"extensions",gltf.get("extensionsUsed"),"images",len(gltf.get("images",[])),"textures",len(gltf.get("textures",[])))
+              print("GLB DIAG TEXTURES",gltf.get("textures",[])[:3])
+              print("GLB DIAG IMAGES",[{k:v for k,v in image.items() if k in ("uri","mimeType","bufferView")} for image in gltf.get("images",[])[:3]])
+          PY
           ls -lh assets/models/*_dark.glb assets/pbr/* 2>/dev/null || true
 
       - name: Download open-licensed fantasy heading font
