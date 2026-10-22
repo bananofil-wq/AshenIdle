@@ -249,7 +249,7 @@ func _build_world() -> void:
     _decorate_arena()
     _scatter_embers()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
-    foe = _make_animated_character("Skeleton_Warrior", Vector3(1.55, 0, -0.8), true)
+    # All on-screen creatures are real combat entities; no decorative fake opponent.
     _spawn_horde()
 
 func _panel_color() -> StyleBoxFlat:
@@ -1568,7 +1568,7 @@ func _spawn_horde() -> void:
 func _impact(pos: Vector3, color: Color) -> void:
     _burst_particles(pos, color, 12, 2.6, 0.33)
     var flare := QuadMesh.new()
-    flare.size = Vector2(0.70, 0.70)
+    flare.size = Vector2(0.85, 0.85)
     var spark := _mesh(self, flare, pos, _fx_material(color, 0.85))
     spell_fx.append({"node": spark, "time": 0.18, "total": 0.18, "type": "hit"})
     if spell_fx.size() > 90:
@@ -1581,14 +1581,14 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     _burst_particles(center, color, 88 + shards * 8, size * 4.2, 0.67)
     _burst_particles(center + Vector3(0.0, 0.16, 0.0), Color("ffe4b6"), 32, size * 2.1, 0.37)
     var shock := TorusMesh.new()
-    shock.inner_radius = size * 0.65
-    shock.outer_radius = size * 0.70
+    shock.inner_radius = size * 0.64
+    shock.outer_radius = size * 0.655
     var ring_mat := _fx_material(color, 0.43)
     ring_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
     ring_mat.albedo_texture = null
     var wave := _mesh(self, shock, hero.position + Vector3(0, 0.10, 0) if hero != null else Vector3.ZERO, ring_mat)
     wave.scale = Vector3.ONE * 0.3
-    spell_fx.append({"node": wave, "time": 0.42, "total": 0.42, "type": "spell"})
+    spell_fx.append({"node": wave, "time": 0.31, "total": 0.31, "type": "spell"})
     # Beams of rising energy, individual sparks and sharp concentric shockwave.
     for i in range(mini(shards + 2, 12)):
         var theta := TAU * float(i) / float(shards + 2)
@@ -1603,7 +1603,7 @@ func _bright(color: Color) -> Material:
     var m := _mat(color.darkened(0.16))
     m.emission_enabled = true
     m.emission = color
-    m.emission_energy_multiplier = 2.9
+    m.emission_energy_multiplier = 1.8
     return m
 
 func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
@@ -2057,14 +2057,14 @@ func _fx_material(tint: Color, opacity: float = 0.86) -> StandardMaterial3D:
     result.albedo_color = Color(tint.r, tint.g, tint.b, opacity)
     result.emission_enabled = true
     result.emission = tint
-    result.emission_energy_multiplier = 2.4
+    result.emission_energy_multiplier = 1.4
     return result
 
 func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float = 2.8, duration: float = 0.57) -> void:
     if get_tree() == null:
         return
     var sprite := QuadMesh.new()
-    sprite.size = Vector2(0.47, 0.47)
+    sprite.size = Vector2(0.53, 0.53)
     sprite.material = _fx_material(tint, 0.92)
     var parts := CPUParticles3D.new()
     parts.mesh = sprite
