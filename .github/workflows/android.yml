@@ -92,6 +92,14 @@ jobs:
           for asset in floor_tile_large floor_tile_large_rocks floor_tile_small_broken_A pillar_decorated wall_broken torch_lit; do
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_DUNGEON/$asset.gltf.glb" -o "assets/models/$asset.glb"
           done
+          mkdir -p assets/weapons
+          BASE_WEAPON="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Assets/gltf"
+          for asset in sword_2handed staff dagger; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/$asset.gltf" -o "assets/weapons/$asset.gltf"
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/$asset.bin" -o "assets/weapons/$asset.bin"
+          done
+          curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/knight_texture.png" -o assets/weapons/knight_texture.png
+
           test "$(stat -c %s assets/models/Knight.glb)" -gt 1000000
           test "$(stat -c %s assets/models/Skeleton_Minion.glb)" -gt 1000000
           ls -lh assets/models
