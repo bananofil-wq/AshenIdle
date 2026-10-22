@@ -58,6 +58,9 @@ var screen_note: Label
 var popup_shade: ColorRect
 var last_inventory_signature := ""
 var minimap_refresh_timer := 10.0
+var skill_overlay: PanelContainer
+var skill_choice_buttons: Array = []
+var skill_count_label: Label
 var cached_model_scenes: Dictionary = {}
 
 
@@ -268,7 +271,7 @@ func _build_ui() -> void:
     overlay.add_child(controls)
     controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(112, 51)))
     controls.add_child(_ornate_button("HERO", _switch_class, Vector2(112, 51)))
-    controls.add_child(_ornate_button("TALENT", _upgrade_skill, Vector2(112, 51)))
+    controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(112, 51)))
 
     var banner := PanelContainer.new()
     banner.position = Vector2(159, 213)
@@ -305,7 +308,7 @@ func _build_ui() -> void:
     action_line.add_child(_ornate_button("FARM", _grind, Vector2(106, 46)))
     action_line.add_child(_ornate_button("PUSH", _forward, Vector2(106, 46)))
     action_line.add_child(_ornate_button("HEAL", _heal, Vector2(106, 46)))
-    action_line.add_child(_ornate_button("SKILL+", _upgrade_skill, Vector2(106, 46)))
+    action_line.add_child(_ornate_button("SKILL+", _open_talent_panel, Vector2(106, 46)))
     var scroll := ScrollContainer.new()
     scroll.custom_minimum_size = Vector2(630, 68)
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -369,6 +372,36 @@ func _build_ui() -> void:
     popup_buttons.add_child(_ornate_button("EQUIP", _equip_legendary, Vector2(230, 58)))
     popup_buttons.add_child(_ornate_button("KEEP", _hide_legendary, Vector2(230, 58)))
 
+    skill_overlay = PanelContainer.new()
+    skill_overlay.position = Vector2(92, (overlay.size.y - 540.0) * 0.5)
+    skill_overlay.size = Vector2(536, 540)
+    skill_overlay.visible = false
+    skill_overlay.z_index = 41
+    skill_overlay.add_theme_stylebox_override("panel", _skin(Color("0e1019"), Color("9c79bc")))
+    overlay.add_child(skill_overlay)
+    var talents := VBoxContainer.new()
+    talents.add_theme_constant_override("separation", 10)
+    skill_overlay.add_child(talents)
+    var talent_title := _label("ASHEN TALENT TREE", 27, Color("edc99a"))
+    talent_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    talents.add_child(talent_title)
+    skill_count_label = _label("", 20, Color("edd6aa"))
+    skill_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    talents.add_child(skill_count_label)
+    var descriptions := [
+        "FIREPOWER  +4 ATTACK PER RANK",
+        "VITALITY  +24 MAX HP PER RANK",
+        "WARDING  REDUCES INCOMING DAMAGE"
+    ]
+    for i in range(3):
+        var button := _ornate_button(descriptions[i], _invest_talent.bind(i), Vector2(485, 75))
+        button.add_theme_font_size_override("font_size", 17)
+        skill_choice_buttons.append(button)
+        talents.add_child(button)
+    talents.add_child(_label("Choose a branch. Talents strengthen all four classes.", 16, Color("ac9ca8")))
+    talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 60)))
+
+
 
 func _max_hp() -> float:
     var modifier = [1.2, 0.9, 0.85, 1.0][hero_class]
@@ -415,9 +448,9 @@ func _process(delta: float) -> void:
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
     minimap_refresh_timer += delta
-    if tick > 0.36 and legendary_overlay.visible:
+    if tick > 0.36 and popup_shade.visible:
         tick = 0.36
-    if tick >= 0.35 and not legendary_overlay.visible:
+    if tick >= 0.35 and not popup_shade.visible:
         tick -= 0.35
         _fight()
     if save_timer >= 15.0:
@@ -965,3 +998,34 @@ func _place_dungeon_detail() -> void:
         _place_dungeon_model("pillar_decorated" if i % 3 == 0 else "wall_broken", pos, a + PI / 2.0, 1.0)
         if i % 2 == 0:
             _place_dungeon_model("torch_lit", pos + Vector3(0, 1.4, 0), a + PI, 1.0)
+
+func _open_talent_panel() -> void:
+    if legendary_overlay.visible:
+        return
+    _update_talent_labels()
+    popup_shade.visible = true
+    skill_overlay.visible = true
+
+func _close_talent_panel() -> void:
+    skill_overlay.visible = false
+    popup_shade.visible = false
+
+func _update_talent_labels() -> void:
+    if skill_count_label == null:
+        return
+    skill_count_label.text = "AVAILABLE POINTS: " + str(skill_points)
+    for i in range(3):
+        var button: Button = skill_choice_buttons[i]
+        button.text = ["FIREPOWER", "VITALITY", "WARDING"][i] + "  •  RANK " + str(int(skills[i])) + "\n" + ["+4 ATTACK / RANK", "+24 MAX HP / RANK", "LESS DAMAGE TAKEN"][i]
+        button.disabled = skill_points < 1
+
+func _invest_talent(index: int) -> void:
+    if skill_points < 1 or index < 0 or index >= 3:
+        return
+    skills[index] = int(skills[index]) + 1
+    skill_points -= 1
+    hp = minf(_max_hp(), hp + 24.0)
+    combat_note = ["FIREPOWER INCREASED", "MAXIMUM HP INCREASED", "WARDING INCREASED"][index]
+    _update_talent_labels()
+    _save_game()
+    _refresh()
