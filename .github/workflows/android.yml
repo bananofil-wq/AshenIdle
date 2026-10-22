@@ -5,13 +5,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ashenidle-build-main
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   apk:
     name: Godot Android (ARM64)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout game
