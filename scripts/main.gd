@@ -816,7 +816,7 @@ func _close_inventory_panel() -> void:
 func _refresh_inventory_panel() -> void:
     if inventory_list == null:
         return
-    var current: Array = []
+    var current: PackedStringArray = PackedStringArray()
     var set_counts: Dictionary = {}
     for slot in SLOTS:
         if equipped.has(slot):
@@ -827,7 +827,7 @@ func _refresh_inventory_panel() -> void:
                 set_counts[set_name] = int(set_counts.get(set_name, 0)) + 1
         else:
             current.append(slot + ": EMPTY")
-    var set_parts: Array = []
+    var set_parts: PackedStringArray = PackedStringArray()
     for set_name in set_counts:
         set_parts.append(str(set_name) + " " + str(set_counts[set_name]) + "/4")
     inventory_summary.text = "EQUIPPED\n" + "    |    ".join(current.slice(0, 2)) + "\n" + "    |    ".join(current.slice(2, 4)) + "\nSETS: " + (", ".join(set_parts) if not set_parts.is_empty() else "None")
