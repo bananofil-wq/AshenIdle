@@ -3,6 +3,12 @@ extends Node3D
 const CLASSES = ["Cinder Knight", "Ash Ranger", "Ember Mage", "Dusk Reaper"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
 const BOSS_NAMES = ["ASHEN WARDEN", "VOID HARBINGER", "BONE TYRANT"]
+const CLASS_SPELLS = [
+    ["FLAME", "SHIELD", "INFERNO"],
+    ["VOLLEY", "TRAP", "ARROWFALL"],
+    ["FIRE", "FROST", "ARCANE"],
+    ["REAP", "VOID", "NIGHTFALL"]
+]
 const SLOTS = ["Weapon", "Armor", "Helm", "Ring"]
 const SAVE_FILE = "user://save_v2.json"
 
@@ -363,8 +369,8 @@ func _build_ui() -> void:
     skill_bar.position = Vector2(385, overlay.size.y - 337)
     skill_bar.add_theme_constant_override("separation", 10)
     overlay.add_child(skill_bar)
-    for s in ["FIRE", "VOID", "ULT"]:
-        var b := _ornate_button(s, _use_skill.bind(skill_buttons.size()), Vector2(97, 91))
+    for spell_name in CLASS_SPELLS[hero_class]:
+        var b := _ornate_button(str(spell_name), _use_skill.bind(skill_buttons.size()), Vector2(97, 91))
         skill_buttons.append(b)
         skill_bar.add_child(b)
 
@@ -517,12 +523,30 @@ func _bonus(key: String) -> float:
         var set_name: String = str(item.get("set", ""))
         if set_name != "":
             counts[set_name] = int(counts.get(set_name, 0)) + 1
-    if key == "damage" or key == "hp":
-        for count in counts.values():
-            if int(count) >= 2:
-                total += 12.0 if key == "damage" else 25.0
-            if int(count) >= 4:
-                total += 28.0 if key == "damage" else 50.0
+    for set_name in counts.keys():
+        var count: int = int(counts[set_name])
+        if count >= 2:
+            match str(set_name):
+                "Cinderborn":
+                    if key == "damage": total += 16.0
+                    if key == "elemental": total += 8.0
+                "Gravewarden":
+                    if key == "hp": total += 55.0
+                    if key == "defense": total += 8.0
+                "Ashen Crown":
+                    if key == "crit": total += 10.0
+                    if key == "speed": total += 12.0
+        if count >= 4:
+            match str(set_name):
+                "Cinderborn":
+                    if key == "damage": total += 30.0
+                    if key == "elemental": total += 18.0
+                "Gravewarden":
+                    if key == "hp": total += 85.0
+                    if key == "defense": total += 18.0
+                "Ashen Crown":
+                    if key == "crit": total += 14.0
+                    if key == "speed": total += 20.0
     return total
 
 func _boss_variant() -> int:
@@ -545,7 +569,8 @@ func _process(delta: float) -> void:
     for i in range(skill_buttons.size()):
         var skill_button: Button = skill_buttons[i]
         skill_button.disabled = float(skill_cooldowns[i]) > 0.0
-        skill_button.text = (["FIRE", "VOID", "ULT"][i] if float(skill_cooldowns[i]) <= 0.0 else ["FIRE", "VOID", "ULT"][i] + "\n%.0fs" % float(skill_cooldowns[i]))
+        var skill_caption: String = str(CLASS_SPELLS[hero_class][i])
+        skill_button.text = (skill_caption if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
     tick += delta
     save_timer += delta
     if hero != null:
@@ -589,7 +614,7 @@ func _fight() -> void:
         _complete_wave()
         return
     var remaining_mobs: float = float(arena_mobs.size())
-    var incoming: float = maxf(0.25, float(stage) * 0.085 + remaining_mobs * 0.075 - float(skills[2]) * 0.25)
+    var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075 - float(skills[2]) * 0.25 - _bonus("defense") * 0.045)
     if stage % 5 == 0:
         incoming *= [1.28, 1.10, 1.48][_boss_variant()]
     hp -= incoming
@@ -1076,7 +1101,9 @@ func _refresh_inventory_panel() -> void:
             current.append(slot + ": EMPTY")
     var set_parts: PackedStringArray = PackedStringArray()
     for set_name in set_counts:
-        set_parts.append(str(set_name) + " " + str(set_counts[set_name]) + "/4")
+        var bonus_hint := "FIRE DPS" if set_name == "Cinderborn" else "DEFENSE" if set_name == "Gravewarden" else "CRIT/SPEED"
+        var pieces: int = int(set_counts[set_name])
+        set_parts.append("%s %d/4  %s%s" % [str(set_name), pieces, bonus_hint, "  ACTIVE" if pieces >= 2 else ""])
     inventory_summary.text = "EQUIPPED\n" + "    |    ".join(current.slice(0, 2)) + "\n" + "    |    ".join(current.slice(2, 4)) + "\nSETS: " + (", ".join(set_parts) if not set_parts.is_empty() else "None")
     for child in inventory_list.get_children():
         child.queue_free()
@@ -1167,17 +1194,29 @@ func _use_skill(index: int) -> void:
     if float(skill_cooldowns[index]) > 0.0:
         return
     skill_cooldowns[index] = [3.2, 5.2, 12.0][index]
-    var palette: Array = [Color("ff6b20"), Color("9653ff"), Color("fff1a8")]
-    _spell_burst(palette[index], 2.2 + float(index) * 0.7, 3 + index * 2)
+    var palettes: Array = [
+        [Color("ff6b20"), Color("e2bd68"), Color("ffb23a")],
+        [Color("87c866"), Color("95d9db"), Color("fff09a")],
+        [Color("ff7435"), Color("7ae2fd"), Color("d9a8ff")],
+        [Color("bf566c"), Color("814de7"), Color("f793cc")]
+    ]
+    var tint: Color = palettes[hero_class][index]
+    _spell_burst(tint, 2.2 + float(index) * 0.7, 3 + index * 2)
     var multiplier: float = [1.25, 1.60, 2.80][index]
+    if hero_class == 2:
+        multiplier *= 1.18
+    elif hero_class == 3 and index == 2:
+        multiplier *= 1.30
+    if hero_class == 0 and index == 1:
+        hp = minf(_max_hp(), hp + _max_hp() * 0.11)
     var targets: Array = arena_mobs.duplicate()
     targets.shuffle()
-    var target_count: int = mini(targets.size(), [3, 5, 10][index])
+    var target_count: int = mini(targets.size(), [3, 5, 10][index] + (2 if hero_class == 1 else 0))
     for i in range(target_count):
         var mob: Node3D = targets[i] as Node3D
         if is_instance_valid(mob) and arena_mobs.has(mob):
             _hit_mob(mob, _damage() * multiplier, index == 2)
-    combat_note = ["FIRE NOVA!", "VOID STORM!", "ASHEN APOCALYPSE!"][index]
+    combat_note = str(CLASS_SPELLS[hero_class][index]) + "!"
     if arena_mobs.is_empty():
         _complete_wave()
     _refresh()
