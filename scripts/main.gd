@@ -401,7 +401,7 @@ func _fight() -> void:
         _spell_burst(Color("fd6d3d") if rng.randf() < 0.5 else Color("a354ff"), rng.randf_range(1.2,3.0), 4)
     combat_note = "CRITICAL %d!" % int(damage) if crit else "BURNING THE HORDE"
     if enemy_hp <= 0.0:
-        var boss_won := stage % 5 == 0
+        var boss_won: bool = stage % 5 == 0
         kills += 1
         gold += 3 + stage * 2
         xp += 8 + stage * 3
