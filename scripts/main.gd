@@ -10,6 +10,18 @@ const CLASS_SPELLS = [
     ["REAP", "VOID", "NIGHTFALL"]
 ]
 const SLOTS = ["Weapon", "Armor", "Helm", "Ring"]
+const CLASS_TALENT_NAMES = [
+    ["BLADE MASTERY", "IRON FORTITUDE", "BULWARK"],
+    ["DEADLY PRECISION", "WILD SURVIVAL", "QUICK REFLEXES"],
+    ["ARCANE POWER", "MYSTIC BARRIER", "ICE WARD"],
+    ["SOUL HARVEST", "BLOOD RITUAL", "SHADOW VEIL"]
+]
+const CLASS_DESCRIPTIONS = [
+    "Melee guardian  •  Resilient against bosses",
+    "Rapid ranged hunter  •  Multiple targets",
+    "Elemental caster  •  Powerful spells",
+    "Lifestealing reaper  •  High critical burst"
+]
 const SAVE_FILE = "user://save_v2.json"
 
 var hero_class = 0
@@ -28,6 +40,7 @@ var gear: Array = []
 var equipped: Dictionary = {}
 var skill_points = 0
 var skills: Array = [0, 0, 0]
+var class_talents: Dictionary = {}
 var tick = 0.0
 var save_timer = 0.0
 var combat_note = "THE ASHEN ROAD AWAITS"
@@ -69,6 +82,7 @@ var last_inventory_signature := ""
 var minimap_refresh_timer := 10.0
 var last_map_stage := -1
 var skill_overlay: PanelContainer
+var hero_overlay: PanelContainer
 var skill_choice_buttons: Array = []
 var skill_count_label: Label
 var grind_mode := false
@@ -313,7 +327,7 @@ func _build_ui() -> void:
     controls.add_theme_constant_override("separation", 10)
     overlay.add_child(controls)
     controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(112, 51)))
-    controls.add_child(_ornate_button("HERO", _switch_class, Vector2(112, 51)))
+    controls.add_child(_ornate_button("HERO", _show_hero_panel, Vector2(112, 51)))
     controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(112, 51)))
     auto_gear_button = _ornate_button("AUTO GEAR", _toggle_auto_gear, Vector2(112, 51))
     controls.add_child(auto_gear_button)
@@ -490,6 +504,27 @@ func _build_ui() -> void:
     talents.add_child(_label("Choose a branch. Talents strengthen all four classes.", 16, Color("ac9ca8")))
     talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 60)))
 
+    hero_overlay = PanelContainer.new()
+    hero_overlay.position = Vector2(86, (overlay.size.y - 676.0) * 0.5)
+    hero_overlay.size = Vector2(548, 676)
+    hero_overlay.z_index = 41
+    hero_overlay.visible = false
+    hero_overlay.add_theme_stylebox_override("panel", _skin(Color("0d1019"), Color("b88951")))
+    overlay.add_child(hero_overlay)
+    var hero_column := VBoxContainer.new()
+    hero_column.add_theme_constant_override("separation", 14)
+    hero_overlay.add_child(hero_column)
+    var hero_title := _label("CHOOSE YOUR HERO", 28, Color("f2cc89"))
+    hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    hero_column.add_child(hero_title)
+    hero_column.add_child(_label("Each class has its own spells and three talent paths.", 16, Color("b8adad")))
+    for class_id in range(CLASSES.size()):
+        var hero_label: String = "%s  %s\n%s" % ["◆" if class_id == hero_class else "◇", CLASSES[class_id].to_upper(), CLASS_DESCRIPTIONS[class_id]]
+        var class_button := _ornate_button(hero_label, _select_class.bind(class_id), Vector2(495, 94))
+        class_button.add_theme_font_size_override("font_size", 16)
+        hero_column.add_child(class_button)
+    hero_column.add_child(_ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(495, 60)))
+
     inventory_overlay = PanelContainer.new()
     inventory_overlay.position = Vector2(63, (overlay.size.y - 780.0) * 0.5)
     inventory_overlay.size = Vector2(594, 780)
@@ -617,8 +652,10 @@ func _fight() -> void:
     var target: Node3D = _choose_target()
     if target == null or not is_instance_valid(target):
         return
-    var crit: bool = rng.randf() < clampf(0.22 + _bonus("crit") / 100.0, 0.22, 0.68)
+    var crit: bool = rng.randf() < clampf(0.20 + _bonus("crit") / 100.0 + (0.08 if hero_class == 1 else 0.0), 0.20, 0.75)
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
+    if hero_class == 3:
+        hp = minf(_max_hp(), hp + damage * 0.035)
     _hit_mob(target, damage, crit)
     _slash_trail(target.global_position, crit)
     attack_animation_index += 1
@@ -887,16 +924,36 @@ func _forward() -> void:
     _spawn_enemy()
     _refresh()
 
-func _switch_class() -> void:
-    hero_class = (hero_class + 1) % 4
+func _show_hero_panel() -> void:
+    if legendary_overlay.visible or skill_overlay.visible or inventory_overlay.visible:
+        return
+    popup_shade.visible = true
+    hero_overlay.visible = true
+
+func _close_hero_panel() -> void:
+    hero_overlay.visible = false
+    popup_shade.visible = false
+
+func _select_class(next_class: int) -> void:
+    if next_class < 0 or next_class >= CLASSES.size():
+        return
+    class_talents[str(hero_class)] = skills.duplicate()
+    hero_class = next_class
+    skills = class_talents.get(str(hero_class), [0, 0, 0]).duplicate()
+    class_talents[str(hero_class)] = skills.duplicate()
     if hero != null:
         hero.queue_free()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     hp = _max_hp()
     combat_note = "NEW CLASS: " + CLASSES[hero_class]
+    if hero_overlay != null and hero_overlay.visible:
+        _close_hero_panel()
     _sync_equipment_visuals()
     _save_game()
     _refresh()
+
+func _switch_class() -> void:
+    _select_class((hero_class + 1) % CLASSES.size())
 
 func _upgrade_skill() -> void:
     if skill_points < 1:
@@ -1117,7 +1174,7 @@ func _save_game() -> void:
     var data = {
         "class": hero_class, "level": level, "xp": xp, "gold": gold,
         "stage": stage, "highest": highest, "kills": kills, "hp": hp,
-        "gear": gear, "equipped": equipped, "skills": skills,
+        "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents,
         "skill_points": skill_points, "auto_equip": auto_equip,
         "boss_history": earned_bosses, "statistics": battle_statistics,
         "saved_at": Time.get_unix_time_from_system()
@@ -1154,6 +1211,11 @@ func _load_game() -> void:
     skills = data.get("skills", [0, 0, 0])
     if skills.size() != 3:
         skills = [0, 0, 0]
+    class_talents = data.get("class_talents", {})
+    if class_talents.has(str(hero_class)):
+        skills = class_talents[str(hero_class)].duplicate()
+    else:
+        class_talents[str(hero_class)] = skills.duplicate()
     skill_points = maxi(0, int(data.get("skill_points", 0)))
     hp = float(data.get("hp", _max_hp()))
     var now = Time.get_unix_time_from_system()
@@ -1224,7 +1286,7 @@ func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
     return b
 
 func _show_inventory() -> void:
-    if legendary_overlay.visible or skill_overlay.visible:
+    if legendary_overlay.visible or skill_overlay.visible or hero_overlay.visible:
         return
     _refresh_inventory_panel()
     popup_shade.visible = true
@@ -1746,7 +1808,7 @@ func _place_dungeon_detail() -> void:
             _place_dungeon_model("torch_lit", pos + Vector3(0, 1.35, 0), a + PI, 0.8)
 
 func _open_talent_panel() -> void:
-    if legendary_overlay.visible:
+    if legendary_overlay.visible or hero_overlay.visible:
         return
     _update_talent_labels()
     popup_shade.visible = true
@@ -1759,19 +1821,23 @@ func _close_talent_panel() -> void:
 func _update_talent_labels() -> void:
     if skill_count_label == null:
         return
-    skill_count_label.text = "AVAILABLE POINTS: " + str(skill_points)
+    skill_count_label.text = "%s  •  POINTS: %d" % [CLASSES[hero_class].to_upper(), skill_points]
     for i in range(3):
         var button: Button = skill_choice_buttons[i]
-        button.text = ["FIREPOWER", "VITALITY", "WARDING"][i] + "  •  RANK " + str(int(skills[i])) + "\n" + ["+4 ATTACK / RANK", "+24 MAX HP / RANK", "LESS DAMAGE TAKEN"][i]
-        button.disabled = skill_points < 1
+        var paths: Array = CLASS_TALENT_NAMES[hero_class]
+        button.text = str(paths[i]) + "  •  RANK " + str(int(skills[i])) + "/20\n" + ["+4 ATTACK / RANK", "+24 MAX HP / RANK", "LESS DAMAGE TAKEN"][i]
+        button.disabled = skill_points < 1 or int(skills[i]) >= 20
 
 func _invest_talent(index: int) -> void:
     if skill_points < 1 or index < 0 or index >= 3:
         return
+    if int(skills[index]) >= 20:
+        return
     skills[index] = int(skills[index]) + 1
+    class_talents[str(hero_class)] = skills.duplicate()
     skill_points -= 1
     hp = minf(_max_hp(), hp + 24.0)
-    combat_note = ["FIREPOWER INCREASED", "MAXIMUM HP INCREASED", "WARDING INCREASED"][index]
+    combat_note = str(CLASS_TALENT_NAMES[hero_class][index]) + " INCREASED"
     _update_talent_labels()
     _save_game()
     _refresh()
