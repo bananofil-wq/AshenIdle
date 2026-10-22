@@ -134,37 +134,42 @@ func _build_world() -> void:
     var world := WorldEnvironment.new()
     var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color("080912")
+    environment.background_color = Color("07080d")
+    environment.adjustment_enabled = true
+    environment.adjustment_brightness = 0.78
+    environment.adjustment_contrast = 1.13
+    environment.adjustment_saturation = 0.80
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("746475")
-    environment.ambient_light_energy = 0.75
+    environment.ambient_light_energy = 0.43
     environment.glow_enabled = true
-    environment.glow_intensity = 0.55
+    environment.glow_intensity = 0.34
     world.environment = environment
     add_child(world)
 
     camera_ref = Camera3D.new()
-    camera_ref.position = Vector3(0.0, 12.4, 13.6)
+    camera_ref.position = Vector3(0.0, 15.2, 17.6)
     add_child(camera_ref)
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
-    camera_ref.fov = 36.0
+    camera_ref.fov = 42.0
     camera_ref.current = true
     var sun := DirectionalLight3D.new()
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
     sun.light_color = Color("e9bd9d")
-    sun.light_energy = 1.4
+    sun.light_energy = 0.95
+    sun.shadow_enabled = true
     var ember := OmniLight3D.new()
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
     ember.light_color = Color("ff6332")
-    ember.light_energy = 3.0
+    ember.light_energy = 1.55
     ember.omni_range = 13.0
     var arcane := OmniLight3D.new()
     add_child(arcane)
     arcane.position = Vector3(-3.6, 4.0, -2.0)
     arcane.light_color = Color("965eff")
-    arcane.light_energy = 1.3
+    arcane.light_energy = 0.60
     arcane.omni_range = 12
 
     _box(self, Vector3(17, 0.6, 18), Vector3(0, -0.35, 0), Color("251c25"))
@@ -175,21 +180,6 @@ func _build_world() -> void:
             var t := BoxMesh.new()
             t.size = Vector3(1.27, 0.08 + v * 0.1, 1.27)
             _mesh(self, t, Vector3(float(x) * 1.3, -0.04, float(z) * 1.3), _mat(stone))
-    for i in range(12):
-        var a := TAU * float(i) / 12.0
-        var d := 5.2 + float(i % 3) * 0.65
-        var x := cos(a) * d
-        var z := sin(a) * d
-        var h := 1.7 + float(i % 3) * 0.38
-        _box(self, Vector3(0.85, h, 0.85), Vector3(x, h * 0.5, z), Color("443440"))
-        _box(self, Vector3(0.52, 0.18, 0.52), Vector3(x, h + 0.1, z), Color("ff7035"), true)
-    for i in range(26):
-        var x := rng.randf_range(-6.0, 6.0)
-        var z := rng.randf_range(-6.0, 6.0)
-        if absf(x) < 1.5 and absf(z) < 1.5:
-            continue
-        _box(self, Vector3(rng.randf_range(0.2,0.6),0.12,rng.randf_range(0.2,0.6)), Vector3(x,0.02,z), Color("52373c"))
-
     _place_dungeon_detail()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     foe = _make_animated_character("Skeleton_Warrior", Vector3(1.55, 0, -0.8), true)
@@ -779,7 +769,7 @@ func _spawn_horde() -> void:
         if is_instance_valid(mob):
             mob.queue_free()
     arena_mobs.clear()
-    var mob_count: int = 9 + mini(int(stage / 6), 7)
+    var mob_count: int = 13 + mini(int(stage / 5), 9)
     for i in range(mob_count):
         var model_name: String = ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
         var root := Node3D.new()
@@ -790,7 +780,7 @@ func _spawn_horde() -> void:
             if instance == null:
                 continue
             root.add_child(instance)
-            instance.scale = Vector3.ONE * (0.73 if i % 4 != 2 else 0.9)
+            instance.scale = Vector3.ONE * (0.57 if i % 4 != 2 else 0.68)
             _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         else:
             var body := CapsuleMesh.new()
@@ -968,7 +958,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    model.scale = Vector3.ONE * (1.05 if enemy else 1.18)
+    model.scale = Vector3.ONE * (0.72 if enemy else 0.86)
     model.rotation.y = PI
     _play_animation(model, ["Idle_A", "Idle", "idle"])
     return root
@@ -997,13 +987,13 @@ func _place_dungeon_detail() -> void:
             elif n % 11 == 0:
                 asset_name = "floor_tile_small_broken_A"
             _place_dungeon_model(asset_name, Vector3(float(x) * 1.72, -0.01, float(z) * 1.72), float(n % 4) * PI / 2.0, 0.84)
-    for i in range(10):
-        var a := TAU * float(i) / 10.0
-        var dist := 6.2
-        var pos := Vector3(cos(a) * dist, 0.0, sin(a) * dist)
-        _place_dungeon_model("pillar_decorated" if i % 3 == 0 else "wall_broken", pos, a + PI / 2.0, 1.0)
-        if i % 2 == 0:
-            _place_dungeon_model("torch_lit", pos + Vector3(0, 1.4, 0), a + PI, 1.0)
+    for i in range(9):
+        var a := TAU * float(i) / 12.0 + PI * 0.08
+        var dist := 6.5
+        var pos := Vector3(cos(a) * dist, 0.0, -absf(sin(a) * dist) - 1.1)
+        _place_dungeon_model("pillar_decorated" if i % 3 == 0 else "wall_broken", pos, a + PI / 2.0, 0.86)
+        if i % 3 == 0:
+            _place_dungeon_model("torch_lit", pos + Vector3(0, 1.35, 0), a + PI, 0.8)
 
 func _open_talent_panel() -> void:
     if legendary_overlay.visible:
