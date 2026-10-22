@@ -617,6 +617,7 @@ func _spawn_enemy() -> void:
     _clear_boss_telegraph()
     _spawn_horde()
     _update_wave_health()
+    _apply_biome()
 
 func _process(delta: float) -> void:
     chaos_time += delta
@@ -784,13 +785,13 @@ func _move_hero(delta: float) -> void:
 
 func _slash_trail(pos: Vector3, crit: bool) -> void:
     var arc := TorusMesh.new()
-    arc.inner_radius = 0.49 if crit else 0.35
-    arc.outer_radius = 0.53 if crit else 0.39
+    arc.inner_radius = 0.38 if crit else 0.25
+    arc.outer_radius = 0.395 if crit else 0.265
     var tint := Color("ffcc7c") if crit else Color("ef8b47") if hero_class == 0 else Color("73cef8") if hero_class == 2 else Color("a56de8")
     var slash := _mesh(self, arc, pos + Vector3(0, 0.95, 0), _bright(tint))
     slash.rotation.x = PI * 0.34
-    slash.scale = Vector3.ONE * 0.6
-    spell_fx.append({"node": slash, "time": 0.24, "total": 0.24, "type": "hit"})
+    slash.scale = Vector3.ONE * 0.52
+    spell_fx.append({"node": slash, "time": 0.18, "total": 0.18, "type": "hit"})
 
 func _clear_boss_telegraph() -> void:
     if boss_telegraph != null and is_instance_valid(boss_telegraph):
@@ -890,10 +891,10 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
     _damage_popup(int(damage), last_target_pos + Vector3(0.0, 1.45, 0.0), crit)
     if crit and is_instance_valid(target):
         var pulse := TorusMesh.new()
-        pulse.inner_radius = 0.50
-        pulse.outer_radius = 0.54
+        pulse.inner_radius = 0.36
+        pulse.outer_radius = 0.37
         var ring := _mesh(self, pulse, target.global_position + Vector3(0, 0.17, 0), _bright(Color("ffae54")))
-        spell_fx.append({"node": ring, "time": 0.34, "total": 0.34, "type": "spell"})
+        spell_fx.append({"node": ring, "time": 0.22, "total": 0.22, "type": "spell"})
     if health <= 0.0:
         _kill_mob(target)
     _update_wave_health()
@@ -1563,10 +1564,10 @@ func _impact(pos: Vector3, color: Color) -> void:
 func _spell_burst(color: Color, size: float, shards: int) -> void:
     var ring := TorusMesh.new()
     ring.inner_radius = size * 0.38
-    ring.outer_radius = size * 0.43
+    ring.outer_radius = size * 0.395
     var pulse_mesh := _mesh(self, ring, Vector3(0, 0.12, 0), _bright(color))
     pulse_mesh.scale = Vector3.ONE * 0.65
-    spell_fx.append({"node": pulse_mesh, "time": 0.55, "total": 0.55, "type": "spell"})
+    spell_fx.append({"node": pulse_mesh, "time": 0.34, "total": 0.34, "type": "spell"})
     for i in range(shards):
         var a := TAU * float(i) / float(shards)
         var p := Vector3(cos(a) * size * 0.42, rng.randf_range(0.3,1.3), sin(a) * size * 0.42)
@@ -1623,8 +1624,9 @@ func _update_chaos(delta: float) -> void:
             continue
         var a: float = float(i) * 2.39996 + chaos_time * (0.27 if i % 2 == 0 else -0.19)
         var radius: float = 1.6 if bool(mob.get_meta("boss", false)) else 2.1 + float(i % 7) * 0.3
+        var boss: bool = bool(mob.get_meta("boss", false))
         var orbit_center: Vector3 = hero.position if hero != null else Vector3.ZERO
-        var desired: Vector3 = orbit_center + Vector3(cos(a) * radius, 0, sin(a) * radius)
+        var desired: Vector3 = Vector3(1.05 + sin(chaos_time * 0.9) * 0.28, 0, -0.42 + cos(chaos_time * 0.6) * 0.24) if boss else orbit_center + Vector3(cos(a) * radius, 0, sin(a) * radius)
         desired.x = clampf(desired.x, -5.1, 5.1)
         desired.z = clampf(desired.z, -5.1, 5.1)
         var speed: float = 0.45 + float(mob.get_meta("speed", 0.25)) * 1.6
