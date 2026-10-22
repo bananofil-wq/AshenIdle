@@ -68,6 +68,9 @@ var skill_cooldowns: Array = [0.0, 0.0, 0.0]
 var last_target_pos := Vector3.ZERO
 var wave_kills := 0
 var wave_size := 1
+var inventory_overlay: PanelContainer
+var inventory_list: VBoxContainer
+var inventory_summary: Label
 var cached_model_scenes: Dictionary = {}
 
 
@@ -398,6 +401,34 @@ func _build_ui() -> void:
         talents.add_child(button)
     talents.add_child(_label("Choose a branch. Talents strengthen all four classes.", 16, Color("ac9ca8")))
     talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 60)))
+
+    inventory_overlay = PanelContainer.new()
+    inventory_overlay.position = Vector2(63, (overlay.size.y - 780.0) * 0.5)
+    inventory_overlay.size = Vector2(594, 780)
+    inventory_overlay.visible = false
+    inventory_overlay.z_index = 41
+    inventory_overlay.add_theme_stylebox_override("panel", _skin(Color("0e1019"), Color("bf955c")))
+    overlay.add_child(inventory_overlay)
+    var inv_outer := VBoxContainer.new()
+    inv_outer.add_theme_constant_override("separation", 9)
+    inventory_overlay.add_child(inv_outer)
+    var inv_title := _label("ASHEN ARMORY", 28, Color("f7cb7d"))
+    inv_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    inv_outer.add_child(inv_title)
+    inventory_summary = _label("", 17, Color("d5c6b4"))
+    inventory_summary.custom_minimum_size = Vector2(550, 118)
+    inv_outer.add_child(inventory_summary)
+    inv_outer.add_child(_label("FOUND EQUIPMENT — TAP TO EQUIP", 19, Color("f1cb94")))
+    var inv_scroll := ScrollContainer.new()
+    inv_scroll.custom_minimum_size = Vector2(550, 500)
+    inv_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    inv_outer.add_child(inv_scroll)
+    inventory_list = VBoxContainer.new()
+    inventory_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    inventory_list.add_theme_constant_override("separation", 7)
+    inv_scroll.add_child(inventory_list)
+    inv_outer.add_child(_ornate_button("RETURN TO BATTLE", _close_inventory_panel, Vector2(550, 56)))
+
 
 
 
@@ -772,8 +803,59 @@ func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
     return b
 
 func _show_inventory() -> void:
-    combat_note = "TAP LOOT BELOW TO EQUIP"
-    _refresh()
+    if legendary_overlay.visible or skill_overlay.visible:
+        return
+    _refresh_inventory_panel()
+    popup_shade.visible = true
+    inventory_overlay.visible = true
+
+func _close_inventory_panel() -> void:
+    inventory_overlay.visible = false
+    popup_shade.visible = false
+
+func _refresh_inventory_panel() -> void:
+    if inventory_list == null:
+        return
+    var current: Array = []
+    var set_counts: Dictionary = {}
+    for slot in SLOTS:
+        if equipped.has(slot):
+            var item: Dictionary = equipped[slot]
+            current.append(slot + ": " + str(item.get("name", "?")))
+            var set_name: String = str(item.get("set", ""))
+            if set_name != "":
+                set_counts[set_name] = int(set_counts.get(set_name, 0)) + 1
+        else:
+            current.append(slot + ": EMPTY")
+    var set_parts: Array = []
+    for set_name in set_counts:
+        set_parts.append(str(set_name) + " " + str(set_counts[set_name]) + "/4")
+    inventory_summary.text = "EQUIPPED\n" + "    |    ".join(current.slice(0, 2)) + "\n" + "    |    ".join(current.slice(2, 4)) + "\nSETS: " + (", ".join(set_parts) if not set_parts.is_empty() else "None")
+    for child in inventory_list.get_children():
+        child.queue_free()
+    if gear.is_empty():
+        inventory_list.add_child(_label("No equipment found yet. Defeat monsters to loot.", 18, Color("c8b9b2")))
+        return
+    for i in range(gear.size()):
+        var item: Dictionary = gear[i]
+        var rarity: String = str(item.get("rarity", "COMMON"))
+        var color: Color = Color("d4d9de")
+        if rarity == "MAGIC":
+            color = Color("62b9f8")
+        elif rarity == "RARE":
+            color = Color("b882ff")
+        elif rarity == "EPIC":
+            color = Color("ff9364")
+        elif rarity == "LEGENDARY":
+            color = Color("ffcc69")
+        var item_title: String = "%s  %s  |  +%d ATK +%d HP" % [rarity, str(item.get("name", "Item")), int(item.get("damage", 0)), int(item.get("hp", 0))]
+        var btn: Button = _ornate_button(item_title, _equip_from_armory.bind(i), Vector2(545, 60))
+        btn.add_theme_color_override("font_color", color)
+        inventory_list.add_child(btn)
+
+func _equip_from_armory(index: int) -> void:
+    _equip(index)
+    _refresh_inventory_panel()
 
 func _refresh_minimap() -> void:
     if map_dots == null:
