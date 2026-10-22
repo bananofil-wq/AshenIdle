@@ -51,6 +51,23 @@ func _render_test() -> void:
         return
 
     if suffix == "tall":
+        # Inspect actual hero asset at game size with mobs hidden (not concept art).
+        for mob in (game.get("arena_mobs") as Array).duplicate():
+            if is_instance_valid(mob):
+                mob.queue_free()
+        (game.get("arena_mobs") as Array).clear()
+        game.call("_refresh")
+        await create_timer(0.10).timeout
+        if not await _save_capture("hero-detail-preview.png"):
+            quit(9)
+            return
+        game.call("_spawn_enemy")
+        game.set("skill_cooldowns", [0.0, 0.0, 0.0])
+        game.call("_use_skill", 2)
+        await create_timer(0.11).timeout
+        if not await _save_capture("spell-effects-preview.png"):
+            quit(10)
+            return
         # Second screenshot exposes the real boss health bar and boss model.
         game.set("stage", 10)
         game.set("highest", 10)
@@ -97,5 +114,5 @@ func _render_test() -> void:
         if not await _save_capture("inventory-preview.png"):
             quit(7)
             return
-        print("Visual QA PASS: portrait combat, boss, legendary loot, skill tree, class selection, inventory")
+        print("Visual QA PASS: portrait combat, hero asset, spell particle VFX, boss, legendary loot, skill tree, class selection, inventory")
     quit(0)
