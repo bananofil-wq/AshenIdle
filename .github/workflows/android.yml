@@ -98,7 +98,9 @@ jobs:
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/$asset.gltf" -o "assets/weapons/$asset.gltf"
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/$asset.bin" -o "assets/weapons/$asset.bin"
           done
-          curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/knight_texture.png" -o assets/weapons/knight_texture.png
+          for atlas in knight_texture mage_texture rogue_texture; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_WEAPON/$atlas.png" -o "assets/weapons/$atlas.png"
+          done
 
           test "$(stat -c %s assets/models/Knight.glb)" -gt 1000000
           test "$(stat -c %s assets/models/Skeleton_Minion.glb)" -gt 1000000
