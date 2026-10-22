@@ -221,6 +221,11 @@ func _label(t: String, font_size: int, color: Color = Color("e8d8c1")) -> Label:
     var l = Label.new()
     l.text = t
     l.add_theme_font_size_override("font_size", font_size)
+    if font_size >= 24 or t == "CINDER RECKONING" or t == "THE LOST LANDS" or t.contains("LEGENDARY EQUIPMENT"):
+        if ResourceLoader.exists("res://assets/fonts/Cinzel.ttf"):
+            var display_font := load("res://assets/fonts/Cinzel.ttf") as Font
+            if display_font != null:
+                l.add_theme_font_override("font", display_font)
     l.add_theme_color_override("font_color", color)
     l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     return l
@@ -395,9 +400,9 @@ func _build_ui() -> void:
     legendary_item_display = Node3D.new()
     legendary_item_viewport.add_child(legendary_item_display)
     var item_camera := Camera3D.new()
-    item_camera.position = Vector3(3.0, 1.5, 4.9)
-    item_camera.look_at(Vector3(0, 0.25, 0), Vector3.UP)
-    item_camera.fov = 35
+    item_camera.position = Vector3(0, 0.35, 4.3)
+    item_camera.look_at(Vector3(0, 0.18, 0), Vector3.UP)
+    item_camera.fov = 36
     item_camera.current = true
     legendary_item_viewport.add_child(item_camera)
     var item_light := DirectionalLight3D.new()
@@ -562,9 +567,12 @@ func _fight() -> void:
     var crit: bool = rng.randf() < clampf(0.22 + _bonus("crit") / 100.0, 0.22, 0.68)
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     _hit_mob(target, damage, crit)
+    attack_animation_index += 1
+    if attack_animation_index % 3 == 0:
+        _trigger_combat_animation(hero)
     attack_flash = 1.0
-    if rng.randf() < 0.13 and not arena_mobs.is_empty():
-        _use_skill(rng.randi_range(0, 1))
+    if rng.randf() < 0.23 and not arena_mobs.is_empty():
+        _use_skill(rng.randi_range(0, 2))
     if arena_mobs.is_empty():
         _complete_wave()
         return
@@ -582,6 +590,27 @@ func _fight() -> void:
         _spawn_enemy()
     _refresh()
 
+func _trigger_combat_animation(actor: Node3D) -> void:
+    if actor == null or not is_instance_valid(actor):
+        return
+    for found in actor.find_children("*", "AnimationPlayer", true, false):
+        var player: AnimationPlayer = found as AnimationPlayer
+        if player == null:
+            continue
+        var attack_name := ""
+        var idle_name := ""
+        for candidate in player.get_animation_list():
+            var lower: String = str(candidate).to_lower()
+            if attack_name == "" and (lower.contains("attack") or lower.contains("slash") or lower.contains("melee") or lower.contains("cast")):
+                attack_name = str(candidate)
+            if idle_name == "" and lower.contains("idle"):
+                idle_name = str(candidate)
+        if attack_name != "":
+            player.play(attack_name, 0.09, 1.4)
+            if idle_name != "":
+                player.queue(idle_name)
+            return
+
 func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
     if not is_instance_valid(target) or not arena_mobs.has(target):
         return
@@ -590,6 +619,12 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
     last_target_pos = target.global_position
     _impact(last_target_pos + Vector3(0.0, 0.75, 0.0), Color("ffc769") if crit else Color("b477ff"))
     _damage_popup(int(damage), last_target_pos + Vector3(0.0, 1.45, 0.0), crit)
+    if crit and is_instance_valid(target):
+        var pulse := TorusMesh.new()
+        pulse.inner_radius = 0.50
+        pulse.outer_radius = 0.54
+        var ring := _mesh(self, pulse, target.global_position + Vector3(0, 0.17, 0), _bright(Color("ffae54")))
+        spell_fx.append({"node": ring, "time": 0.34, "total": 0.34, "type": "spell"})
     if health <= 0.0:
         _kill_mob(target)
     _update_wave_health()
@@ -1007,6 +1042,11 @@ func _spawn_horde() -> void:
                 root.add_child(instance)
                 instance.scale = Vector3.ONE * (1.24 if elite else 0.66 if i % 4 != 2 else 0.77)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
+        if elite:
+            var halo := TorusMesh.new()
+            halo.inner_radius = 1.07
+            halo.outer_radius = 1.12
+            _mesh(root, halo, Vector3(0, 0.11, 0), _mat(Color("8a342c"), 0.0, true))
         if root.get_child_count() == 0:
             var body := CapsuleMesh.new()
             body.radius = 0.38 if not elite else 0.67
@@ -1020,7 +1060,7 @@ func _spawn_horde() -> void:
         root.set_meta("speed", 0.22 + rng.randf_range(0.01, 0.10))
         root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
-    combat_note = "BOSS ENCOUNTER — THE ASHEN WARDEN" if is_boss else "HORDE APPROACHING — AUTO COMBAT"
+    combat_note = "BOSS: THE ASHEN WARDEN" if is_boss else "HORDE APPROACHING"
 
 func _impact(pos: Vector3, color: Color) -> void:
     var ball := SphereMesh.new()
@@ -1374,6 +1414,7 @@ func _update_item_preview(item: Dictionary) -> void:
     var preview_root := Node3D.new()
     legendary_item_display.add_child(preview_root)
     preview_root.rotation.z = -0.11
+    preview_root.rotation.y = 0.28
     var slot: String = str(item.get("slot", "Weapon"))
     var name: String = str(item.get("name", "")).to_lower()
     var element: String = str(item.get("element", "FIRE")).to_upper()
