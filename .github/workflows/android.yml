@@ -189,6 +189,8 @@ jobs:
             build/gameplay-preview*.png
             build/boss-preview.png
             build/hero-selection-preview.png
+            build/hero-detail-preview.png
+            build/spell-effects-preview.png
             build/legendary-preview.png
             build/talent-preview.png
             build/inventory-preview.png
