@@ -106,6 +106,15 @@ jobs:
           test "$(stat -c %s assets/models/Skeleton_Minion.glb)" -gt 1000000
           ls -lh assets/models
 
+      - name: Download open-licensed fantasy heading font
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets/fonts
+          curl -g --fail --location --retry 3 --silent --show-error "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel[wght].ttf" -o assets/fonts/Cinzel.ttf
+          curl --fail --location --retry 3 --silent --show-error "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/OFL.txt" -o assets/fonts/OFL.txt
+          test "$(stat -c %s assets/fonts/Cinzel.ttf)" -gt 80000
+
       - name: Import and validate game scripts
         shell: bash
         run: |
