@@ -117,6 +117,8 @@ var spark_texture: ImageTexture
 var pbr_floor: MeshInstance3D
 var art_brazier_lights: Array[OmniLight3D] = []
 var vfx_last_msec := 0
+var screen_flash: ColorRect
+var screen_flash_fade := 0.0
 var fx_sounds: Array = []
 var audio_enabled := true
 var sfx_toggle_button: Button
@@ -132,6 +134,7 @@ func _ready() -> void:
     _create_fx_textures()
     _build_world()
     _build_ui()
+    _create_flash_layer()
     _prepare_audio()
     _spawn_enemy()
     _sync_equipment_visuals()
@@ -645,6 +648,9 @@ func _process(delta: float) -> void:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
+    if screen_flash != null and screen_flash_fade > 0.0:
+        screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
+        screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
     _update_boss_cast(delta)
     _update_ember_motes()
@@ -1578,8 +1584,26 @@ func _impact(pos: Vector3, color: Color) -> void:
 
 func _spell_burst(color: Color, size: float, shards: int) -> void:
     var center: Vector3 = hero.position + Vector3(0.0, 1.05, 0.0) if hero != null else Vector3(0.0, 1.05, 0.0)
-    _burst_particles(center, color, 88 + shards * 8, size * 4.2, 0.67)
+    _burst_particles(center, color, 100 + shards * 9, size * 4.2, 0.67)
+    if screen_flash != null:
+        screen_flash.color = color
+        screen_flash_fade = 0.16
+        screen_flash.modulate.a = screen_flash_fade
     _burst_particles(center + Vector3(0.0, 0.16, 0.0), Color("ffe4b6"), 32, size * 2.1, 0.37)
+    var ground_glow := PlaneMesh.new()
+    ground_glow.size = Vector2(size * 3.3, size * 3.3)
+    var ground_mat := _fx_material(color, 0.62)
+    ground_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+    var aoe := _mesh(self, ground_glow, Vector3(center.x, 0.104, center.z), ground_mat)
+    aoe.scale = Vector3.ONE * 0.72
+    spell_fx.append({"node": aoe, "time": 0.44, "total": 0.44, "type": "spell"})
+    var burst_light := OmniLight3D.new()
+    burst_light.position = center + Vector3(0, 0.7, 0)
+    burst_light.light_color = color
+    burst_light.light_energy = 3.1
+    burst_light.omni_range = 8.4
+    add_child(burst_light)
+    get_tree().create_timer(0.26).timeout.connect(burst_light.queue_free)
     var shock := TorusMesh.new()
     shock.inner_radius = size * 0.64
     shock.outer_radius = size * 0.655
@@ -1589,6 +1613,11 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     var wave := _mesh(self, shock, hero.position + Vector3(0, 0.10, 0) if hero != null else Vector3.ZERO, ring_mat)
     wave.scale = Vector3.ONE * 0.3
     spell_fx.append({"node": wave, "time": 0.31, "total": 0.31, "type": "spell"})
+    for strike_i in range(mini(shards + 4, 13)):
+        var angle := TAU * float(strike_i) / float(shards + 4)
+        var origin := center + Vector3(0, 1.2, 0)
+        var end := center + Vector3(cos(angle) * size * 1.55, rng.randf_range(-0.55, 0.5), sin(angle) * size * 1.55)
+        _energy_arc(origin, end, color, 0.055 + 0.015 * float(strike_i % 3))
     # Beams of rising energy, individual sparks and sharp concentric shockwave.
     for i in range(mini(shards + 2, 12)):
         var theta := TAU * float(i) / float(shards + 2)
@@ -1598,6 +1627,19 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
         var ray := _mesh(self, plume_mesh, point, _fx_material(color, 0.71))
         ray.scale = Vector3(0.75, 1.0, 0.75)
         spell_fx.append({"node": ray, "time": 0.45, "total": 0.45, "type": "hit"})
+
+func _energy_arc(from: Vector3, to: Vector3, tint: Color, thickness: float) -> void:
+    var heading: Vector3 = to - from
+    var distance: float = heading.length()
+    if distance < 0.05:
+        return
+    var cylinder := CylinderMesh.new()
+    cylinder.top_radius = thickness * 0.22
+    cylinder.bottom_radius = thickness
+    cylinder.height = distance
+    var shaft := _mesh(self, cylinder, (from + to) * 0.5, _beam_material(tint, 0.77))
+    shaft.quaternion = Quaternion(Vector3.UP, heading.normalized())
+    spell_fx.append({"node": shaft, "time": 0.28, "total": 0.28, "type": "hit"})
 
 func _bright(color: Color) -> Material:
     var m := _mat(color.darkened(0.16))
@@ -2035,6 +2077,17 @@ func _update_ember_motes() -> void:
             continue
         var t: float = chaos_time * float(mote["rate"]) + float(mote["phase"])
         spark.position = Vector3(float(mote["x"]) + sin(t * 1.4) * 0.28, 0.15 + fposmod(t, 3.2), float(mote["z"]) + cos(t * 1.1) * 0.24)
+
+func _create_flash_layer() -> void:
+    var layer := CanvasLayer.new()
+    layer.layer = 0
+    add_child(layer)
+    screen_flash = ColorRect.new()
+    screen_flash.color = Color("ff713a")
+    screen_flash.size = get_viewport().get_visible_rect().size
+    screen_flash.modulate.a = 0.0
+    screen_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    layer.add_child(screen_flash)
 
 func _create_fx_textures() -> void:
     var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
