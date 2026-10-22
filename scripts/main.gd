@@ -71,6 +71,8 @@ var wave_size := 1
 var inventory_overlay: PanelContainer
 var inventory_list: VBoxContainer
 var inventory_summary: Label
+var boss_hp_label: Label
+var boss_hp_bar: ColorRect
 var legendary_item_display: Node3D
 var legendary_item_viewport: SubViewport
 var cached_model_scenes: Dictionary = {}
@@ -289,6 +291,22 @@ func _build_ui() -> void:
     combat = _label("", 18, Color("dbceda"))
     combat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(combat)
+    var boss_panel := PanelContainer.new()
+    boss_panel.position = Vector2(182, 317)
+    boss_panel.size = Vector2(356, 57)
+    boss_panel.add_theme_stylebox_override("panel", _skin(Color("160d19ea"), Color("b14b3f")))
+    overlay.add_child(boss_panel)
+    var boss_col := VBoxContainer.new()
+    boss_panel.add_child(boss_col)
+    boss_hp_label = _label("ASHEN WARDEN", 17, Color("ffc5a0"))
+    boss_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    boss_col.add_child(boss_hp_label)
+    boss_hp_bar = ColorRect.new()
+    boss_hp_bar.color = Color("e13b46")
+    boss_hp_bar.custom_minimum_size = Vector2(326, 8)
+    boss_col.add_child(boss_hp_bar)
+    boss_panel.name = "BossHPPanel"
+
 
     var bottom := PanelContainer.new()
     bottom.position = Vector2(16, overlay.size.y - 228)
@@ -341,8 +359,8 @@ func _build_ui() -> void:
     overlay.add_child(popup_shade)
 
     legendary_overlay = PanelContainer.new()
-    legendary_overlay.position = Vector2(96, (overlay.size.y - 546.0) * 0.5)
-    legendary_overlay.size = Vector2(528, 546)
+    legendary_overlay.position = Vector2(96, (overlay.size.y - 567.0) * 0.5)
+    legendary_overlay.size = Vector2(528, 567)
     legendary_overlay.z_index = 41
     legendary_overlay.visible = false
     legendary_overlay.add_theme_stylebox_override("panel", _skin(Color("0f1119"), Color("e2ad58")))
@@ -360,11 +378,11 @@ func _build_ui() -> void:
     legendary_name.custom_minimum_size = Vector2(480, 68)
     leg_col.add_child(legendary_name)
     var item_frame := SubViewportContainer.new()
-    item_frame.custom_minimum_size = Vector2(480, 105)
+    item_frame.custom_minimum_size = Vector2(480, 120)
     item_frame.stretch = true
     leg_col.add_child(item_frame)
     legendary_item_viewport = SubViewport.new()
-    legendary_item_viewport.size = Vector2i(480, 105)
+    legendary_item_viewport.size = Vector2i(480, 120)
     legendary_item_viewport.transparent_bg = true
     legendary_item_viewport.own_world_3d = true
     legendary_item_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -372,7 +390,7 @@ func _build_ui() -> void:
     legendary_item_display = Node3D.new()
     legendary_item_viewport.add_child(legendary_item_display)
     var item_camera := Camera3D.new()
-    item_camera.position = Vector3(3.4, 1.8, 4.5)
+    item_camera.position = Vector3(2.8, 1.5, 3.2)
     item_camera.look_at(Vector3(0, 0.4, 0), Vector3.UP)
     item_camera.fov = 43
     item_camera.current = true
@@ -732,6 +750,11 @@ func _refresh() -> void:
     power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
     stage_banner.text = "STAGE %d%s" % [stage, " BOSS" if stage % 5 == 0 else ""]
+    var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
+    if boss_panel != null:
+        boss_panel.visible = stage % 5 == 0
+        boss_hp_label.text = "ASHEN WARDEN  •  %.0f / %.0f HP" % [maxf(0.0, enemy_hp), enemy_max]
+        boss_hp_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.03, 1.0)
     center_banner.modulate.a = 0.87 + sin(chaos_time * 4.0) * 0.13
     combat.text = combat_note
     info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
@@ -1248,8 +1271,8 @@ func _update_item_preview(item: Dictionary) -> void:
             var weapon: Node3D = packed.instantiate() as Node3D
             if weapon != null:
                 legendary_item_display.add_child(weapon)
-                weapon.scale = Vector3.ONE * 0.9
-                weapon.position = Vector3(0, -0.40, 0)
+                weapon.scale = Vector3.ONE * 2.2
+                weapon.position = Vector3(0, -0.75, 0)
                 return
     # Mesh fallback if asset import fails: no blank loot card.
     var blade := _box(legendary_item_display, Vector3(0.18, 1.80, 0.11), Vector3(0, 0.55, 0), Color("d5e3ec"), true)
