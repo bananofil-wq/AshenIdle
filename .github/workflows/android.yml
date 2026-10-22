@@ -125,6 +125,15 @@ jobs:
               rm -f "assets/pbr/stone_floor_${channel}_1k.jpg"
             fi
           done
+          # Adult humanoid armour/outfits are made from Quaternius CC0 modular packs.
+          # Avelune's GLB pipeline packs all character material maps into the GLBs.
+          BASE_ARMOR="https://raw.githubusercontent.com/benjamincanac/avelune/main/public/models/characters"
+          for spec in "Knight_Male:ashen_armored_knight" "Knight_Female:ashen_shadow_knight" "Ranger_Male_SimpleParted:ashen_ranger" "Wizard_Male_SimpleParted:ashen_mage" "animations:ashen_shared_anims"; do
+            source="${spec%%:*}"
+            target="${spec##*:}"
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_ARMOR/$source.glb" -o "assets/models/$target.glb"
+            test "$(stat -c %s assets/models/$target.glb)" -gt 100000
+          done
           ls -lh assets/models/*_dark.glb assets/pbr/* 2>/dev/null || true
 
       - name: Download open-licensed fantasy heading font
