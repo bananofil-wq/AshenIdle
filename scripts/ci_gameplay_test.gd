@@ -39,6 +39,49 @@ func _run() -> void:
         quit(36)
         return
 
+    # Verify dynamic animation and camera instead of testing only that clips exist.
+    var actor: Node3D = game.get("hero")
+    var player: AnimationPlayer = actor.get_meta("animation_driver", null) as AnimationPlayer
+    if not _check(player != null, "Hero animation driver should be bound"):
+        quit(38)
+        return
+    game.call("_animate_actor", actor, 3.0)
+    if not _check(str(actor.get_meta("clip_state", "")).contains("Jog"), "Movement should select run clip"):
+        quit(39)
+        return
+    var skeleton: Skeleton3D
+    for part in actor.find_children("*", "Skeleton3D", true, false):
+        skeleton = part as Skeleton3D
+        break
+    if not _check(skeleton != null, "Hero must have skeleton for motion"):
+        quit(40)
+        return
+    player.advance(0.21)
+    var first_pose: Array[Quaternion] = []
+    for bone_id in range(skeleton.get_bone_count()):
+        first_pose.append(skeleton.get_bone_pose_rotation(bone_id))
+    player.advance(0.25)
+    var moving_bones := false
+    for bone_id in range(skeleton.get_bone_count()):
+        if first_pose[bone_id].angle_to(skeleton.get_bone_pose_rotation(bone_id)) > 0.004:
+            moving_bones = true
+            break
+    if not _check(moving_bones, "Skeletal animation should articulate the character"):
+        quit(41)
+        return
+    game.call("_actor_attack", actor, false)
+    if not _check(str(actor.get_meta("clip_state", "")).contains("Sword"), "Sword attacks should animate"):
+        quit(42)
+        return
+    var camera: Camera3D = game.get("camera_ref")
+    var camera_start: Vector3 = camera.global_position
+    actor.position += Vector3(2.0, 0.0, -1.0)
+    game.call("_update_camera", 0.4)
+    if not _check(camera.global_position.distance_to(camera_start) > 0.09, "Camera should follow motion"):
+        quit(43)
+        return
+    print("MOTION QA PASS: running pose, attack state and camera following")
+
     game.set("stage", 1)
     game.set("highest", 1)
     game.set("grind_mode", false)
