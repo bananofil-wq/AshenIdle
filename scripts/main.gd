@@ -113,6 +113,10 @@ var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
 var bg_environment: WorldEnvironment
 var fire_light: OmniLight3D
 var mystic_light: OmniLight3D
+var spark_texture: ImageTexture
+var pbr_floor: MeshInstance3D
+var art_brazier_lights: Array[OmniLight3D] = []
+var vfx_last_msec := 0
 var fx_sounds: Array = []
 var audio_enabled := true
 var sfx_toggle_button: Button
@@ -125,6 +129,7 @@ var equipped_vfx: Node3D
 func _ready() -> void:
     rng.randomize()
     _load_game()
+    _create_fx_textures()
     _build_world()
     _build_ui()
     _prepare_audio()
@@ -199,14 +204,15 @@ func _build_world() -> void:
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color("070a12")
     environment.adjustment_enabled = true
-    environment.adjustment_brightness = 0.83
-    environment.adjustment_contrast = 1.22
-    environment.adjustment_saturation = 0.85
+    environment.adjustment_brightness = 0.80
+    environment.adjustment_contrast = 1.28
+    environment.adjustment_saturation = 0.69
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("677186")
-    environment.ambient_light_energy = 0.42
+    environment.ambient_light_energy = 0.51
     environment.glow_enabled = true
-    environment.glow_intensity = 0.34
+    environment.glow_intensity = 0.76
+    environment.glow_strength = 1.05
     world.environment = environment
     add_child(world)
 
@@ -220,14 +226,14 @@ func _build_world() -> void:
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
     sun.light_color = Color("f5b990")
-    sun.light_energy = 0.9
+    sun.light_energy = 1.35
     sun.shadow_enabled = true
     var ember := OmniLight3D.new()
     fire_light = ember
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
     ember.light_color = Color("ff6332")
-    ember.light_energy = 1.25
+    ember.light_energy = 1.8
     ember.omni_range = 13.0
     var arcane := OmniLight3D.new()
     mystic_light = arcane
@@ -237,14 +243,8 @@ func _build_world() -> void:
     arcane.light_energy = 0.82
     arcane.omni_range = 12
 
-    _box(self, Vector3(17, 0.6, 18), Vector3(0, -0.35, 0), Color("171b27"))
-    for x in range(-6, 7):
-        for z in range(-6, 7):
-            var v := float((x * 3 + z * 7 + 100) % 7) / 36.0
-            var stone := Color(0.112 + v * 0.64, 0.126 + v * 0.62, 0.168 + v * 0.72)
-            var t := BoxMesh.new()
-            t.size = Vector3(1.27, 0.08 + v * 0.1, 1.27)
-            _mesh(self, t, Vector3(float(x) * 1.3, -0.04, float(z) * 1.3), _mat(stone))
+    _box(self, Vector3(22.5, 1.1, 22.5), Vector3(0, -0.62, 0), Color("0c0e13"))
+    _make_dungeon_floor()
     _place_dungeon_detail()
     _decorate_arena()
     _scatter_embers()
@@ -1512,16 +1512,19 @@ func _spawn_horde() -> void:
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
-        var boss_models := ["Skeleton_Warrior", "Skeleton_Mage", "Skeleton_Minion"]
-        var model_name: String = str(boss_models[_boss_variant()]) if elite else ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
+        var boss_models := ["demon_dark", "ghost_dark", "knight_dark"]
+        var model_name: String = str(boss_models[_boss_variant()]) if elite else ["skeleton_dark", "ghost_dark", "skeleton_dark", "demon_dark"][i % 4]
         var root := Node3D.new()
         add_child(root)
         var packed := _get_asset_scene(model_name)
+        if packed == null:
+            packed = _get_asset_scene("Skeleton_Warrior" if elite else "Skeleton_Minion")
         if packed != null:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                instance.scale = Vector3.ONE * ([1.28, 1.48, 1.75][_boss_variant()] if elite else 0.66 if i % 4 != 2 else 0.77)
+                _fit_visual_model(instance, [3.9, 3.6, 4.15][_boss_variant()] if elite else (2.08 if i % 4 != 1 else 2.36))
+                _darken_character_materials(instance, elite)
                 _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
         if elite:
             var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
@@ -1722,8 +1725,58 @@ func _play_animation(model: Node, candidates: Array) -> void:
             player.play(names[0])
             return
 
+func _dark_character_name(source_name: String, enemy: bool) -> String:
+    match source_name:
+        "Knight", "Barbarian": return "knight_dark" if source_name == "Knight" else "demon_dark"
+        "Rogue": return "hero_dark"
+        "Mage": return "hero_dark"
+        "Skeleton_Warrior": return "demon_dark" if enemy else "skeleton_dark"
+        "Skeleton_Mage": return "ghost_dark"
+        "Skeleton_Minion": return "skeleton_dark"
+        "Skeleton_Rogue": return "skeleton_dark"
+    return source_name
+
+func _fit_visual_model(model: Node3D, intended_height: float) -> void:
+    var points := AABB()
+    var initialized := false
+    for found in model.find_children("*", "MeshInstance3D", true, false):
+        var part := found as MeshInstance3D
+        if part == null or part.mesh == null:
+            continue
+        var transform_in_root: Transform3D = model.global_transform.affine_inverse() * part.global_transform
+        var local_bounds: AABB = transform_in_root * part.get_aabb()
+        if not initialized:
+            points = local_bounds
+            initialized = true
+        else:
+            points = points.merge(local_bounds)
+    if initialized and points.size.y > 0.01:
+        var factor: float = clampf(intended_height / points.size.y, 0.055, 15.0)
+        model.scale = Vector3.ONE * factor
+        model.position.y = -points.position.y * factor
+    else:
+        model.scale = Vector3.ONE
+
+func _darken_character_materials(model: Node3D, is_elite: bool) -> void:
+    for found in model.find_children("*", "MeshInstance3D", true, false):
+        var part := found as MeshInstance3D
+        if part == null or part.mesh == null:
+            continue
+        for surface_i in range(part.mesh.get_surface_count()):
+            var source_mat := part.get_active_material(surface_i) as BaseMaterial3D
+            if source_mat == null:
+                continue
+            var deeper := source_mat.duplicate() as BaseMaterial3D
+            deeper.albedo_color = deeper.albedo_color * (Color("a1a3b3") if not is_elite else Color("8e7892"))
+            deeper.roughness = 0.80
+            deeper.metallic = 0.10
+            part.set_surface_override_material(surface_i, deeper)
+
 func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> Node3D:
-    var packed := _get_asset_scene(model_name)
+    var dark_name := _dark_character_name(model_name, enemy)
+    var packed := _get_asset_scene(dark_name)
+    if packed == null:
+        packed = _get_asset_scene(model_name)
     if packed == null:
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     var root := Node3D.new()
@@ -1734,8 +1787,9 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    model.scale = Vector3.ONE * (0.72 if enemy else 0.98)
+    _fit_visual_model(model, 2.50 if not enemy else 2.20)
     model.rotation.y = PI
+    _darken_character_materials(model, false)
     _play_animation(model, ["Idle_A", "Idle", "idle"])
     return root
 
@@ -1851,25 +1905,112 @@ func _update_ember_motes() -> void:
         var t: float = chaos_time * float(mote["rate"]) + float(mote["phase"])
         spark.position = Vector3(float(mote["x"]) + sin(t * 1.4) * 0.28, 0.15 + fposmod(t, 3.2), float(mote["z"]) + cos(t * 1.1) * 0.24)
 
+func _create_fx_textures() -> void:
+    var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+    for y in range(64):
+        for x in range(64):
+            var radial: float = Vector2(float(x) - 31.5, float(y) - 31.5).length() / 31.0
+            var falloff: float = pow(maxf(0.0, 1.0 - radial), 2.3)
+            img.set_pixel(x, y, Color(1.0, 1.0, 1.0, falloff))
+    spark_texture = ImageTexture.create_from_image(img)
+
+func _fx_material(tint: Color, opacity: float = 0.86) -> StandardMaterial3D:
+    var result := StandardMaterial3D.new()
+    result.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    result.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+    result.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+    result.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+    result.cull_mode = BaseMaterial3D.CULL_DISABLED
+    result.albedo_texture = spark_texture
+    result.albedo_color = Color(tint.r, tint.g, tint.b, opacity)
+    result.emission_enabled = true
+    result.emission = tint
+    result.emission_energy_multiplier = 4.0
+    return result
+
+func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float = 2.8, duration: float = 0.57) -> void:
+    if get_tree() == null:
+        return
+    var sprite := QuadMesh.new()
+    sprite.size = Vector2(0.25, 0.25)
+    sprite.material = _fx_material(tint, 0.92)
+    var parts := CPUParticles3D.new()
+    parts.mesh = sprite
+    parts.amount = count
+    parts.lifetime = duration
+    parts.one_shot = true
+    parts.explosiveness = 1.0
+    parts.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+    parts.emission_sphere_radius = 0.14
+    parts.direction = Vector3(0.0, 0.7, 0.0)
+    parts.spread = 180.0
+    parts.initial_velocity_min = radius * 0.55
+    parts.initial_velocity_max = radius
+    parts.gravity = Vector3(0, -1.1, 0)
+    parts.scale_amount_min = 0.55
+    parts.scale_amount_max = 1.55
+    parts.position = at
+    add_child(parts)
+    parts.emitting = true
+    get_tree().create_timer(duration + 0.22).timeout.connect(parts.queue_free)
+
+func _make_dungeon_floor() -> void:
+    var ground := PlaneMesh.new()
+    ground.size = Vector2(23.5, 23.5)
+    pbr_floor = MeshInstance3D.new()
+    pbr_floor.mesh = ground
+    pbr_floor.position = Vector3(0.0, 0.018, 0.0)
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color("7b797a")
+    material.roughness = 0.94
+    material.metallic = 0.04
+    material.uv1_scale = Vector3(6.0, 6.0, 1.0)
+    material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    if ResourceLoader.exists("res://assets/pbr/stone_floor_diff_1k.jpg"):
+        material.albedo_texture = load("res://assets/pbr/stone_floor_diff_1k.jpg")
+        material.albedo_color = Color("bfc4ce")
+        material.roughness = 0.87
+        if ResourceLoader.exists("res://assets/pbr/stone_floor_nor_gl_1k.jpg"):
+            material.normal_enabled = true
+            material.normal_scale = 1.30
+            material.normal_texture = load("res://assets/pbr/stone_floor_nor_gl_1k.jpg")
+        if ResourceLoader.exists("res://assets/pbr/stone_floor_rough_1k.jpg"):
+            material.roughness_texture = load("res://assets/pbr/stone_floor_rough_1k.jpg")
+    pbr_floor.material_override = material
+    add_child(pbr_floor)
+    var world_edge := BoxMesh.new()
+    world_edge.size = Vector3(23.0, 1.55, 1.8)
+    for idx in range(2):
+        _mesh(self, world_edge, Vector3(0, 0.13, (-11.7 if idx == 0 else 11.7)), _mat(Color("171a21")))
+        var long_edge := _mesh(self, world_edge, Vector3((-11.7 if idx == 0 else 11.7), 0.13, 0), _mat(Color("171a21")))
+        long_edge.rotation.y = PI * 0.5
+
 func _place_dungeon_detail() -> void:
-    # Geometry and materials supplied by the CC0 KayKit Dungeon Remastered pack.
-    # Existing stone slabs remain beneath these imported floor meshes as a safe fallback.
-    for x in range(-4, 5):
-        for z in range(-4, 5):
-            var n: int = absi(x * 7 + z * 13)
-            var asset_name := "floor_tile_large"
-            if n % 7 == 0:
-                asset_name = "floor_tile_large_rocks"
-            elif n % 11 == 0:
-                asset_name = "floor_tile_small_broken_A"
-            _place_dungeon_model(asset_name, Vector3(float(x) * 1.72, -0.01, float(z) * 1.72), float(n % 4) * PI / 2.0, 0.84)
-    for i in range(9):
-        var a := TAU * float(i) / 12.0 + PI * 0.08
-        var dist := 6.5
-        var pos := Vector3(cos(a) * dist, 0.0, -absf(sin(a) * dist) - 1.1)
-        _place_dungeon_model("pillar_decorated" if i % 3 == 0 else "wall_broken", pos, a + PI / 2.0, 0.86)
+    # Sparse ruined gothic architecture creates depth, leaving the hero visible.
+    for i in range(12):
+        var a: float = TAU * float(i) / 12.0 + 0.14
+        var distance: float = 8.4 + float(i % 3) * 0.50
+        var pos := Vector3(cos(a) * distance, 0.0, sin(a) * distance)
         if i % 3 == 0:
-            _place_dungeon_model("torch_lit", pos + Vector3(0, 1.35, 0), a + PI, 0.8)
+            _place_dungeon_model("pillar_decorated", pos, a + PI / 2.0, 1.05)
+        else:
+            _place_dungeon_model("wall_broken", pos, a + PI / 2.0, 1.06)
+        if i % 3 == 0:
+            var lamp := OmniLight3D.new()
+            lamp.light_color = Color("ff7742") if i % 2 == 0 else Color("8b65e0")
+            lamp.light_energy = 0.62
+            lamp.omni_range = 3.8
+            lamp.position = pos + Vector3(0, 2.25, 0)
+            add_child(lamp)
+            art_brazier_lights.append(lamp)
+    # Thin cracks and ancient broken ritual marks are accents rather than the entire floor.
+    for i in range(11):
+        var a: float = TAU * float(i) / 11.0
+        var start := Vector3(cos(a) * 4.7, 0, sin(a) * 4.7)
+        var end := Vector3(cos(a + 0.11) * 5.7, 0, sin(a + 0.11) * 5.7)
+        _rift_line(start, end, 0.008, Color("964333"))
+
 
 func _open_talent_panel() -> void:
     if legendary_overlay.visible or hero_overlay.visible:
