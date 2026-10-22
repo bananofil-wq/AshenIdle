@@ -83,6 +83,12 @@ func _render_test() -> void:
             return
 
         game.call("_close_talent_panel")
+        game.call("_show_hero_panel")
+        await create_timer(0.16).timeout
+        if not await _save_capture("hero-selection-preview.png"):
+            quit(8)
+            return
+        game.call("_close_hero_panel")
         for i in range(6):
             game.call("_drop_loot")
         game.call("_hide_legendary")
@@ -91,5 +97,5 @@ func _render_test() -> void:
         if not await _save_capture("inventory-preview.png"):
             quit(7)
             return
-        print("Visual QA PASS: portrait combat, boss, legendary loot, skill tree, inventory")
+        print("Visual QA PASS: portrait combat, boss, legendary loot, skill tree, class selection, inventory")
     quit(0)
