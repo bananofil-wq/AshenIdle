@@ -65,6 +65,31 @@ func _run() -> void:
     if not _check(not (game.get("equipped") as Dictionary).is_empty(), "Equip must change equipment state"):
         quit(18)
         return
+    # Verify idle automation does not downgrade a stronger ring.
+    var strong_ring := {
+        "slot": "Ring", "name": "CI Hero Ring", "damage": 500,
+        "hp": 400, "crit": 30, "speed": 20,
+        "elemental": 60, "element": "FIRE", "set": "", "rarity": "LEGENDARY"
+    }
+    if not _check(bool(game.call("_auto_equip_item", strong_ring)), "Auto-equip should improve an empty slot"):
+        quit(22)
+        return
+    var weak_ring := strong_ring.duplicate(true)
+    weak_ring["damage"] = 1
+    if not _check(not bool(game.call("_auto_equip_item", weak_ring)), "Auto-equip must never downgrade a superior ring"):
+        quit(23)
+        return
+    game.set("gold", 90000)
+    var before_gold: int = int(game.get("gold"))
+    game.call("_forge_weakest")
+    if not _check(int(game.get("gold")) < before_gold, "Forging should spend gold"):
+        quit(24)
+        return
+    game.set("stage", 10)
+    game.call("_spawn_enemy")
+    if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must have own HP and identity"):
+        quit(25)
+        return
     game.call("_hide_legendary")
     game.call("_show_inventory")
     if not _check(game.get("inventory_overlay").visible, "LOOT opens full inventory"):
@@ -81,5 +106,5 @@ func _run() -> void:
     if not _check(float(cds[0]) > 0.0, "Using spell activates cooldown"):
         quit(21)
         return
-    print("GAMEPLAY TEST PASS: enemy HP, waves, boss, loot, equip, inventory, talent menu, spell cooldown")
+    print("GAMEPLAY TEST PASS: enemy HP, waves, multiple bosses, loot, smart auto-equip, forge, inventory, talent menu, spell cooldown")
     quit(0)
