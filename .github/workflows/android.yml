@@ -106,6 +106,27 @@ jobs:
           test "$(stat -c %s assets/models/Skeleton_Minion.glb)" -gt 1000000
           ls -lh assets/models
 
+      - name: Fetch adult-proportioned open fantasy characters and realistic dungeon textures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets/models assets/pbr
+          # Models converted to GLB from Quaternius CC0 licensed packs, MIT game-project host.
+          BASE_DARK="https://raw.githubusercontent.com/ilrein/warptracker/main/public/models"
+          for model in knight hero skeleton ghost demon; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_DARK/$model.glb" -o "assets/models/${model}_dark.glb"
+            test "$(stat -c %s assets/models/${model}_dark.glb)" -gt 25000
+          done
+          # Poly Haven CC0 photogrammetry/PBR: real old cobblestone, GL normal mapping.
+          BASE_STONE="https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/stone_floor"
+          for channel in diff nor_gl rough; do
+            if ! curl --fail --location --retry 3 --silent --show-error "$BASE_STONE/stone_floor_${channel}_1k.jpg" -o "assets/pbr/stone_floor_${channel}_1k.jpg"; then
+              echo "::warning::Stone PBR channel ${channel} unavailable; material falls back to neutral slate"
+              rm -f "assets/pbr/stone_floor_${channel}_1k.jpg"
+            fi
+          done
+          ls -lh assets/models/*_dark.glb assets/pbr/* 2>/dev/null || true
+
       - name: Download open-licensed fantasy heading font
         shell: bash
         run: |
