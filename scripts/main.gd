@@ -2074,7 +2074,7 @@ func _make_dungeon_floor() -> void:
     material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     if ResourceLoader.exists("res://assets/pbr/stone_floor_diff_1k.jpg"):
         material.albedo_texture = load("res://assets/pbr/stone_floor_diff_1k.jpg")
-        material.albedo_color = Color("bfc4ce")
+        material.albedo_color = Color("acb4c2")
         material.roughness = 0.87
         if ResourceLoader.exists("res://assets/pbr/stone_floor_nor_gl_1k.jpg"):
             material.normal_enabled = true
@@ -2092,21 +2092,31 @@ func _make_dungeon_floor() -> void:
         long_edge.rotation.y = PI * 0.5
 
 func _place_dungeon_detail() -> void:
-    # Sparse ruined gothic architecture creates depth, leaving the hero visible.
-    for i in range(12):
-        var a: float = TAU * float(i) / 12.0 + 0.14
-        var distance: float = 8.4 + float(i % 3) * 0.50
-        var pos := Vector3(cos(a) * distance, 0.0, sin(a) * distance)
-        if i % 3 == 0:
-            _place_dungeon_model("pillar_decorated", pos, a + PI / 2.0, 1.05)
-        else:
-            _place_dungeon_model("wall_broken", pos, a + PI / 2.0, 1.06)
-        if i % 3 == 0:
+    # Broken battlements: realistic PBR stone, not the huge toy-like KayKit columns.
+    var slab_mat := (pbr_floor.material_override as StandardMaterial3D).duplicate() as StandardMaterial3D
+    slab_mat.albedo_color = Color("727b87")
+    slab_mat.uv1_scale = Vector3(1.7, 1.7, 1.0)
+    for i in range(13):
+        var angle: float = PI + float(i) * PI / 12.0
+        var pos := Vector3(cos(angle) * 8.5, 0, sin(angle) * 8.5)
+        var height: float = 1.4 + float(i % 4) * 0.41
+        var capital := CylinderMesh.new()
+        capital.top_radius = 0.57
+        capital.bottom_radius = 0.70
+        capital.height = height
+        var broken := _mesh(self, capital, pos + Vector3(0.0, height * 0.5, 0.0), slab_mat)
+        broken.rotation.z = 0.12 * sin(float(i) * 4.1)
+        for n in range(2):
+            var chip := BoxMesh.new()
+            chip.size = Vector3(0.80, 0.20, 0.78)
+            var fragment := _mesh(self, chip, pos + Vector3(sin(float(i + n) * 3.5), -0.04, cos(float(i + n) * 4.0)) * 0.85, slab_mat)
+            fragment.rotation.y = float(i + n) * 0.66
+        if i % 4 == 0:
             var lamp := OmniLight3D.new()
-            lamp.light_color = Color("ff7742") if i % 2 == 0 else Color("8b65e0")
-            lamp.light_energy = 0.62
-            lamp.omni_range = 3.8
-            lamp.position = pos + Vector3(0, 2.25, 0)
+            lamp.light_color = Color("ff7742") if i % 2 == 0 else Color("8667e8")
+            lamp.light_energy = 0.90
+            lamp.omni_range = 4.2
+            lamp.position = pos + Vector3(0, 2.2, 0)
             add_child(lamp)
             art_brazier_lights.append(lamp)
     # Thin cracks and ancient broken ritual marks are accents rather than the entire floor.
