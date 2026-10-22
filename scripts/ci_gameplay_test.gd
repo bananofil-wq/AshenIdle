@@ -19,6 +19,26 @@ func _run() -> void:
     current_scene = game
     await process_frame
 
+    # Art QA is functional QA: ship genuine armored GLBs, not toy-model fallbacks.
+    for character in ["ashen_armored_knight", "ashen_shadow_knight", "ashen_ranger", "ashen_mage", "ashen_shared_anims", "skeleton_dark"]:
+        if not _check(game.call("_get_asset_scene", character) != null, "Required CC0 3D art missing: " + character):
+            quit(34)
+            return
+    if not _check(ResourceLoader.exists("res://assets/pbr/stone_floor_diff_1k.jpg"), "Photographic stone texture must ship with Android"):
+        quit(35)
+        return
+    var attached_animations := false
+    var hero_node: Node3D = game.get("hero")
+    for found in hero_node.find_children("*", "AnimationPlayer", true, false):
+        var anim_player: AnimationPlayer = found as AnimationPlayer
+        if anim_player != null:
+            print("HERO ANIMATION PLAYER ", anim_player.name, " CLIPS ", anim_player.get_animation_list())
+            if anim_player.get_animation_list().size() >= 3:
+                attached_animations = true
+    if not _check(attached_animations, "Armored hero must have several working animation clips"):
+        quit(36)
+        return
+
     game.set("stage", 1)
     game.set("highest", 1)
     game.set("grind_mode", false)
@@ -58,6 +78,12 @@ func _run() -> void:
 
     game.call("_drop_loot")
     var items: Array = game.get("gear")
+    game.set("auto_equip", true)
+    game.call("_hide_legendary")
+    game.call("_drop_loot_at", Vector3.ZERO, true)
+    if not _check(not game.get("popup_shade").visible, "Legendary auto drops must not freeze unattended idle combat"):
+        quit(37)
+        return
     if not _check(not items.is_empty(), "Loot should enter inventory"):
         quit(17)
         return
