@@ -833,7 +833,7 @@ func _forge_weakest() -> void:
         return
     var upgraded: Dictionary = equipped[target_slot].duplicate(true)
     var forging_level := int(upgraded.get("forge", 0))
-    var cost := 25 + level * 4 + forging_level * (18 + level)
+    var cost: int = 25 + level * 4 + forging_level * (18 + level)
     if gold < cost:
         combat_note = "FORGE %s: NEED %d GOLD" % [target_slot.to_upper(), cost]
         _refresh()
