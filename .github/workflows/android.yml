@@ -136,7 +136,6 @@ jobs:
           if grep -E 'SCRIPT ERROR|Parse Error|GAMEPLAY TEST FAIL|Invalid call|Invalid access' build/gameplay-test.log; then exit 1; fi
 
       - name: Render portrait screenshot with virtual display
-        continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
@@ -158,6 +157,7 @@ jobs:
           name: AshenIdle-Gameplay-Screenshot
           path: |
             build/gameplay-preview*.png
+            build/boss-preview.png
             build/legendary-preview.png
             build/talent-preview.png
             build/inventory-preview.png
