@@ -61,6 +61,13 @@ var minimap_refresh_timer := 10.0
 var skill_overlay: PanelContainer
 var skill_choice_buttons: Array = []
 var skill_count_label: Label
+var grind_mode := false
+var grind_cycles := 0
+var auto_skill_timer := 0.0
+var skill_cooldowns: Array = [0.0, 0.0, 0.0]
+var last_target_pos := Vector3.ZERO
+var wave_kills := 0
+var wave_size := 1
 var cached_model_scenes: Dictionary = {}
 
 
@@ -69,6 +76,7 @@ func _ready() -> void:
     _load_game()
     _build_world()
     _build_ui()
+    _spawn_enemy()
     _refresh()
 
 func _mat(color: Color, metallic: float = 0.0, emission: bool = false) -> StandardMaterial3D:
@@ -420,13 +428,21 @@ func _bonus(key: String) -> float:
     return total
 
 func _spawn_enemy() -> void:
-    enemy_max = 45.0 + float(stage) * 23.0 + (180.0 + float(stage) * 11.0 if stage % 5 == 0 else 0.0)
-    enemy_hp = enemy_max
-    if arena_mobs.size() > 0:
-        _spawn_horde()
+    if hero == null:
+        enemy_max = 50.0 + float(stage) * 20.0
+        enemy_hp = enemy_max
+        return
+    _spawn_horde()
+    _update_wave_health()
 
 func _process(delta: float) -> void:
     chaos_time += delta
+    for i in range(skill_cooldowns.size()):
+        skill_cooldowns[i] = maxf(0.0, float(skill_cooldowns[i]) - delta)
+    for i in range(skill_buttons.size()):
+        var skill_button: Button = skill_buttons[i]
+        skill_button.disabled = float(skill_cooldowns[i]) > 0.0
+        skill_button.text = (["FIRE", "VOID", "ULT"][i] if float(skill_cooldowns[i]) <= 0.0 else ["FIRE", "VOID", "ULT"][i] + "\n%.0fs" % float(skill_cooldowns[i]))
     tick += delta
     save_timer += delta
     if hero != null:
@@ -450,68 +466,118 @@ func _process(delta: float) -> void:
         _save_game()
 
 func _fight() -> void:
-    var crit := rng.randf() < clampf(0.22 + _bonus("crit") / 100.0, 0.22, 0.68)
-    var damage := _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
-    enemy_hp -= damage
+    if arena_mobs.is_empty():
+        _complete_wave()
+        return
+    var target: Node3D = arena_mobs[rng.randi_range(0, arena_mobs.size() - 1)] as Node3D
+    if target == null or not is_instance_valid(target):
+        return
+    var crit: bool = rng.randf() < clampf(0.22 + _bonus("crit") / 100.0, 0.22, 0.68)
+    var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
+    _hit_mob(target, damage, crit)
     attack_flash = 1.0
-    if arena_mobs.size() > 0:
-        var target = arena_mobs[rng.randi_range(0, arena_mobs.size()-1)]
-        if is_instance_valid(target):
-            _impact(target.global_position + Vector3(0, 0.8, 0), Color("ff8d3e") if crit else Color("ae74ff"))
-            _damage_popup(int(damage), target.global_position + Vector3(0, 1.7, 0), crit)
-            if rng.randf() < 0.48:
-                target.position = _random_spawn()
-    if rng.randf() < 0.25:
-        _spell_burst(Color("fd6d3d") if rng.randf() < 0.5 else Color("a354ff"), rng.randf_range(1.2,3.0), 4)
-    combat_note = "CRITICAL %d!" % int(damage) if crit else "BURNING THE HORDE"
-    if enemy_hp <= 0.0:
-        var boss_won: bool = stage % 5 == 0
-        kills += 1
-        gold += 3 + stage * 2
-        xp += 8 + stage * 3
-        _impact(foe.position + Vector3(0, 1.2, 0), Color("ffd060"))
-        if rng.randf() < 0.80 or boss_won:
-            _drop_loot()
-        while xp >= level * 30:
-            xp -= level * 30
-            level += 1
-            skill_points += 1
-            hp = _max_hp()
-        highest = maxi(highest, stage + 1)
-        stage = highest
-        combat_note = "BOSS DESTROYED!" if boss_won else "STAGE CLEARED!"
+    if rng.randf() < 0.13 and not arena_mobs.is_empty():
+        _use_skill(rng.randi_range(0, 1))
+    if arena_mobs.is_empty():
+        _complete_wave()
+        return
+    var remaining_mobs: float = float(arena_mobs.size())
+    var incoming: float = maxf(0.25, float(stage) * 0.085 + remaining_mobs * 0.075 - float(skills[2]) * 0.25)
+    if stage % 5 == 0:
+        incoming *= 1.28
+    hp -= incoming
+    if hp <= 0.0:
+        hp = _max_hp()
+        grind_mode = true
+        grind_cycles = 0
+        stage = maxi(1, highest - 1)
+        combat_note = "DEFEATED — AUTO-GRINDING PREVIOUS STAGE"
         _spawn_enemy()
-        _save_game()
-    else:
-        var incoming := maxf(1.0, float(stage) * 0.55 + float(arena_mobs.size()) * 0.1 - float(skills[2]) * 1.2)
-        if stage % 5 == 0:
-            incoming *= 1.4
-        hp -= incoming
-        if hp <= 0.0:
-            hp = _max_hp()
-            stage = maxi(1, stage - 1)
-            combat_note = "DEFEATED — FARMING EARLIER STAGE"
-            _spawn_enemy()
     _refresh()
 
+func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
+    if not is_instance_valid(target) or not arena_mobs.has(target):
+        return
+    var health: float = float(target.get_meta("hp", 1.0)) - damage
+    target.set_meta("hp", health)
+    last_target_pos = target.global_position
+    _impact(last_target_pos + Vector3(0.0, 0.75, 0.0), Color("ffc769") if crit else Color("b477ff"))
+    _damage_popup(int(damage), last_target_pos + Vector3(0.0, 1.45, 0.0), crit)
+    if health <= 0.0:
+        _kill_mob(target)
+    _update_wave_health()
+
+func _kill_mob(target: Node3D) -> void:
+    if not is_instance_valid(target):
+        return
+    var boss: bool = bool(target.get_meta("boss", false))
+    var drop_pos: Vector3 = target.global_position
+    arena_mobs.erase(target)
+    target.queue_free()
+    wave_kills += 1
+    kills += 1
+    gold += stage * 2 + (25 if boss else 3)
+    xp += 5 + stage * 2 + (60 if boss else 0)
+    if boss or rng.randf() < 0.22:
+        _drop_loot_at(drop_pos, boss)
+    if boss:
+        combat_note = "BOSS DEFEATED — LEGENDARY REWARDS"
+    while xp >= level * 30:
+        xp -= level * 30
+        level += 1
+        skill_points += 1
+        hp = _max_hp()
+        combat_note = "LEVEL UP — TALENT POINT EARNED"
+
+func _update_wave_health() -> void:
+    enemy_hp = 0.0
+    enemy_max = 0.0
+    for mob in arena_mobs:
+        if is_instance_valid(mob):
+            enemy_hp += maxf(0.0, float(mob.get_meta("hp", 0.0)))
+            enemy_max += float(mob.get_meta("max_hp", 0.0))
+    enemy_max = maxf(enemy_max, 1.0)
+
+func _complete_wave() -> void:
+    var was_boss: bool = stage % 5 == 0
+    if grind_mode:
+        grind_cycles += 1
+        if grind_cycles >= 3 and _damage() >= float(highest) * 3.0 + 10.0:
+            grind_mode = false
+            stage = highest
+            combat_note = "STRONGER NOW — RETRYING THE BOSS"
+        else:
+            combat_note = "AUTO-GRIND — GAINING LEVELS AND EQUIPMENT"
+    else:
+        stage += 1
+        highest = maxi(highest, stage)
+        combat_note = "BOSS CLEARED — NEXT AREA" if was_boss else "AREA CLEARED"
+    hp = _max_hp()
+    _spawn_enemy()
+    _save_game()
+
 func _try_boss() -> void:
+    grind_mode = false
     stage = maxi(5, int(ceil(float(highest) / 5.0)) * 5)
     hp = _max_hp()
-    combat_note = "BOSSEN HAR VÄCKTS"
+    combat_note = "BOSS CHALLENGE"
     _spawn_enemy()
     _refresh()
 
 func _grind() -> void:
+    grind_mode = true
+    grind_cycles = 0
     stage = maxi(1, highest - 1)
     hp = _max_hp()
-    combat_note = "GRINDAR UTRUSTNING OCH XP"
+    combat_note = "FARMING EXPERIENCE AND GEAR"
     _spawn_enemy()
     _refresh()
 
 func _forward() -> void:
+    grind_mode = false
     stage = highest
     hp = _max_hp()
-    combat_note = "FRAMÅT MOT ASKANS HJÄRTA"
+    combat_note = "ADVANCING INTO THE ASHEN LANDS"
     _spawn_enemy()
     _refresh()
 
@@ -544,11 +610,14 @@ func _heal() -> void:
     _refresh()
 
 func _drop_loot() -> void:
+    _drop_loot_at(_random_spawn() * 0.75, false)
+
+func _drop_loot_at(drop_pos: Vector3, boss_drop: bool) -> void:
     var slot: String = SLOTS[rng.randi_range(0, SLOTS.size() - 1)]
     var rarity_roll := rng.randf()
     var rarity := "COMMON"
     var loot_color := Color("b6d2d6")
-    if rarity_roll > 0.985 or stage % 15 == 0:
+    if boss_drop or rarity_roll > 0.985:
         rarity = "LEGENDARY"
         loot_color = Color("ffd060")
     elif rarity_roll > 0.87:
@@ -578,8 +647,7 @@ func _drop_loot() -> void:
     gear.push_front(item)
     if gear.size() > 36:
         gear.pop_back()
-    var pos := _random_spawn() * 0.75
-    _loot_beam(pos, loot_color, name)
+    _loot_beam(drop_pos, loot_color, name)
     if rarity == "LEGENDARY":
         _show_legendary(item)
 
@@ -603,7 +671,7 @@ func _refresh() -> void:
     stage_banner.text = "STAGE %d%s" % [stage, " BOSS" if stage % 5 == 0 else ""]
     center_banner.modulate.a = 0.87 + sin(chaos_time * 4.0) * 0.13
     combat.text = combat_note
-    info.text = "%.0f DMG   •   %d KILLS   •   %d TALENT POINTS" % [_damage(), kills, skill_points]
+    info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
     offline.text = offline_note
     combat_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.02, 1.0)
     if minimap_refresh_timer > 3.0:
@@ -748,15 +816,25 @@ func _show_legendary(item: Dictionary) -> void:
     legendary_overlay.visible = true
 
 func _use_skill(index: int) -> void:
-    var palette := [Color("ff6b20"), Color("9653ff"), Color("fff1a8")]
-    _spell_burst(palette[index], 2.5 + float(index), 3 + index * 2)
-    var multiplier: float = [1.3, 1.9, 3.4][index]
-    enemy_hp -= _damage() * multiplier
+    if index < 0 or index >= 3 or popup_shade.visible:
+        return
+    if float(skill_cooldowns[index]) > 0.0:
+        return
+    skill_cooldowns[index] = [3.2, 5.2, 12.0][index]
+    var palette: Array = [Color("ff6b20"), Color("9653ff"), Color("fff1a8")]
+    _spell_burst(palette[index], 2.2 + float(index) * 0.7, 3 + index * 2)
+    var multiplier: float = [1.25, 1.60, 2.80][index]
+    var targets: Array = arena_mobs.duplicate()
+    targets.shuffle()
+    var target_count: int = mini(targets.size(), [3, 5, 10][index])
+    for i in range(target_count):
+        var mob: Node3D = targets[i] as Node3D
+        if is_instance_valid(mob) and arena_mobs.has(mob):
+            _hit_mob(mob, _damage() * multiplier, index == 2)
     combat_note = ["FIRE NOVA!", "VOID STORM!", "ASHEN APOCALYPSE!"][index]
-    if enemy_hp <= 0.0:
-        _fight()
-    else:
-        _refresh()
+    if arena_mobs.is_empty():
+        _complete_wave()
+    _refresh()
 
 func _random_spawn() -> Vector3:
     var a := rng.randf_range(0.0, TAU)
@@ -769,26 +847,36 @@ func _spawn_horde() -> void:
         if is_instance_valid(mob):
             mob.queue_free()
     arena_mobs.clear()
-    var mob_count: int = 13 + mini(int(stage / 5), 9)
+    wave_kills = 0
+    var is_boss: bool = stage % 5 == 0
+    var mob_count: int = (6 + mini(int(stage / 10), 4)) if is_boss else (11 + mini(int(stage / 5), 11))
+    wave_size = mob_count
     for i in range(mob_count):
-        var model_name: String = ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
+        var elite: bool = is_boss and i == 0
+        var model_name: String = "Skeleton_Warrior" if elite else ["Skeleton_Minion", "Skeleton_Rogue", "Skeleton_Warrior", "Skeleton_Mage"][i % 4]
         var root := Node3D.new()
         add_child(root)
         var packed := _get_asset_scene(model_name)
         if packed != null:
             var instance: Node3D = packed.instantiate() as Node3D
-            if instance == null:
-                continue
-            root.add_child(instance)
-            instance.scale = Vector3.ONE * (0.57 if i % 4 != 2 else 0.68)
-            _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
-        else:
+            if instance != null:
+                root.add_child(instance)
+                instance.scale = Vector3.ONE * (1.45 if elite else 0.57 if i % 4 != 2 else 0.68)
+                _play_animation(instance, ["Idle", "idle", "Walking_A", "Walking", "walk"])
+        if root.get_child_count() == 0:
             var body := CapsuleMesh.new()
-            body.radius = 0.38
-            body.height = 1.18
+            body.radius = 0.38 if not elite else 0.67
+            body.height = 1.18 if not elite else 2.1
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
         root.position = _random_spawn()
+        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (13.0 if elite else 1.0)
+        root.set_meta("hp", mob_health)
+        root.set_meta("max_hp", mob_health)
+        root.set_meta("boss", elite)
+        root.set_meta("speed", 0.22 + rng.randf_range(0.01, 0.10))
+        root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
+    combat_note = "BOSS ENCOUNTER — THE ASHEN WARDEN" if is_boss else "HORDE APPROACHING — AUTO COMBAT"
 
 func _impact(pos: Vector3, color: Color) -> void:
     var ball := SphereMesh.new()
