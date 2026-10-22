@@ -35,6 +35,25 @@ var info: Label
 var offline: Label
 var actions: HBoxContainer
 var attack_flash = 0.0
+var chaos_time := 0.0
+var camera_ref: Camera3D
+var arena_mobs: Array = []
+var spell_fx: Array = []
+var loot_beams: Array = []
+var hit_texts: Array = []
+var overlay: Control
+var center_banner: Label
+var stage_banner: Label
+var power_label: Label
+var map_dots: Control
+var legendary_overlay: PanelContainer
+var legendary_name: Label
+var legendary_stats: Label
+var last_legendary: Dictionary = {}
+var hero_heart: ColorRect
+var combat_bar: ColorRect
+var skill_buttons: Array = []
+
 
 func _ready() -> void:
     rng.randomize()
@@ -99,47 +118,68 @@ func _fighter(at: Vector3, color: Color, enemy: bool) -> Node3D:
     return root
 
 func _build_world() -> void:
-    var world = WorldEnvironment.new()
-    var environment = Environment.new()
+    var world := WorldEnvironment.new()
+    var environment := Environment.new()
     environment.background_mode = Environment.BG_COLOR
-    environment.background_color = Color("100f18")
+    environment.background_color = Color("080912")
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color("6e6575")
-    environment.ambient_light_energy = 0.58
+    environment.ambient_light_color = Color("746475")
+    environment.ambient_light_energy = 0.75
+    environment.glow_enabled = true
+    environment.glow_intensity = 0.55
     world.environment = environment
     add_child(world)
-    var camera = Camera3D.new()
-    add_child(camera)
-    camera.position = Vector3(8.4, 11.2, 15.5)
-    camera.look_at(Vector3(0, 0.75, 0), Vector3.UP)
-    camera.fov = 33.0
-    camera.current = true
-    var sun = DirectionalLight3D.new()
+
+    camera_ref = Camera3D.new()
+    camera_ref.position = Vector3(0.0, 12.4, 13.6)
+    add_child(camera_ref)
+    camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
+    camera_ref.fov = 36.0
+    camera_ref.current = true
+    var sun := DirectionalLight3D.new()
     add_child(sun)
-    sun.rotation_degrees = Vector3(-50, -30, 0)
-    sun.light_color = Color("e5c5a7")
-    sun.light_energy = 1.3
-    _box(self, Vector3(12, 0.5, 11), Vector3(0, -0.32, 0), Color("292631"))
-    for i in range(11):
-        var x = float(i % 4) * 2.8 - 4.2
-        var z = float(i / 4) * 3.3 - 3.3
-        if absf(x) < 2.5 and absf(z) < 2.3:
-            continue
-        _box(self, Vector3(1.0, 0.27, 1.0), Vector3(x, -0.05, z), Color("39313c"))
-    for i in range(8):
-        var a = TAU * float(i) / 8.0
-        var x = cos(a) * 4.7
-        var z = sin(a) * 3.95
-        _box(self, Vector3(0.72, 1.7 + float(i % 3) * 0.4, 0.72), Vector3(x, 0.65, z), Color("443d49"))
-        _box(self, Vector3(0.43, 0.25, 0.43), Vector3(x, 1.7 + float(i % 3) * 0.4, z), Color("dd6029"), true)
-    hero = _fighter(Vector3(-1.65, 0, 0.5), Color("4f777e"), false)
-    foe = _fighter(Vector3(1.60, 0, -0.6), Color("863f4d"), true)
-    var ember = OmniLight3D.new()
+    sun.rotation_degrees = Vector3(-58, -31, 0)
+    sun.light_color = Color("e9bd9d")
+    sun.light_energy = 1.4
+    var ember := OmniLight3D.new()
     add_child(ember)
-    ember.position = Vector3(0, 2.7, 0)
-    ember.light_color = Color("fd713b")
-    ember.light_energy = 1.8
-    ember.omni_range = 9
+    ember.position = Vector3(0.0, 2.8, 0.5)
+    ember.light_color = Color("ff6332")
+    ember.light_energy = 3.0
+    ember.omni_range = 13.0
+    var arcane := OmniLight3D.new()
+    add_child(arcane)
+    arcane.position = Vector3(-3.6, 4.0, -2.0)
+    arcane.light_color = Color("965eff")
+    arcane.light_energy = 1.3
+    arcane.omni_range = 12
+
+    _box(self, Vector3(17, 0.6, 18), Vector3(0, -0.35, 0), Color("251c25"))
+    for x in range(-6, 7):
+        for z in range(-6, 7):
+            var v := float((x * 3 + z * 7 + 100) % 7) / 36.0
+            var stone := Color(0.17 + v, 0.14 + v * 0.7, 0.17 + v * 0.7)
+            var t := BoxMesh.new()
+            t.size = Vector3(1.27, 0.08 + v * 0.1, 1.27)
+            _mesh(self, t, Vector3(float(x) * 1.3, -0.04, float(z) * 1.3), _mat(stone))
+    for i in range(12):
+        var a := TAU * float(i) / 12.0
+        var d := 5.2 + float(i % 3) * 0.65
+        var x := cos(a) * d
+        var z := sin(a) * d
+        var h := 1.7 + float(i % 3) * 0.38
+        _box(self, Vector3(0.85, h, 0.85), Vector3(x, h * 0.5, z), Color("443440"))
+        _box(self, Vector3(0.52, 0.18, 0.52), Vector3(x, h + 0.1, z), Color("ff7035"), true)
+    for i in range(26):
+        var x := rng.randf_range(-6.0, 6.0)
+        var z := rng.randf_range(-6.0, 6.0)
+        if absf(x) < 1.5 and absf(z) < 1.5:
+            continue
+        _box(self, Vector3(rng.randf_range(0.2,0.6),0.12,rng.randf_range(0.2,0.6)), Vector3(x,0.02,z), Color("52373c"))
+
+    hero = _fighter(Vector3(-0.45, 0, 0.65), Color("507b81"), false)
+    foe = _fighter(Vector3(1.55, 0, -0.8), Color("a43f52"), true)
+    _spawn_horde()
 
 func _panel_color() -> StyleBoxFlat:
     var b = StyleBoxFlat.new()
@@ -171,56 +211,126 @@ func _button(t: String, callback: Callable) -> Button:
     return b
 
 func _build_ui() -> void:
-    var layer = CanvasLayer.new()
+    var layer := CanvasLayer.new()
     add_child(layer)
-    var root = Control.new()
-    layer.add_child(root)
-    root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-    root.mouse_filter = Control.MOUSE_FILTER_PASS
-    var top = PanelContainer.new()
-    root.add_child(top)
-    top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-    top.offset_bottom = 194
-    top.add_theme_stylebox_override("panel", _panel_color())
-    var header = VBoxContainer.new()
-    top.add_child(header)
-    header.add_child(_label("ASHEN IDLE", 33, Color("ffc78f")))
-    header.add_child(_label("THE CINDER RECKONING", 16, Color("c7aa8e")))
-    status = _label("", 23)
-    header.add_child(status)
-    details = _label("", 18)
-    header.add_child(details)
-    offline = _label("", 16, Color("e4b96d"))
-    header.add_child(offline)
-    var bottom = PanelContainer.new()
-    root.add_child(bottom)
-    bottom.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-    bottom.offset_top = -492
-    bottom.add_theme_stylebox_override("panel", _panel_color())
-    var scroll = ScrollContainer.new()
+    overlay = Control.new()
+    overlay.size = Vector2(720, 1280)
+    overlay.mouse_filter = Control.MOUSE_FILTER_PASS
+    layer.add_child(overlay)
+
+    var portrait := PanelContainer.new()
+    portrait.position = Vector2(14, 20)
+    portrait.size = Vector2(295, 128)
+    portrait.add_theme_stylebox_override("panel", _skin(Color("12141fe8"), Color("b66b48")))
+    overlay.add_child(portrait)
+    var portrait_box := VBoxContainer.new()
+    portrait.add_child(portrait_box)
+    portrait_box.add_child(_label("CINDER RECKONING", 19, Color("f6be79")))
+    status = _label("", 23, Color("ffe2be"))
+    portrait_box.add_child(status)
+    details = _label("", 15, Color("f1d7c1"))
+    portrait_box.add_child(details)
+    hero_heart = ColorRect.new()
+    hero_heart.color = Color("d53c3c")
+    hero_heart.custom_minimum_size = Vector2(270, 7)
+    portrait_box.add_child(hero_heart)
+    power_label = _label("", 16, Color("ffd375"))
+    portrait_box.add_child(power_label)
+
+    var map_panel := PanelContainer.new()
+    map_panel.position = Vector2(496, 20)
+    map_panel.size = Vector2(208, 175)
+    map_panel.add_theme_stylebox_override("panel", _skin(Color("11121bed"), Color("785a43")))
+    overlay.add_child(map_panel)
+    var map_column := VBoxContainer.new()
+    map_panel.add_child(map_column)
+    map_column.add_child(_label("THE LOST LANDS", 16, Color("ead2b0")))
+    map_dots = Control.new()
+    map_dots.custom_minimum_size = Vector2(180, 80)
+    map_column.add_child(map_dots)
+    stage_banner = _label("", 24, Color("ffca77"))
+    map_column.add_child(stage_banner)
+
+    var controls := VBoxContainer.new()
+    controls.position = Vector2(14, 205)
+    controls.add_theme_constant_override("separation", 10)
+    overlay.add_child(controls)
+    controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(112, 51)))
+    controls.add_child(_ornate_button("HERO", _switch_class, Vector2(112, 51)))
+    controls.add_child(_ornate_button("TALENT", _upgrade_skill, Vector2(112, 51)))
+
+    var banner := PanelContainer.new()
+    banner.position = Vector2(159, 213)
+    banner.size = Vector2(402, 83)
+    banner.add_theme_stylebox_override("panel", _skin(Color("120f1bd2"), Color("ba823e")))
+    overlay.add_child(banner)
+    var banner_column := VBoxContainer.new()
+    banner.add_child(banner_column)
+    center_banner = _label("AUTO-BATTLING...", 29, Color("ffd08c"))
+    center_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    banner_column.add_child(center_banner)
+    combat = _label("", 18, Color("dbceda"))
+    combat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    banner_column.add_child(combat)
+
+    var bottom := PanelContainer.new()
+    bottom.position = Vector2(16, 1052)
+    bottom.size = Vector2(688, 213)
+    bottom.add_theme_stylebox_override("panel", _skin(Color("10111de9"), Color("695344")))
+    overlay.add_child(bottom)
+    var col := VBoxContainer.new()
+    bottom.add_child(col)
+    info = _label("", 17, Color("edddc7"))
+    col.add_child(info)
+    combat_bar = ColorRect.new()
+    combat_bar.color = Color("ad653c")
+    combat_bar.custom_minimum_size = Vector2(640, 5)
+    col.add_child(combat_bar)
+    var action_line := HBoxContainer.new()
+    action_line.add_theme_constant_override("separation", 6)
+    col.add_child(action_line)
+    actions = action_line
+    action_line.add_child(_ornate_button("BOSS", _try_boss, Vector2(106, 46)))
+    action_line.add_child(_ornate_button("FARM", _grind, Vector2(106, 46)))
+    action_line.add_child(_ornate_button("PUSH", _forward, Vector2(106, 46)))
+    action_line.add_child(_ornate_button("HEAL", _heal, Vector2(106, 46)))
+    action_line.add_child(_ornate_button("SKILL+", _upgrade_skill, Vector2(106, 46)))
+    var scroll := ScrollContainer.new()
+    scroll.custom_minimum_size = Vector2(630, 68)
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-    bottom.add_child(scroll)
-    var content = VBoxContainer.new()
-    content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    scroll.add_child(content)
-    combat = _label("", 22, Color("f1be89"))
-    content.add_child(combat)
-    content.add_child(_label("AUTO-BATTLE  •  LOOT  •  OFFLINE", 16, Color("aeb0bc")))
-    actions = HBoxContainer.new()
-    content.add_child(actions)
-    actions.add_child(_button("BOSS", _try_boss))
-    actions.add_child(_button("GRINDA", _grind))
-    actions.add_child(_button("FRAMÅT", _forward))
-    var upgrades = HBoxContainer.new()
-    content.add_child(upgrades)
-    upgrades.add_child(_button("KLASS", _switch_class))
-    upgrades.add_child(_button("SKILL +", _upgrade_skill))
-    upgrades.add_child(_button("LÄK", _heal))
-    info = _label("", 17)
-    content.add_child(info)
-    content.add_child(_label("LOOT – TRYCK FÖR ATT UTRUSTA", 19, Color("f5bf88")))
+    col.add_child(scroll)
     inventory = VBoxContainer.new()
-    content.add_child(inventory)
+    inventory.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    scroll.add_child(inventory)
+    offline = _label("", 14, Color("ffce6c"))
+    col.add_child(offline)
+
+    var skill_bar := HBoxContainer.new()
+    skill_bar.position = Vector2(385, 943)
+    skill_bar.add_theme_constant_override("separation", 10)
+    overlay.add_child(skill_bar)
+    for s in ["FIRE", "VOID", "ULT"]:
+        var b := _ornate_button(s, _use_skill.bind(skill_buttons.size()), Vector2(97, 91))
+        skill_buttons.append(b)
+        skill_bar.add_child(b)
+
+    legendary_overlay = PanelContainer.new()
+    legendary_overlay.position = Vector2(152, 340)
+    legendary_overlay.size = Vector2(428, 410)
+    legendary_overlay.visible = false
+    legendary_overlay.add_theme_stylebox_override("panel", _skin(Color("110e19f5"), Color("e2ad58")))
+    overlay.add_child(legendary_overlay)
+    var leg_col := VBoxContainer.new()
+    legendary_overlay.add_child(leg_col)
+    leg_col.add_child(_label("LEGENDARY DROP", 24, Color("ffc76a")))
+    legendary_name = _label("", 27, Color("fff0bb"))
+    leg_col.add_child(legendary_name)
+    legendary_stats = _label("", 18, Color("e8dfd4"))
+    legendary_stats.custom_minimum_size = Vector2(385, 185)
+    leg_col.add_child(legendary_stats)
+    leg_col.add_child(_label("Forged in the ashes of fallen worlds.", 15, Color("cf9b79")))
+    leg_col.add_child(_ornate_button("EQUIP", _equip_legendary, Vector2(270, 52)))
+    leg_col.add_child(_ornate_button("CLOSE", _hide_legendary, Vector2(270, 48)))
 
 func _max_hp() -> float:
     var modifier = [1.2, 0.9, 0.85, 1.0][hero_class]
@@ -377,22 +487,27 @@ func _equip(index: int) -> void:
 func _refresh() -> void:
     if status == null or inventory == null:
         return
-    status.text = "%s   •   NIVÅ %d" % [CLASSES[hero_class], level]
-    details.text = "HP %.0f/%.0f  •  XP %d/%d  •  GULD %d\nSKILLPOÄNG %d  •  KILLS %d" % [hp, _max_hp(), xp, level * 30, gold, skill_points, kills]
+    status.text = "%s   LVL %d" % [CLASSES[hero_class], level]
+    details.text = "HP %.0f / %.0f    XP %d / %d" % [hp, _max_hp(), xp, level * 30]
+    power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
+    hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
+    stage_banner.text = "STAGE %d%s" % [stage, " BOSS" if stage % 5 == 0 else ""]
+    center_banner.modulate.a = 0.87 + sin(chaos_time * 4.0) * 0.13
+    combat.text = combat_note
+    info.text = "%.0f DMG   •   %d KILLS   •   %d TALENT POINTS" % [_damage(), kills, skill_points]
     offline.text = offline_note
-    combat.text = "OMRÅDE %d%s\nFIENDE %.0f/%.0f  •  SKADA %.0f\n%s" % [stage, "  •  BOSS" if stage % 5 == 0 else "", maxf(0.0, enemy_hp), enemy_max, _damage(), combat_note]
-    info.text = "Högsta område: %d\nTalanger: Eldkraft %d  |  Vitalitet %d  |  Skydd %d\nSET: 2 delar +12 ATK / +25 HP, 4 delar +28 ATK / +50 HP" % [highest, int(skills[0]), int(skills[1]), int(skills[2])]
+    combat_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.02, 1.0)
+    _refresh_minimap()
     for child in inventory.get_children():
         inventory.remove_child(child)
         child.queue_free()
     if gear.is_empty():
-        inventory.add_child(_label("Inga föremål ännu – besegra fiender för loot.", 17))
+        inventory.add_child(_label("Fäll monster för bättre utrustning.", 16, Color("c5b7b6")))
     else:
-        for i in range(mini(gear.size(), 9)):
+        for i in range(mini(gear.size(), 3)):
             var item: Dictionary = gear[i]
-            var set_label = "  [SET: %s]" % str(item.get("set", "")) if str(item.get("set", "")) != "" else ""
-            var text_value = "%s%s   +%d ATK  +%d HP" % [str(item.get("name", "Item")), set_label, int(item.get("damage", 0)), int(item.get("hp", 0))]
-            inventory.add_child(_button(text_value, _equip.bind(i)))
+            var text_value := "%s  +%d ATK  +%d HP" % [str(item.get("name", "")), int(item.get("damage", 0)), int(item.get("hp", 0))]
+            inventory.add_child(_ornate_button(text_value, _equip.bind(i), Vector2(600, 40)))
 
 func _save_game() -> void:
     var data = {
@@ -450,3 +565,76 @@ func _load_game() -> void:
 func _notification(what: int) -> void:
     if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
         _save_game()
+
+func _skin(bg: Color, edge: Color) -> StyleBoxFlat:
+    var style := StyleBoxFlat.new()
+    style.bg_color = bg
+    style.border_color = edge
+    style.set_border_width_all(2)
+    style.set_corner_radius_all(13)
+    style.content_margin_left = 12
+    style.content_margin_right = 12
+    style.content_margin_top = 9
+    style.content_margin_bottom = 9
+    return style
+
+func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
+    var b := Button.new()
+    b.text = title
+    b.custom_minimum_size = dims
+    b.add_theme_font_size_override("font_size", 17)
+    b.add_theme_stylebox_override("normal", _skin(Color("231c28ef"), Color("8b633c")))
+    b.add_theme_stylebox_override("hover", _skin(Color("50323bed"), Color("ffc268")))
+    b.pressed.connect(callback)
+    return b
+
+func _show_inventory() -> void:
+    combat_note = "TAP LOOT BELOW TO EQUIP"
+    _refresh()
+
+func _refresh_minimap() -> void:
+    if map_dots == null:
+        return
+    for n in map_dots.get_children():
+        n.queue_free()
+    for i in range(18):
+        var dot := ColorRect.new()
+        dot.color = Color("c25139") if i % 5 != 0 else Color("f8b855")
+        dot.position = Vector2(8 + float((i * 31) % 152), 8 + float((i * 17) % 65))
+        dot.size = Vector2(4, 4)
+        map_dots.add_child(dot)
+    var hero_dot := ColorRect.new()
+    hero_dot.color = Color("99e7f9")
+    hero_dot.size = Vector2(7, 7)
+    hero_dot.position = Vector2(91, 40)
+    map_dots.add_child(hero_dot)
+
+func _hide_legendary() -> void:
+    legendary_overlay.visible = false
+
+func _equip_legendary() -> void:
+    if last_legendary.is_empty():
+        return
+    equipped[str(last_legendary.get("slot", "Weapon"))] = last_legendary.duplicate(true)
+    combat_note = "LEGENDARY EQUIPPED!"
+    hp = _max_hp()
+    legendary_overlay.visible = false
+    _save_game()
+    _refresh()
+
+func _show_legendary(item: Dictionary) -> void:
+    last_legendary = item.duplicate(true)
+    legendary_name.text = str(item.get("name", "Ashen Relic")).to_upper()
+    legendary_stats.text = "POWER %d\n\nAttack +%d\nVitality +%d\nCritical Rate +8.5%%\nFire Damage +32.6%%\nSet: %s" % [int(item.get("damage", 0)) * 78, int(item.get("damage", 0)), int(item.get("hp", 0)), str(item.get("set", "Cinderborn"))]
+    legendary_overlay.visible = true
+
+func _use_skill(index: int) -> void:
+    var palette := [Color("ff6b20"), Color("9653ff"), Color("fff1a8")]
+    _spell_burst(palette[index], 2.5 + float(index), 3 + index * 2)
+    var multiplier := [1.3, 1.9, 3.4][index]
+    enemy_hp -= _damage() * multiplier
+    combat_note = ["FIRE NOVA!", "VOID STORM!", "ASHEN APOCALYPSE!"][index]
+    if enemy_hp <= 0.0:
+        _fight()
+    else:
+        _refresh()
