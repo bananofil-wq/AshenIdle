@@ -1022,6 +1022,7 @@ func _spawn_horde() -> void:
 func _impact(pos: Vector3, color: Color) -> void:
     var ball := SphereMesh.new()
     ball.radius = 0.12
+    ball.height = 0.24
     var node := _mesh(self, ball, pos, _bright(color))
     spell_fx.append({"node": node, "time": 0.40, "total": 0.40, "type": "hit"})
     if spell_fx.size() > 45:
@@ -1050,14 +1051,14 @@ func _bright(color: Color) -> Material:
 
 func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
     var column := CylinderMesh.new()
-    column.top_radius = 0.08
-    column.bottom_radius = 0.16
-    column.height = 6.1
-    var mesh := _mesh(self, column, pos + Vector3(0, 3, 0), _bright(color))
+    column.top_radius = 0.018
+    column.bottom_radius = 0.065
+    column.height = 1.65
+    var mesh := _mesh(self, column, pos + Vector3(0, 0.94, 0), _bright(color.darkened(0.35)))
     var base := CylinderMesh.new()
-    base.top_radius = 0.43
-    base.bottom_radius = 0.43
-    base.height = 0.08
+    base.top_radius = 0.25
+    base.bottom_radius = 0.25
+    base.height = 0.025
     var disc := _mesh(self, base, pos + Vector3(0, 0.08, 0), _bright(color))
     var label := _label(title, 18, color)
     label.size = Vector2(260, 36)
@@ -1120,7 +1121,9 @@ func _update_chaos(delta: float) -> void:
         hit["pos"] = Vector3(hit["pos"]) + Vector3(0, delta * 2.1, 0)
         var label: Label = hit["label"]
         if is_instance_valid(label):
-            label.position = camera_ref.unproject_position(Vector3(hit["pos"])) - Vector2(50, 15)
+            var text_screen_pos := camera_ref.unproject_position(Vector3(hit["pos"]))
+            label.visible = text_screen_pos.x > 28.0 and text_screen_pos.x < overlay.size.x - 28.0 and text_screen_pos.y > 385.0 and text_screen_pos.y < overlay.size.y - 260.0
+            label.position = text_screen_pos - Vector2(50, 15)
             label.modulate.a = clampf(float(hit["time"]) / 0.84, 0.0, 1.0)
         if float(hit["time"]) <= 0.0:
             if is_instance_valid(label):
@@ -1203,6 +1206,19 @@ func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, fac
     model.position = at
     model.rotation.y = yaw
     model.scale = Vector3.ONE * factor
+    if asset_name.begins_with("floor_tile") or asset_name == "wall_broken":
+        # Tint each instance without discarding the imported CC0 material textures.
+        var tint := Color(0.46, 0.56, 0.75) if asset_name.begins_with("floor_tile") else Color(0.70, 0.73, 0.80)
+        for child in model.find_children("*", "MeshInstance3D", true, false):
+            var part := child as MeshInstance3D
+            if part == null:
+                continue
+            for surface_i in range(part.get_surface_override_material_count()):
+                var source_mat := part.get_active_material(surface_i) as BaseMaterial3D
+                if source_mat != null:
+                    var colored_mat := source_mat.duplicate() as BaseMaterial3D
+                    colored_mat.albedo_color = colored_mat.albedo_color * tint
+                    part.set_surface_override_material(surface_i, colored_mat)
 
 func _scatter_embers() -> void:
     # Tiny drifting emissive ash sparks provide depth without a heavy particle shader.
