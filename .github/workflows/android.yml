@@ -119,6 +119,7 @@ jobs:
             sudo apt-get install -y -qq xvfb libgl1-mesa-dri
           fi
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --path . --rendering-driver opengl3 --script res://scripts/ci_capture.gd 2>&1 | tee build/visual.log
+          ASHEN_CAPTURE_SUFFIX=tall LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --resolution 720x1600 --path . --rendering-driver opengl3 --script res://scripts/ci_capture.gd 2>&1 | tee build/visual-tall.log
           if [ -s build/gameplay-preview.png ]; then
             file build/gameplay-preview.png
           fi
@@ -128,7 +129,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AshenIdle-Gameplay-Screenshot
-          path: build/gameplay-preview.png
+          path: build/gameplay-preview*.png
           if-no-files-found: ignore
           retention-days: 30
 
