@@ -187,6 +187,7 @@ func _build_world() -> void:
             continue
         _box(self, Vector3(rng.randf_range(0.2,0.6),0.12,rng.randf_range(0.2,0.6)), Vector3(x,0.02,z), Color("52373c"))
 
+    _place_dungeon_detail()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     foe = _make_animated_character("Skeleton_Warrior", Vector3(1.55, 0, -0.8), true)
     _spawn_horde()
@@ -927,3 +928,35 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     model.rotation.y = PI
     _play_animation(model, ["Idle_A", "Idle", "idle"])
     return root
+
+func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, factor: float = 1.0) -> void:
+    var packed := _get_asset_scene(asset_name)
+    if packed == null:
+        return
+    var model := packed.instantiate() as Node3D
+    if model == null:
+        return
+    add_child(model)
+    model.position = at
+    model.rotation.y = yaw
+    model.scale = Vector3.ONE * factor
+
+func _place_dungeon_detail() -> void:
+    # Geometry and materials supplied by the CC0 KayKit Dungeon Remastered pack.
+    # Existing stone slabs remain beneath these imported floor meshes as a safe fallback.
+    for x in range(-4, 5):
+        for z in range(-4, 5):
+            var n: int = absi(x * 7 + z * 13)
+            var asset_name := "floor_tile_large"
+            if n % 7 == 0:
+                asset_name = "floor_tile_large_rocks"
+            elif n % 11 == 0:
+                asset_name = "floor_tile_small_broken_A"
+            _place_dungeon_model(asset_name, Vector3(float(x) * 1.72, -0.01, float(z) * 1.72), float(n % 4) * PI / 2.0, 0.84)
+    for i in range(10):
+        var a := TAU * float(i) / 10.0
+        var dist := 6.2
+        var pos := Vector3(cos(a) * dist, 0.0, sin(a) * dist)
+        _place_dungeon_model("pillar_decorated" if i % 3 == 0 else "wall_broken", pos, a + PI / 2.0, 1.0)
+        if i % 2 == 0:
+            _place_dungeon_model("torch_lit", pos + Vector3(0, 1.4, 0), a + PI, 1.0)
