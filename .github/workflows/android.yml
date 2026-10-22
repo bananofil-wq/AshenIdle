@@ -71,6 +71,23 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
           godot --version
 
+      - name: Fetch CC0 animated fantasy models
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p assets/models
+          BASE_HERO="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf"
+          BASE_MOB="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0/main/addons/kaykit_character_pack_skeletons/Characters/gltf"
+          for character in Knight Barbarian Mage Rogue; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_HERO/$character.glb" -o "assets/models/$character.glb"
+          done
+          for character in Skeleton_Minion Skeleton_Warrior Skeleton_Rogue Skeleton_Mage; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_MOB/$character.glb" -o "assets/models/$character.glb"
+          done
+          test "$(stat -c %s assets/models/Knight.glb)" -gt 1000000
+          test "$(stat -c %s assets/models/Skeleton_Minion.glb)" -gt 1000000
+          ls -lh assets/models
+
       - name: Import and validate game scripts
         shell: bash
         run: |
