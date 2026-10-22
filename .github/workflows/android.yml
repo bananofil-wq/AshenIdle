@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   apk:
@@ -88,6 +88,16 @@ jobs:
           name: AshenIdle-Android-APK
           path: build/AshenIdle.apk
           retention-days: 30
+
+      - name: Publish direct-download APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: preview
+          name: Ashen Idle - Android Preview
+          body: Automated portrait-mode Android prototype, debug-signed for direct installation. Download AshenIdle.apk below.
+          prerelease: true
+          make_latest: false
+          files: build/AshenIdle.apk
 
       - name: Upload diagnostics
         if: failure()
