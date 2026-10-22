@@ -55,6 +55,9 @@ var combat_bar: ColorRect
 var skill_buttons: Array = []
 var spawned_boss := false
 var screen_note: Label
+var popup_shade: ColorRect
+var last_inventory_signature := ""
+var minimap_refresh_timer := 10.0
 
 
 func _ready() -> void:
@@ -89,34 +92,38 @@ func _box(parent: Node3D, size: Vector3, at: Vector3, color: Color, light: bool 
     return _mesh(parent, b, at, _mat(color, 0.15, light))
 
 func _fighter(at: Vector3, color: Color, enemy: bool) -> Node3D:
-    var root = Node3D.new()
+    var root := Node3D.new()
     root.position = at
     add_child(root)
-    var boots = Color("22232e")
-    _box(root, Vector3(0.31, 0.72, 0.4), Vector3(-0.24, 0.42, 0), boots)
-    _box(root, Vector3(0.31, 0.72, 0.4), Vector3(0.24, 0.42, 0), boots)
-    var chest = CapsuleMesh.new()
-    chest.radius = 0.43
-    chest.height = 1.35
-    var body = _mesh(root, chest, Vector3(0, 1.38, 0), _mat(color, 0.48))
+    var steel := Color("333643") if not enemy else Color("45303b")
+    var trim := Color("c69a5e") if not enemy else Color("a84c38")
+    var undersuit := Color("171822") if not enemy else Color("22151e")
+    _capsule(root, 0.18, 0.85, Vector3(-0.23, 0.46, 0), undersuit)
+    _capsule(root, 0.18, 0.85, Vector3(0.23, 0.46, 0), undersuit)
+    _box(root, Vector3(0.38, 0.27, 0.55), Vector3(-0.23, 0.16, 0.08), steel)
+    _box(root, Vector3(0.38, 0.27, 0.55), Vector3(0.23, 0.16, 0.08), steel)
+    _cone(root, 0.55, 0.36, 1.32, Vector3(0, 1.24, 0), color)
+    _box(root, Vector3(0.72, 0.20, 0.55), Vector3(0, 1.10, 0.0), trim)
+    _capsule(root, 0.17, 0.90, Vector3(-0.60, 1.35, 0), steel, -0.24)
+    _capsule(root, 0.17, 0.90, Vector3(0.60, 1.35, 0), steel, 0.24)
+    _sphere_part(root, 0.31, Vector3(-0.53, 1.89, 0.02), trim)
+    _sphere_part(root, 0.31, Vector3(0.53, 1.89, 0.02), trim)
+    var chest_plate := _box(root, Vector3(0.78, 0.67, 0.13), Vector3(0, 1.59, 0.33), steel)
+    chest_plate.rotation.z = 0.01
+    _box(root, Vector3(0.16, 0.54, 0.15), Vector3(0, 1.59, 0.42), trim)
+    _sphere_part(root, 0.32, Vector3(0, 2.26, 0), Color("b49b8d") if not enemy else Color("715460"))
+    _cone(root, 0.39, 0.20, 0.48, Vector3(0, 2.53, -0.035), steel)
+    _box(root, Vector3(0.63, 0.12, 0.14), Vector3(0, 2.32, 0.28), Color("13151e"))
+    _box(root, Vector3(0.50, 0.055, 0.08), Vector3(0, 2.32, 0.375), Color("ffb95e") if enemy else Color("93dafa"), true)
     if enemy:
-        foe_body = body
-    var head = SphereMesh.new()
-    head.radius = 0.32
-    _mesh(root, head, Vector3(0, 2.34, 0), _mat(Color("9c8580") if enemy else Color("dab79b")))
-    _box(root, Vector3(0.93, 0.24, 0.42), Vector3(0, 1.92, 0), Color("37343e"))
-    _box(root, Vector3(0.20, 1.05, 0.25), Vector3(-0.60, 1.39, 0), color)
-    _box(root, Vector3(0.20, 1.05, 0.25), Vector3(0.60, 1.39, 0), color)
-    if enemy:
-        var horns = Color("30262a")
-        _box(root, Vector3(0.19, 0.61, 0.18), Vector3(-0.26, 2.79, 0), horns)
-        _box(root, Vector3(0.19, 0.61, 0.18), Vector3(0.26, 2.79, 0), horns)
-        _box(root, Vector3(0.13, 0.12, 0.07), Vector3(-0.17, 2.39, 0.30), Color("ff592f"), true)
-        _box(root, Vector3(0.13, 0.12, 0.07), Vector3(0.17, 2.39, 0.30), Color("ff592f"), true)
+        _cone(root, 0.15, 0.01, 0.60, Vector3(-0.27, 2.80, 0), Color("2c1f2b"))
+        _cone(root, 0.15, 0.01, 0.60, Vector3(0.27, 2.80, 0), Color("2c1f2b"))
+        foe_body = chest_plate
+        _box(root, Vector3(0.17, 1.03, 0.18), Vector3(0.88, 1.28, 0), trim)
     else:
-        _box(root, Vector3(0.15, 1.55, 0.16), Vector3(0.88, 1.61, 0), Color("a9a9af"), true)
-        _box(root, Vector3(0.49, 0.17, 0.20), Vector3(0.88, 1.17, 0), Color("c88d4b"))
-        _box(root, Vector3(0.8, 1.22, 0.12), Vector3(0, 1.45, -0.33), Color("762d39"))
+        _cone(root, 0.62, 0.18, 1.56, Vector3(0, 1.23, -0.40), Color("492236"))
+        _box(root, Vector3(0.17, 1.68, 0.14), Vector3(0.93, 1.60, 0), Color("b6c8d5"), true)
+        _box(root, Vector3(0.46, 0.12, 0.19), Vector3(0.93, 1.02, 0), trim)
     return root
 
 func _build_world() -> void:
@@ -815,3 +822,24 @@ func _update_chaos(delta: float) -> void:
             if is_instance_valid(label):
                 label.queue_free()
             hit_texts.remove_at(i)
+
+func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, tilt: float = 0.0) -> MeshInstance3D:
+    var mesh := CapsuleMesh.new()
+    mesh.radius = radius
+    mesh.height = maxf(height, radius * 2.05)
+    var part := _mesh(parent, mesh, pos, _mat(color, 0.25))
+    part.rotation.z = tilt
+    return part
+
+func _cone(parent: Node3D, bottom: float, top: float, height: float, pos: Vector3, color: Color) -> MeshInstance3D:
+    var mesh := CylinderMesh.new()
+    mesh.bottom_radius = bottom
+    mesh.top_radius = top
+    mesh.height = height
+    return _mesh(parent, mesh, pos, _mat(color, 0.12))
+
+func _sphere_part(parent: Node3D, radius: float, pos: Vector3, color: Color) -> MeshInstance3D:
+    var mesh := SphereMesh.new()
+    mesh.radius = radius
+    mesh.height = radius * 2.0
+    return _mesh(parent, mesh, pos, _mat(color, 0.12))
