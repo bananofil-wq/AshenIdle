@@ -1539,7 +1539,7 @@ func _spawn_horde() -> void:
             body.radius = 0.38 if not elite else 0.67
             body.height = 1.18 if not elite else 2.1
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
-        root.position = _random_spawn()
+        root.position = Vector3(0.95, 0.0, -0.45) if elite else _random_spawn()
         var variant_hp: float = [13.0, 10.5, 16.0][_boss_variant()]
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 1.0)
         root.set_meta("hp", mob_health)
