@@ -52,6 +52,17 @@ func _render_test() -> void:
         await RenderingServer.frame_post_draw
         var talent_frame: Image = root.get_texture().get_image()
         talent_frame.save_png("res://build/talent-preview.png")
-        print("Captured legendary and talent modal QA screenshots")
+
+        game.call("_close_talent_panel")
+        for i in range(6):
+            game.call("_drop_loot")
+        game.call("_hide_legendary")
+        game.call("_show_inventory")
+        await create_timer(0.18).timeout
+        await RenderingServer.frame_post_draw
+        var inventory_frame: Image = root.get_texture().get_image()
+        inventory_frame.save_png("res://build/inventory-preview.png")
+
+        print("Captured gameplay, legendary, talent and inventory visual QA screenshots")
 
     quit()
