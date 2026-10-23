@@ -261,6 +261,11 @@ func _render_test() -> void:
         if not _check_modal_fits(game.get("drop_prompt") as Control, "Manual loot comparison"):
             quit(29)
             return
+        var compare_bounds: Rect2 = (game.get("drop_prompt") as Control).get_global_rect()
+        if compare_bounds.size.y > root.get_visible_rect().size.x * 1.15:
+            push_error("Loot comparison became an oversized, mostly-empty vertical panel")
+            quit(31)
+            return
         if not await _save_capture("loot-comparison-preview.png"):
             quit(30)
             return
