@@ -69,9 +69,13 @@ func _batch_static_boxes() -> void:
         if not eligible or part.name == "BossDais" or part.name == "RiftGate":
             continue
         var material: Material = part.material_override
-        var key: String = "%d-%d" % [part.mesh.get_instance_id(), material.get_instance_id()]
+        # Each batch belongs to a short section of the route. A stage-wide
+        # MultiMesh has an enormous AABB and defeats Godot frustum culling:
+        # walking in room 1 still draws ruins from room 4 and the distant forest.
+        var chunk: int = floori(part.global_position.z / 26.0)
+        var key: String = "%d-%d-%d" % [part.mesh.get_instance_id(), material.get_instance_id(), chunk]
         if not batches.has(key):
-            batches[key] = {"material": material, "mesh": part.mesh, "transforms": []}
+            batches[key] = {"material": material, "mesh": part.mesh, "chunk": chunk, "transforms": []}
         (batches[key]["transforms"] as Array).append(global_transform.affine_inverse() * part.global_transform)
         unbatched_box_count += 1
         part.queue_free()
@@ -89,6 +93,7 @@ func _batch_static_boxes() -> void:
             multi.set_instance_transform(i, placements[i] as Transform3D)
         var instance := MultiMeshInstance3D.new()
         instance.name = "BatchedEnvironment_%s" % str(key).replace("-", "_")
+        instance.set_meta("spatial_chunk", int(batch["chunk"]))
         instance.multimesh = multi
         instance.material_override = batch["material"] as Material
         instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -432,6 +437,68 @@ func _boss_sanctum(parent: Node3D, center: Vector3) -> void:
     boss_stage.add_child(beacon)
 
 
+func _terrain_height(noise: FastNoiseLite, x: float, z: float) -> float:
+    # Keep the walkable aisle clear and lift the surrounding countryside into
+    # ridges and ravines. Nothing on the auto-path ever changes elevation.
+    var separation: float = smoothstep(6.0, 15.0, absf(x))
+    var rolling: float = absf(noise.get_noise_2d(x, z))
+    var cliff: float = maxf(0.0, noise.get_noise_2d(x + 83.0, z - 29.0))
+    var stratification: float = sin(z * 0.19 + x * 0.43) * 0.22
+    var height_scale: float = [0.80, 1.40, 0.93, 1.35, 1.80][current_theme]
+    return -0.49 + separation * (0.28 + (rolling * 1.45 + cliff * 1.5 + stratification) * height_scale)
+
+
+func _build_exterior_terrain(parent: Node3D) -> void:
+    # ~1,700 triangles per side: true height variation with smooth normals,
+    # biome PBR, and no per-cell draw calls. Ground is above the distant flat
+    # undersurface but remains below all playable chambers and corridors.
+    var noise := FastNoiseLite.new()
+    noise.seed = current_stage * 4703 + 321
+    noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+    noise.frequency = 0.085
+    var earth := floor_material.duplicate() as StandardMaterial3D
+    earth.vertex_color_use_as_albedo = true
+    earth.albedo_color = [
+        Color("6e676a"), Color("c0d8e3"), Color("526b51"),
+        Color("786a98"), Color("75676a")
+    ][current_theme]
+    earth.uv1_scale = Vector3(2.0, 2.0, 1.0)
+    var x_steps: int = 11
+    var z_steps: int = 37
+    var dx: float = 2.0
+    var dz: float = 2.5
+    for side in range(2):
+        var x_begin: float = -28.0 if side == 0 else 6.0
+        var surface := SurfaceTool.new()
+        surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+        for zi in range(z_steps):
+            var z0: float = -74.0 + float(zi) * dz
+            var z1: float = z0 + dz
+            for xi in range(x_steps):
+                var x0: float = x_begin + float(xi) * dx
+                var x1: float = x0 + dx
+                var a := Vector3(x0, _terrain_height(noise, x0, z0), z0)
+                var b := Vector3(x1, _terrain_height(noise, x1, z0), z0)
+                var c := Vector3(x0, _terrain_height(noise, x0, z1), z1)
+                var d := Vector3(x1, _terrain_height(noise, x1, z1), z1)
+                # Winding faces upward for both the left and right terrain.
+                for vertex in [a, c, b, b, c, d]:
+                    var shade: float = clampf(
+                        0.89 + 0.16 * noise.get_noise_2d(vertex.x * 5.0, vertex.z * 5.0),
+                        0.75, 1.05
+                    )
+                    surface.set_color(Color(shade, shade, shade))
+                    surface.set_uv(Vector2(vertex.x * 0.18, vertex.z * 0.18))
+                    surface.add_vertex(vertex)
+        surface.generate_normals()
+        var bank := MeshInstance3D.new()
+        bank.name = "TerrainBank_Left" if side == 0 else "TerrainBank_Right"
+        bank.mesh = surface.commit()
+        bank.material_override = earth
+        bank.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        parent.add_child(bank)
+
+
 func _terrain_texture() -> ImageTexture:
     # Deterministic rock, snow, leaf-litter, void and lava texture variants.
     # Lightweight CPU noise replaces featureless solid-color floors on Android.
@@ -593,6 +660,10 @@ func generate(floor_number: int) -> PackedVector3Array:
     terrain.uv1_scale = Vector3(11, 11, 1)
     terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
+    var exterior := Node3D.new()
+    exterior.name = "ExteriorTerrain"
+    add_child(exterior)
+    _build_exterior_terrain(exterior)
     walk_points = PackedVector3Array()
     var variation: float = float((current_stage - 1) % 10)
     walk_points.append(Vector3(0, 0, 5))
