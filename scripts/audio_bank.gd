@@ -8,6 +8,9 @@ var randomizer := RandomNumberGenerator.new()
 var last_hit_ms := -10000
 var footsteps: Dictionary = {}
 var recorded_count := 0
+var recent_sound_ms: Dictionary = {}
+var active_voices: Array[AudioStreamPlayer] = []
+const MAX_VOICES := 7
 
 func _ready() -> void:
     randomizer.randomize()
@@ -52,12 +55,27 @@ func play_step(theme_id: int) -> void:
     if choices.is_empty():
         return
     var stream: AudioStream = choices[randomizer.randi_range(0, choices.size() - 1)]
+    _play_voice(stream, -26.0, randomizer.randf_range(0.96, 1.04))
+
+
+func _play_voice(stream: AudioStream, volume: float, pitch: float) -> void:
+    # Polyphony cap keeps crowds from turning into a pile of metallic noise,
+    # with only a few short variations sounding at once on phone speakers.
+    for i in range(active_voices.size() - 1, -1, -1):
+        if not is_instance_valid(active_voices[i]):
+            active_voices.remove_at(i)
+    if active_voices.size() >= MAX_VOICES:
+        return
     var voice := AudioStreamPlayer.new()
     voice.stream = stream
-    voice.volume_db = -24.0
-    voice.pitch_scale = randomizer.randf_range(0.93, 1.08)
+    voice.volume_db = volume
+    voice.pitch_scale = pitch
     add_child(voice)
-    voice.finished.connect(voice.queue_free)
+    active_voices.append(voice)
+    voice.finished.connect(func() -> void:
+        active_voices.erase(voice)
+        voice.queue_free()
+    )
     voice.play()
 
 func _make_clip(sound_id: int, variant: int) -> AudioStreamWAV:
@@ -143,17 +161,16 @@ func play_effect(kind: int, hero_class: int = 0) -> void:
         sound_id = 9
     if not banks.has(sound_id):
         return
-    if kind == 0:
-        var now: int = Time.get_ticks_msec()
-        if now - last_hit_ms < 130:
-            return
-        last_hit_ms = now
+    var now: int = Time.get_ticks_msec()
+    # Continuous idle combat needs restrained foley, not an impact every
+    # few frames; reward, boss and skill cues must remain foreground sounds.
+    var minimum_gap: int = [440, 125, 300, 220, 450, 280, 180][clampi(kind, 0, 6)]
+    if now - int(recent_sound_ms.get(kind, -10000)) < minimum_gap:
+        return
+    recent_sound_ms[kind] = now
     var candidates: Array = banks[sound_id]
+    if candidates.is_empty():
+        return
     var clip: AudioStream = candidates[randomizer.randi_range(0, candidates.size() - 1)]
-    var voice := AudioStreamPlayer.new()
-    voice.stream = clip
-    voice.volume_db = [-13.0, -10.0, -8.5, -9.0, -8.0, -9.0, -9.0][clampi(kind, 0, 6)]
-    voice.pitch_scale = randomizer.randf_range(0.93, 1.09)
-    add_child(voice)
-    voice.finished.connect(voice.queue_free)
-    voice.play()
+    var gain: float = [-20.0, -13.0, -10.5, -14.0, -9.5, -14.0, -12.0][clampi(kind, 0, 6)]
+    _play_voice(clip, gain + randomizer.randf_range(-2.0, 0.0), randomizer.randf_range(0.975, 1.035))
