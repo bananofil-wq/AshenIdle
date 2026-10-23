@@ -250,6 +250,19 @@ func _run() -> void:
     if not _check(moving_hero.position.distance_to(origin) > 0.01, "Hero should visibly seek enemies"):
         quit(29)
         return
+    # A single positive step is not enough: traverse several metres, and
+    # verify the portrait camera travels with the actor along the dungeon.
+    var journey_start: Vector3 = moving_hero.position
+    var camera_route_start: Vector3 = (game.get("camera_ref") as Camera3D).global_position
+    for travel_step in range(36):
+        game.call("_move_hero", 0.10)
+        game.call("_update_camera", 0.10)
+    if not _check(moving_hero.position.distance_to(journey_start) > 4.5, "Autoplay must walk meaningfully through dungeon corridors"):
+        quit(82)
+        return
+    if not _check((game.get("camera_ref") as Camera3D).global_position.distance_to(camera_route_start) > 2.0, "Portrait camera must track real room-to-room travel"):
+        quit(83)
+        return
     # Bosses telegraph a real charged attack.
     game.set("stage", 10)
     game.call("_spawn_enemy")
