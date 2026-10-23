@@ -236,15 +236,16 @@ func _build_world() -> void:
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color("070a12")
     environment.adjustment_enabled = true
-    environment.adjustment_brightness = 0.80
-    environment.adjustment_contrast = 1.28
-    environment.adjustment_saturation = 0.69
+    environment.adjustment_brightness = 0.78
+    environment.adjustment_contrast = 1.20
+    environment.adjustment_saturation = 0.77
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("677186")
-    environment.ambient_light_energy = 0.51
+    environment.ambient_light_energy = 0.48
     environment.glow_enabled = true
-    environment.glow_intensity = 0.76
-    environment.glow_strength = 1.05
+    # Keep saturated spell silhouettes; aggressive glow had clipped the entire combat area white.
+    environment.glow_intensity = 0.38
+    environment.glow_strength = 0.76
     world.environment = environment
     add_child(world)
 
@@ -259,21 +260,21 @@ func _build_world() -> void:
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
     sun.light_color = Color("f5b990")
-    sun.light_energy = 1.35
+    sun.light_energy = 1.05
     sun.shadow_enabled = true
     var ember := OmniLight3D.new()
     fire_light = ember
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
     ember.light_color = Color("ff6332")
-    ember.light_energy = 1.8
+    ember.light_energy = 1.35
     ember.omni_range = 13.0
     var arcane := OmniLight3D.new()
     mystic_light = arcane
     add_child(arcane)
     arcane.position = Vector3(-3.6, 4.0, -2.0)
     arcane.light_color = Color("965eff")
-    arcane.light_energy = 0.82
+    arcane.light_energy = 0.68
     arcane.omni_range = 12
 
     _box(self, Vector3(22.5, 1.1, 22.5), Vector3(0, -0.62, 0), Color("0c0e13"))
@@ -1837,15 +1838,15 @@ func _impact(pos: Vector3, color: Color) -> void:
 
 func _spell_burst(color: Color, size: float, shards: int) -> void:
     var center: Vector3 = hero.position + Vector3(0.0, 1.05, 0.0) if hero != null else Vector3(0.0, 1.05, 0.0)
-    _burst_particles(center, color, 100 + shards * 9, size * 4.2, 0.67)
+    _burst_particles(center, color, 44 + shards * 7, size * 2.7, 0.55)
     if screen_flash != null:
         screen_flash.color = color
         screen_flash_fade = 0.08
         screen_flash.modulate.a = screen_flash_fade
-    _burst_particles(center + Vector3(0.0, 0.16, 0.0), Color("ffe4b6"), 32, size * 2.1, 0.37)
+    _burst_particles(center + Vector3(0.0, 0.16, 0.0), Color("ffe4b6"), 13, size * 1.35, 0.29)
     var ground_glow := PlaneMesh.new()
-    ground_glow.size = Vector2(size * 3.3, size * 3.3)
-    var ground_mat := _fx_material(color, 0.24)
+    ground_glow.size = Vector2(size * 2.55, size * 2.55)
+    var ground_mat := _fx_material(color, 0.15)
     ground_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
     var aoe := _mesh(self, ground_glow, Vector3(center.x, 0.104, center.z), ground_mat)
     aoe.scale = Vector3.ONE * 0.72
@@ -1853,14 +1854,14 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
     var burst_light := OmniLight3D.new()
     burst_light.position = center + Vector3(0, 0.7, 0)
     burst_light.light_color = color
-    burst_light.light_energy = 1.1
+    burst_light.light_energy = 0.74
     burst_light.omni_range = 8.4
     add_child(burst_light)
     get_tree().create_timer(0.26).timeout.connect(burst_light.queue_free)
     var shock := TorusMesh.new()
     shock.inner_radius = size * 0.64
     shock.outer_radius = size * 0.655
-    var ring_mat := _fx_material(color, 0.43)
+    var ring_mat := _fx_material(color, 0.29)
     ring_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
     ring_mat.albedo_texture = null
     var wave := _mesh(self, shock, hero.position + Vector3(0, 0.10, 0) if hero != null else Vector3.ZERO, ring_mat)
@@ -1872,12 +1873,12 @@ func _spell_burst(color: Color, size: float, shards: int) -> void:
         var end := center + Vector3(cos(angle) * size * 0.93, rng.randf_range(-0.45, 0.35), sin(angle) * size * 0.93)
         _energy_arc(origin, end, color, 0.023 + 0.008 * float(strike_i % 3))
     # Beams of rising energy, individual sparks and sharp concentric shockwave.
-    for i in range(mini(shards + 2, 12)):
+    for i in range(mini(shards + 2, 7)):
         var theta := TAU * float(i) / float(shards + 2)
         var point := center + Vector3(cos(theta) * size * 0.26, 0.16, sin(theta) * size * 0.26)
         var plume_mesh := QuadMesh.new()
-        plume_mesh.size = Vector2(0.82, 3.35)
-        var ray := _mesh(self, plume_mesh, point, _fx_material(color, 0.71))
+        plume_mesh.size = Vector2(0.38, 1.96)
+        var ray := _mesh(self, plume_mesh, point, _fx_material(color, 0.45))
         ray.scale = Vector3(0.75, 1.0, 0.75)
         spell_fx.append({"node": ray, "time": 0.45, "total": 0.45, "type": "hit"})
 
@@ -1922,7 +1923,7 @@ func _bright(color: Color) -> Material:
     var m := _mat(color.darkened(0.16))
     m.emission_enabled = true
     m.emission = color
-    m.emission_energy_multiplier = 1.8
+    m.emission_energy_multiplier = 1.36
     return m
 
 func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
@@ -1935,7 +1936,7 @@ func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
     mat.albedo_color = Color(color.r, color.g, color.b, alpha)
     mat.emission_enabled = true
     mat.emission = color
-    mat.emission_energy_multiplier = 1.8
+    mat.emission_energy_multiplier = 1.42
     return mat
 
 func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
@@ -2421,18 +2422,18 @@ func _fx_material(tint: Color, opacity: float = 0.86) -> StandardMaterial3D:
     result.albedo_color = Color(tint.r, tint.g, tint.b, opacity)
     result.emission_enabled = true
     result.emission = tint
-    result.emission_energy_multiplier = 1.4
+    result.emission_energy_multiplier = 0.96
     return result
 
 func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float = 2.8, duration: float = 0.57) -> void:
     if get_tree() == null:
         return
     var sprite := QuadMesh.new()
-    sprite.size = Vector2(0.53, 0.53)
-    sprite.material = _fx_material(tint, 0.92)
+    sprite.size = Vector2(0.35, 0.35)
+    sprite.material = _fx_material(tint, 0.69)
     var parts := CPUParticles3D.new()
     parts.mesh = sprite
-    parts.amount = count
+    parts.amount = mini(count, 120)
     parts.lifetime = duration
     parts.one_shot = true
     parts.explosiveness = 1.0
@@ -2443,8 +2444,8 @@ func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float =
     parts.initial_velocity_min = radius * 0.45
     parts.initial_velocity_max = radius
     parts.gravity = Vector3(0, -1.1, 0)
-    parts.scale_amount_min = 0.55
-    parts.scale_amount_max = 1.55
+    parts.scale_amount_min = 0.35
+    parts.scale_amount_max = 0.98
     parts.position = at
     add_child(parts)
     parts.emitting = true
