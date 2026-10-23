@@ -207,6 +207,12 @@ func _render_test() -> void:
         game.call("_close_hero_panel")
         for i in range(6):
             game.call("_drop_loot")
+        # Inventory captures need collected items now that drop beams are
+        # actual physical pickup entities rather than instant inventory grants.
+        var preview_loot: Array = (game.get("ground_drops") as Array).duplicate()
+        game.call("_clear_ground_drops")
+        for pickup in preview_loot:
+            game.call("_collect_ground_drop", pickup, true)
         game.call("_hide_legendary")
         game.call("_show_inventory")
         await create_timer(0.16).timeout
@@ -236,5 +242,29 @@ func _render_test() -> void:
             quit(21)
             return
         game.call("_close_evolution_panel")
-        print("Visual QA PASS: hero selection, portrait combat, floor-10 boss, loot, talents and level-75/500 three-way evolutions")
+        # Capture the actual new looting decision at portrait resolution.
+        game.set("auto_equip", false)
+        var comparison_item: Dictionary = {
+            "slot": "Weapon", "name": "Ashen Runeblade",
+            "damage": 9000, "hp": 6000, "crit": 35, "speed": 30,
+            "element": "VOID", "elemental": 600, "set": "Gravewarden",
+            "rarity": "LEGENDARY"
+        }
+        for mob in (game.get("arena_mobs") as Array).duplicate():
+            if is_instance_valid(mob):
+                mob.queue_free()
+        (game.get("arena_mobs") as Array).clear()
+        var hero_pos: Vector3 = (game.get("hero") as Node3D).position
+        game.call("_place_ground_drop", hero_pos, Color("ffbf75"), comparison_item)
+        game.call("_update_ground_pickup")
+        await create_timer(0.12).timeout
+        if not _check_modal_fits(game.get("drop_prompt") as Control, "Manual loot comparison"):
+            quit(29)
+            return
+        if not await _save_capture("loot-comparison-preview.png"):
+            quit(30)
+            return
+        game.call("_answer_drop_comparison", false)
+        game.set("auto_equip", true)
+        print("Visual QA PASS: hero selection, portrait combat, physical loot/comparison, floor-10 boss, talents and evolutions")
     quit(0)
