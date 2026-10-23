@@ -323,5 +323,55 @@ func _run() -> void:
     if not _check(float(cds[0]) > 0.0, "Using spell activates cooldown"):
         quit(21)
         return
+    # Class skills remain locked until the correct hero level.
+    game.call("_select_class", 2)
+    game.set("level", 1)
+    game.set("skill_cooldowns", [0.0, 0.0, 0.0])
+    game.set("mp", game.call("_max_mp"))
+    var locked_mp: float = float(game.get("mp"))
+    game.call("_use_skill", 1)
+    if not _check(float(game.get("mp")) == locked_mp and int(game.call("_skill_rank", 1)) == 0, "Chain Lightning must be locked at level 1"):
+        quit(62)
+        return
+    game.set("level", 5)
+    game.set("skill_points", 4)
+    var before_points: int = int(game.get("skill_points"))
+    game.call("_upgrade_class_skill", 1)
+    if not _check(int(game.call("_skill_rank", 1)) == 2 and int(game.get("skill_points")) == before_points - 1, "Skill upgrade must spend one point and increase rank"):
+        quit(63)
+        return
+    game.call("_select_class", 0)
+    game.call("_select_class", 2)
+    if not _check(int(game.call("_skill_rank", 1)) == 2, "Each class must preserve skill ranks independently"):
+        quit(64)
+        return
+    game.set("stage", 6)
+    game.call("_spawn_enemy")
+    (game.get("hero") as Node3D).position = (game.get("dungeon_points") as PackedVector3Array)[1]
+    var linked: int = int(game.call("_cast_chain_lightning", 2, 1.0))
+    if not _check(linked >= 4, "Higher ranked Chain Lightning must reach at least four enemies"):
+        quit(65)
+        return
+    game.set("level", 10)
+    if not _check(int(game.call("_skill_rank", 2)) == 1, "Third class ability must unlock at level 10"):
+        quit(66)
+        return
+    var sound: Node = game.get("sound_bank")
+    if not _check(sound != null and (sound.get("banks") as Dictionary).size() >= 10, "Layered sound bank must include distinct class, combat and reward cues"):
+        quit(67)
+        return
+    var camera_now: Camera3D = game.get("camera_ref")
+    game.call("_update_camera", 0.85)
+    if not _check(camera_now.fov >= 47.0, "Isometric camera must have a wider zoomed-out field of view"):
+        quit(68)
+        return
+    game.set("stage", 11)
+    game.call("_spawn_enemy")
+    var dungeon: Node3D = game.get("dungeon_map")
+    var ridges: Node = dungeon.get_node_or_null("MountainHorizon")
+    if not _check(ridges != null and ridges.get_child_count() >= 12, "Landscapes must have actual large mountain or tree ridge geometry"):
+        quit(69)
+        return
+    print("SKILL/ART/AUDIO QA PASS: level gates, per-class ranks, 4+ chain jumps, zoomed camera, differentiated audio and three-dimensional terrain")
     print("GAMEPLAY TEST PASS: three moving encounters per floor, distinct deterministic layouts, biome change after 10 floors, end-room bosses, animated hero, loot, skills and equipment")
     quit(0)
