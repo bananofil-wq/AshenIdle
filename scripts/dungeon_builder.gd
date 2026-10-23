@@ -407,14 +407,19 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
                 "torch_lit", 0.75)
             _place_prefab(parent, edge + Vector3(-sign * 0.3, 0, -2.5),
                 "floor_tile_large_rocks", 2.1)
+            _fungus_patch(parent, edge + Vector3(sign * 0.8, 0, -1.5))
         1: # Fantastical sylvan spring and giant glowing mushrooms
             _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0.8),
                 Vector2(2.5, 2.3))
             _fungus_patch(parent, edge + Vector3(-sign * 0.6, 0, -2.0))
+            _place_prefab(parent, edge + Vector3(sign * 0.5, 0, -2.4),
+                "floor_tile_large_rocks", 2.5)
         2: # Marsh pools with fungal decay and reed-choked banks
             _water_feature(parent, edge + Vector3(sign * 0.65, 0, 0.6),
                 Vector2(2.7, 2.0))
             _fungus_patch(parent, edge + Vector3(-sign * 0.3, 0, -2.0))
+            _place_prefab(parent, edge + Vector3(sign * 0.4, 0, -2.5),
+                "wall_broken", 2.3)
         3: # Larger snow shelves and fractured ancient masonry
             _mountain(parent, edge + Vector3(sign * 1.7, -0.38, 0), 4.2, 2.5)
             _place_prefab(parent, edge + Vector3(0, 0, -2.0), "pillar_decorated", 1.35)
