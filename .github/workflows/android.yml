@@ -208,6 +208,14 @@ jobs:
           godot --headless --editor --path . --quit 2>&1 | tee build/import.log
           if grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' build/import.log; then exit 1; fi
 
+      - name: Validate release content and boss milestones
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --script res://scripts/ci_release_test.gd 2>&1 | tee build/release-test.log
+          grep -q "RELEASE CONTENT PASS" build/release-test.log
+          if grep -E 'SCRIPT ERROR|Parse Error|RELEASE CHECK FAILED|Invalid call|Invalid access' build/release-test.log; then exit 1; fi
+
       - name: Validate offline adaptive encounter AI
         shell: bash
         run: |
