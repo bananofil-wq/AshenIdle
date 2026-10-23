@@ -414,12 +414,16 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
             _place_prefab(parent, edge + Vector3(sign * 0.6, 0, 3.5),
                 "halloween/ribcage", 0.46)
             _fungus_patch(parent, edge + Vector3(-sign * 0.55, 0, -3.15))
-        1: # Fantastical sylvan spring and giant glowing mushrooms
+        1: # Tall, actual Quaternius fantasy-inspired leafy trees, water and mushrooms
+            _place_prefab(parent, edge + Vector3(sign * 1.4, 0, -0.6),
+                "citytree/tree1" if room_id % 2 == 0 else "citytree/tree2", 4.4)
+            _place_prefab(parent, edge + Vector3(-sign * 0.4, 0, 3.1),
+                "citytree/tree3", 3.1)
             _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0.8),
                 Vector2(2.5, 2.3))
             _fungus_patch(parent, edge + Vector3(-sign * 0.6, 0, -2.0))
             _place_prefab(parent, edge + Vector3(sign * 0.5, 0, -2.4),
-                "floor_tile_large_rocks", 2.5)
+                "citytree/bush", 2.2)
         2: # Marsh pools with dead tree silhouettes, broken ruins and fungus.
             _water_feature(parent, edge + Vector3(sign * 0.65, 0, 0.6),
                 Vector2(2.7, 2.0))
