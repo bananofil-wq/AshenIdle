@@ -285,8 +285,8 @@ func _cave_wall_mass(parent: Node3D, at: Vector3, side: float) -> void:
 
 func _forest_understory(parent: Node3D, at: Vector3) -> void:
     # Readable tufts, fern silhouettes and logs around the traversable trail.
-    var leaf := _solid(Color("426442"))
-    var shadow_leaf := _solid(Color("283f31"))
+    var leaf := _solid(Color("65944c"))
+    var shadow_leaf := _solid(Color("315c38"))
     for n in range(5):
         var p := at + Vector3(randomizer.randf_range(-1.05, 1.05), 0,
             randomizer.randf_range(-1.15, 1.15))
@@ -332,7 +332,8 @@ func _tree(parent: Node3D, at: Vector3) -> void:
         var branch := _block(parent, at + Vector3(cos(angle) * length * 0.35, trunk_height * 0.75, sin(angle) * length * 0.35), Vector3(0.16, 0.16, length), bark)
         branch.rotation.y = angle
         branch.rotation.x = randomizer.randf_range(-0.27, 0.27)
-    var foliage_color := _solid(Color("23402a") if current_theme == 2 else Color("41586a"))
+    var foliage_color := _solid(Color("397b45") if current_theme == 2 else Color("4c7290"))
+    var foliage_light := _solid(Color("6e9f53") if current_theme == 2 else Color("80a9b0"))
     # Staggered conifer-like crowns replace the former oversized green spheres,
     # which gave the forest a toy-model appearance even with PBR soil.
     for cluster in range(6):
@@ -341,7 +342,7 @@ func _tree(parent: Node3D, at: Vector3) -> void:
         var leaf := MeshInstance3D.new()
         var foliage_radius: float = randomizer.randf_range(0.60, 0.90) * (1.0 - 0.18 * float(tier))
         leaf.mesh = _unit_foliage
-        leaf.material_override = foliage_color
+        leaf.material_override = foliage_light if cluster % 3 == 0 else foliage_color
         leaf.position = at + Vector3(cos(angle) * 0.46, trunk_height - 0.46 + float(tier) * 0.66, sin(angle) * 0.46)
         leaf.scale = Vector3(foliage_radius, randomizer.randf_range(1.55, 2.18), foliage_radius)
         leaf.rotation.y = angle
