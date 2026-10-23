@@ -34,6 +34,14 @@ func _render_test() -> void:
     current_scene = game
 
     await create_timer(0.20).timeout
+    if not (game.get("hero_overlay") as Control).visible:
+        push_error("Initial hero chooser is missing")
+        quit(11)
+        return
+    if not await _save_capture("startup-hero-selection.png"):
+        quit(12)
+        return
+    game.call("_select_class", 0)
     game.call("_hide_legendary")
     game.set("stage", 8)
     game.set("highest", 8)
@@ -114,5 +122,5 @@ func _render_test() -> void:
         if not await _save_capture("inventory-preview.png"):
             quit(7)
             return
-        print("Visual QA PASS: portrait combat, hero asset, spell particle VFX, boss, legendary loot, skill tree, class selection, inventory")
+        print("Visual QA PASS: first-launch character selection, portrait combat, hero asset, spell VFX, floor-10 boss, loot, talent tree and inventory")
     quit(0)
