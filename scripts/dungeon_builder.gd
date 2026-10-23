@@ -292,13 +292,19 @@ func _cave_wall_mass(parent: Node3D, at: Vector3, side: float) -> void:
 
 func _forest_understory(parent: Node3D, at: Vector3) -> void:
     # Readable tufts, fern silhouettes and logs around the traversable trail.
-    var leaf := _solid(Color("65944c"))
-    var shadow_leaf := _solid(Color("315c38"))
-    for n in range(5):
-        var p := at + Vector3(randomizer.randf_range(-1.05, 1.05), 0,
-            randomizer.randf_range(-1.15, 1.15))
-        _spike(parent, p, randomizer.randf_range(0.28, 0.85),
-            randomizer.randf_range(0.12, 0.23), leaf if n % 2 == 0 else shadow_leaf)
+    # Broad, asymmetrical fern blades replace hundreds of bright green
+    # cone-spikes which made the forest resemble a low-poly toy set.
+    var leaf := _solid(Color("50783b") if current_theme == 1 else Color("596944"))
+    var shadow_leaf := _solid(Color("2b4d30") if current_theme == 1 else Color("3c4937"))
+    for n in range(4):
+        var angle: float = TAU * float(n) / 4.0 + randomizer.randf_range(-0.35, 0.35)
+        var p := at + Vector3(cos(angle) * 0.34, 0.13,
+            sin(angle) * 0.36)
+        var frond := _stone(parent, p,
+            Vector3(randomizer.randf_range(0.18, 0.26), 0.13,
+                randomizer.randf_range(0.48, 0.76)),
+            leaf if n % 3 == 0 else shadow_leaf)
+        frond.rotation.y = angle
     if randomizer.randf() < 0.42:
         var fallen := _block(parent, at + Vector3(0, 0.11, 0),
             Vector3(1.35, 0.22, 0.24), _solid(Color("4b3729")))
@@ -417,9 +423,9 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
             _fungus_patch(parent, edge + Vector3(-sign * 0.55, 0, -3.15))
         1: # Tall, actual Quaternius fantasy-inspired leafy trees, water and mushrooms
             _place_prefab(parent, edge + Vector3(sign * 1.4, 0, -0.6),
-                "citytree/tree1" if room_id % 2 == 0 else "citytree/tree2", 4.4)
+                "citytree/tree1" if room_id % 2 == 0 else "citytree/tree2", 3.7)
             _place_prefab(parent, edge + Vector3(-sign * 0.4, 0, 3.1),
-                "citytree/tree3", 3.1)
+                "citytree/tree3", 2.7)
             _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0.8),
                 Vector2(2.5, 2.3))
             _fungus_patch(parent, edge + Vector3(-sign * 0.6, 0, -2.0))
@@ -474,7 +480,7 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
     var earth := _solid(Color("463c39") if current_theme == 1 or current_theme == 2 else Color("343438") if current_theme == 8 else Color("51505a"))
-    for i in range(25):
+    for i in range(15 if current_theme == 1 or current_theme == 2 else 25):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
         if current_theme == 1 or current_theme == 2:
@@ -482,7 +488,7 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
                 _forest_understory(parent, p)
             var log := _block(parent, p + Vector3(0, 0.12, 0), Vector3(randomizer.randf_range(0.6, 1.5), 0.14, 0.21), earth)
             log.rotation.y = randomizer.randf_range(-0.9, 0.9)
-            if i % 3 == 0:
+            if i % 4 == 0:
                 _tree(parent, p + Vector3(side * 1.2, 0, 0))
         elif current_theme == 3:
             _spike(parent, p, randomizer.randf_range(0.3, 1.1), 0.18, accent_material if i % 3 == 0 else rock_material)
