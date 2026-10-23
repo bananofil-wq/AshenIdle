@@ -2807,6 +2807,104 @@ func _random_spawn() -> Vector3:
     return Vector3(cos(a) * d, 0, sin(a) * d)
 
 
+func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
+    # Distinct non-humanoid silhouettes for creatures that would otherwise be
+    # incorrectly displayed as an armored skeleton. Mobile-safe, flat-shaded.
+    var kind := ""
+    if species.contains("SPIDER") or species.contains("SCORPION"):
+        kind = "arachnid"
+    elif species.contains("BAT") or species.contains("FAERIE") or species.contains("HARPY") or species.contains("GRIFFIN"):
+        kind = "winged"
+    elif species.contains("WOLF") or species.contains("HOUND") or species.contains("HYENA") or species.contains("BEAST") or species.contains("TOAD"):
+        kind = "quadruped"
+    elif species.contains("SLIME"):
+        kind = "slime"
+    elif species.contains("TREANT"):
+        kind = "treant"
+    elif species.contains("GOLEM") or species.contains("ELEMENTAL"):
+        kind = "golem"
+    elif species.contains("WYRM") or species.contains("HORROR"):
+        kind = "serpent"
+    if kind == "":
+        return false
+    var visual := Node3D.new()
+    visual.name = "CreatureVisual"
+    root.add_child(visual)
+    var shade: Color = tint.darkened(0.44)
+    match kind:
+        "arachnid":
+            _sphere_part(visual, 0.58, Vector3(0, 0.75, -0.25), shade)
+            _sphere_part(visual, 0.43, Vector3(0, 0.77, 0.39), tint)
+            for leg in range(4):
+                for sign in [-1.0, 1.0]:
+                    var limb := _cone(visual, 0.15, 0.055, 1.22,
+                        Vector3(sign * (0.68 + float(leg % 2) * 0.19), 0.67,
+                            -0.53 + float(leg) * 0.35), shade)
+                    limb.rotation.z = sign * 0.86
+            for eye in [-1.0, 1.0]:
+                _sphere_part(visual, 0.10, Vector3(eye * 0.19, 0.88, 0.78), tint.lightened(0.5))
+        "winged":
+            _capsule(visual, 0.30, 0.98, Vector3(0, 1.17, 0), tint)
+            for sign in [-1.0, 1.0]:
+                var wing := _cone(visual, 0.78, 0.05, 1.65,
+                    Vector3(sign * 0.83, 1.38, -0.15), shade)
+                wing.rotation.z = sign * 0.98
+            _sphere_part(visual, 0.23, Vector3(0, 1.72, 0.16), tint.lightened(0.20))
+        "quadruped":
+            var body := _capsule(visual, 0.39, 1.45, Vector3(0, 0.77, 0), shade)
+            body.rotation.x = PI * 0.48
+            _sphere_part(visual, 0.34, Vector3(0, 0.88, 0.57), tint)
+            for sign in [-1.0, 1.0]:
+                _cone(visual, 0.14, 0.12, 0.55, Vector3(sign * 0.29, 0.28, 0.46), shade)
+                _cone(visual, 0.14, 0.12, 0.55, Vector3(sign * 0.29, 0.28, -0.49), shade)
+                _cone(visual, 0.17, 0.015, 0.36, Vector3(sign * 0.22, 1.23, 0.66), tint)
+        "slime":
+            _sphere_part(visual, 0.62, Vector3(0, 0.51, 0), tint)
+            for sign in [-1.0, 1.0]:
+                _sphere_part(visual, 0.12, Vector3(sign * 0.23, 0.66, 0.48), shade)
+        "treant":
+            _capsule(visual, 0.39, 1.9, Vector3(0, 1.05, 0), shade)
+            _sphere_part(visual, 0.63, Vector3(0, 1.78, 0), tint)
+            for sign in [-1.0, 1.0]:
+                var branch := _cone(visual, 0.19, 0.035, 1.48,
+                    Vector3(sign * 0.63, 1.41, 0), shade)
+                branch.rotation.z = sign * 0.72
+                _cone(visual, 0.24, 0.05, 1.15, Vector3(sign * 0.24, 0.45, 0), shade)
+        "golem":
+            _box(visual, Vector3(1.12, 1.03, 0.88), Vector3(0, 1.12, 0), shade)
+            _sphere_part(visual, 0.40, Vector3(0, 1.89, 0), tint)
+            for sign in [-1.0, 1.0]:
+                _box(visual, Vector3(0.45, 0.89, 0.50), Vector3(sign * 0.83, 1.0, 0), tint)
+                _box(visual, Vector3(0.32, 0.56, 0.38), Vector3(sign * 0.35, 0.33, 0), shade)
+        "serpent":
+            for segment in range(5):
+                _sphere_part(visual, 0.42 - float(segment) * 0.042,
+                    Vector3(sin(float(segment) * 0.62) * 0.26,
+                        0.62 + float(segment) * 0.22, -0.62 + float(segment) * 0.35),
+                    tint if segment % 2 == 0 else shade)
+            _sphere_part(visual, 0.42, Vector3(0, 1.75, 0.95), tint)
+            for sign in [-1.0, 1.0]:
+                _cone(visual, 0.20, 0.02, 0.65, Vector3(sign * 0.26, 2.16, 0.88), shade)
+    # Even monsters assembled from simple shapes need real gait/idle motion.
+    var animator := AnimationPlayer.new()
+    animator.name = "CreatureAnimationPlayer"
+    root.add_child(animator)
+    var library := AnimationLibrary.new()
+    for label in ["Idle", "Jog", "Attack"]:
+        var clip := Animation.new()
+        clip.length = 0.74 if label == "Jog" else 1.1
+        clip.loop_mode = Animation.LOOP_LINEAR
+        var track: int = clip.add_track(Animation.TYPE_POSITION_3D)
+        clip.track_set_path(track, NodePath("CreatureVisual:position"))
+        clip.track_insert_key(track, 0.0, Vector3.ZERO)
+        var height: float = 0.17 if label == "Jog" else 0.12 if label == "Attack" else 0.07
+        clip.track_insert_key(track, clip.length * 0.5, Vector3(0, height, 0))
+        clip.track_insert_key(track, clip.length, Vector3.ZERO)
+        library.add_animation(label, clip)
+    animator.add_animation_library("", library)
+    return true
+
+
 func _spawn_horde() -> void:
     for mob in arena_mobs:
         if is_instance_valid(mob):
@@ -2822,15 +2920,22 @@ func _spawn_horde() -> void:
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
+        var mini_elite: bool = not is_boss and i == 0 and (stage + dungeon_room_index) % 4 == 0
         var ai_role: String = encounter_director.enemy_role(current_encounter, i, elite)
-        var boss_models := ["ashen_shadow_knight", "ashen_mage", "ashen_armored_knight"]
+        var biome: int = _boss_variant()
+        var species_pool: Array = MOB_FAMILIES[biome]
+        var species: String = BOSS_NAMES[biome] if elite else ELITE_FAMILIES[biome] if mini_elite else str(species_pool[(i + stage + dungeon_room_index * 2) % species_pool.size()])
+        var boss_models := ["ashen_shadow_knight", "ashen_ranger", "ashen_armored_knight",
+            "ashen_armored_knight", "ashen_shadow_knight", "ashen_mage",
+            "ashen_armored_knight", "ashen_shadow_knight", "ashen_mage", "ashen_shadow_knight"]
         var role_models := {"raider": "skeleton_dark", "flanker": "ashen_ranger",
             "guardian": "ashen_armored_knight", "caster": "ashen_mage"}
-        var model_name: String = str(boss_models[_boss_variant()]) if elite else str(role_models.get(ai_role, "skeleton_dark"))
+        var model_name: String = str(boss_models[biome]) if elite else str(role_models.get(ai_role, "skeleton_dark"))
         var root := Node3D.new()
         add_child(root)
-        var packed := _get_asset_scene(model_name)
-        if packed == null:
+        var beast: bool = not elite and _beast_silhouette(root, species, _biome_fx_tint())
+        var packed: PackedScene = null if beast else _get_asset_scene(model_name)
+        if packed == null and not beast:
             packed = _get_asset_scene("Skeleton_Warrior" if elite else "Skeleton_Minion")
         if packed != null:
             var instance: Node3D = packed.instantiate() as Node3D
@@ -2862,6 +2967,9 @@ func _spawn_horde() -> void:
                 var shard_height := 0.30 + float(rune_i % 3) * 0.19
                 var shard := _cone(root, 0.13, 0.012, shard_height, Vector3(cos(angle) * 0.91, 0.22 + shard_height * 0.5, sin(angle) * 0.91), aura_tint.darkened(0.15))
                 shard.rotation.z = sin(angle) * 0.14
+        if beast:
+            _bind_motion_driver(root)
+            _play_actor_clip(root, "Idle", 0.0, 1.0)
         if root.get_child_count() == 0:
             var body := CapsuleMesh.new()
             body.radius = 0.38 if not elite else 0.67
@@ -2872,16 +2980,19 @@ func _spawn_horde() -> void:
         if hero != null and is_instance_valid(hero):
             root.rotation.y = _heading_from_direction(hero.position - root.position)
         var variant_hp: float = BOSS_HP_SCALE[_boss_variant()]
-        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else float(current_encounter.get("hp_factor", 1.0)))
+        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 2.6 if mini_elite else float(current_encounter.get("hp_factor", 1.0)))
         root.set_meta("ai_role", "boss" if elite else ai_role)
         root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
         root.set_meta("hp", mob_health)
         root.set_meta("max_hp", mob_health)
         root.set_meta("boss", elite)
+        root.set_meta("elite", elite or mini_elite)
+        root.set_meta("species", species)
+        root.set_meta("biome", biome)
         root.set_meta("speed", 0.22 + rng.randf_range(0.01, 0.10))
         root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
-    combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else str(current_encounter.get("title", "HORDE APPROACHING"))
+    combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else BIOME_NAMES[_boss_variant()] + " - " + str(current_encounter.get("title", "HORDE APPROACHING"))
 
 func _impact(pos: Vector3, color: Color) -> void:
     _burst_particles(pos, color, 12, 2.6, 0.33)
