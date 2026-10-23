@@ -243,7 +243,7 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
             var p3: Vector3 = direction1 * width * top_scale * float(ridge[(i + 1) % sides]) + Vector3(0, top_h, 0)
             var shade: float = randomizer.randf_range(0.57, 0.95)
             var tone: Color = Color(shade, shade * 0.99, shade * 1.02)
-            if current_theme == 1 and tier >= 3:
+            if current_theme == 3 and tier >= 3:
                 tone = Color("e0eef3") * randomizer.randf_range(0.85, 1.0)
             for vertex in [p0, p2, p1, p1, p2, p3]:
                 builder.set_color(tone)
