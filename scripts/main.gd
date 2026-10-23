@@ -1736,8 +1736,12 @@ func _complete_wave() -> void:
         return
     # Treasure events may spawn their own drop upon room victory.
     _encounter_victory()
+    # A treasure encounter can drop the reward at the hero's own feet.
+    # Collect that immediately in idle mode, otherwise wait for a decision.
     if not ground_drops.is_empty():
-        return
+        _update_ground_pickup()
+        if not ground_drops.is_empty() or not pending_comparison.is_empty():
+            return
     # A floor has three linked encounters; clearing one opens the NEXT room.
     if dungeon_room_index < 3:
         dungeon_room_index += 1
