@@ -17,9 +17,20 @@ var elapsed := 0.0
 var sparks_total := 0
 var total_casts := 0
 var randomizer := RandomNumberGenerator.new()
+var haze_texture: ImageTexture
 
 func _ready() -> void:
     randomizer.seed = 41773
+    # Procedural feathered ash/fog, rather than a flat translucent plane.
+    var image := Image.create(96, 96, false, Image.FORMAT_RGBA8)
+    for y in range(96):
+        for x in range(96):
+            var rel := Vector2(float(x) - 47.5, float(y) - 47.5) / 47.5
+            var distance: float = rel.length()
+            var swirls: float = 0.56 + 0.25 * sin(rel.x * 14.0 + rel.y * 7.0) * sin(rel.y * 12.0 - rel.x * 4.0)
+            var alpha: float = pow(maxf(0.0, 1.0 - distance), 2.5) * swirls
+            image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
+    haze_texture = ImageTexture.create_from_image(image)
 
 func _process(delta: float) -> void:
     elapsed += delta
@@ -48,6 +59,9 @@ func _process(delta: float) -> void:
         elif kind == "orb":
             node.scale = Vector3.ONE * (0.42 + 0.90 * sin(minf(t * 1.35, 1.0) * PI * 0.5))
             node.position.y += delta * 0.30
+        elif kind == "smoke":
+            node.scale = Vector3.ONE * (0.74 + 0.58 * t)
+            node.rotation.y += delta * 0.24
         if kind == "travel":
             var origin: Vector3 = effect["from"]
             var destination: Vector3 = effect["to"]
@@ -92,6 +106,18 @@ func _spawn(mesh: Mesh, at: Vector3, color: Color, alpha: float,
     effects.append({"node": body, "duration": lifetime, "age": 0.0,
         "kind": behavior, "color": color, "alpha": alpha})
     return body
+
+func _smoke(at: Vector3, extent: float, duration: float = 1.4) -> void:
+    var shape := PlaneMesh.new()
+    shape.size = Vector2(extent, extent)
+    var plume := _spawn(shape, at + Vector3(0, 0.18, 0),
+        Color("442735"), 0.64, duration, "smoke", false)
+    if plume != null:
+        var mat: StandardMaterial3D = plume.material_override as StandardMaterial3D
+        mat.albedo_texture = haze_texture
+        mat.emission_enabled = false
+        plume.rotation.y = randomizer.randf_range(0.0, TAU)
+
 
 func _stroke(tool: SurfaceTool, a: Vector3, b: Vector3, width: float) -> void:
     var along := b - a
@@ -263,6 +289,7 @@ func cast(hero_class: int, slot: int, rank: int, start: Vector3,
                 _embers(start, Color("ffbd6c"), 5)
             elif cls == 1:
                 _sigil(destination, 2.12 + scale_bonus, primary, 2.1, 32)
+                _smoke(destination, 4.4 + scale_bonus, 1.35)
                 _fractures(destination, 1.65 + scale_bonus, Color("78c4c0"), 1.4, 8)
             elif cls == 2:
                 var current: Vector3 = origin
@@ -274,6 +301,7 @@ func cast(hero_class: int, slot: int, rank: int, start: Vector3,
                     current = endpoint
             else:
                 _whip(origin, impact + Vector3(0, 0.15, 0), Color("4d1945"), 0.31, 0.7)
+                _smoke(destination, 4.8 + scale_bonus, 1.7)
                 _fractures(destination, 2.35 + scale_bonus, primary, 1.8, 9)
                 _sigil(destination, 1.7 + scale_bonus, Color("b36ae0"), 1.6, 24)
         2:
@@ -281,6 +309,7 @@ func cast(hero_class: int, slot: int, rank: int, start: Vector3,
             # branching tendrils / incandescent fragments. Burst scale grows
             # with investment but never floods the entire portrait viewport.
             var radius: float = 2.35 + scale_bonus * 1.5
+            _smoke(destination, radius * 3.0, 2.3)
             _sigil(destination, radius, primary, 1.85, 32)
             _ring(destination, radius * 0.86, 0.16, primary, 0.7, "charge", 0.72)
             _fractures(destination, radius * 1.30, primary, 2.15, 10)
