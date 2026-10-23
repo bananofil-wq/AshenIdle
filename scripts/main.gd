@@ -569,8 +569,8 @@ func _build_ui() -> void:
     # inside the scaled portrait UI so no compare buttons leave the screen.
     drop_prompt = PanelContainer.new()
     drop_prompt.name = "LootComparison"
-    drop_prompt.size = Vector2(558, 520)
-    drop_prompt.position = Vector2(81, (overlay.size.y - 520) * 0.5)
+    drop_prompt.size = Vector2(558, 448)
+    drop_prompt.position = Vector2(81, (overlay.size.y - 448) * 0.5)
     drop_prompt.visible = false
     drop_prompt.z_index = 42
     drop_prompt.add_theme_stylebox_override("panel", _skin(Color("0a1018f7"), Color("d4ac69")))
@@ -582,8 +582,12 @@ func _build_ui() -> void:
     compare_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     compare_col.add_child(compare_title)
     drop_comparison = _label("", 18, Color("ecdfcb"))
-    drop_comparison.custom_minimum_size = Vector2(508, 327)
-    drop_comparison.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    drop_comparison.custom_minimum_size = Vector2(508, 232)
+    # All data rows have explicit breaks. Godot's smart-wrap was treating
+    # the yet-unlaid-out label as near-zero width, vertically expanding
+    # the entire modal to 1000+ px on portrait phones.
+    drop_comparison.autowrap_mode = TextServer.AUTOWRAP_OFF
+    drop_comparison.clip_text = true
     compare_col.add_child(drop_comparison)
     var compare_actions := HBoxContainer.new()
     compare_actions.add_theme_constant_override("separation", 12)
