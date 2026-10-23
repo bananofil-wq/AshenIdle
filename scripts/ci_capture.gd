@@ -69,6 +69,19 @@ func _render_test() -> void:
             if not await _save_capture("biome-%d.png" % biome_floor):
                 quit(14)
                 return
+        # Dedicated visual QA of the boss arena for all five visual themes.
+        # Each tenth floor includes the unique biome-specific boss sanctuary.
+        for milestone in [10, 20, 30, 40, 50]:
+            game.set("stage", milestone)
+            game.set("highest", milestone)
+            game.call("_spawn_enemy")
+            game.call("_complete_wave")
+            game.call("_complete_wave")
+            game.call("_refresh")
+            await create_timer(0.12).timeout
+            if not await _save_capture("boss-biome-%d.png" % milestone):
+                quit(15)
+                return
         game.set("stage", 8)
         game.call("_spawn_enemy")
         game.call("_refresh")
