@@ -861,7 +861,6 @@ func _finish_hero_preview(model: Node3D, camera: Camera3D) -> void:
         return
     _fit_visual_model(model, 2.6)
     _attach_hero_clips(model)
-    _pose_fantasy_skeleton(model, 0.0)
     for clip_node in model.find_children("*", "AnimationPlayer", true, false):
         var player: AnimationPlayer = clip_node as AnimationPlayer
         if player != null:
@@ -1196,6 +1195,21 @@ func _choose_target() -> Node3D:
             best = mob
     return best
 
+func _heading_from_direction(direction: Vector3) -> float:
+    # Models from our Quaternius/Avelune pipeline point towards local +Z.
+    # Transform.basis.z must point in the same direction as movement/target.
+    return atan2(direction.x, direction.z)
+
+
+func _turn_actor_towards(actor: Node3D, direction: Vector3, delta: float, turn_rate: float = 9.0) -> void:
+    if actor == null or not is_instance_valid(actor):
+        return
+    var flat := Vector3(direction.x, 0.0, direction.z)
+    if flat.length_squared() < 0.0001:
+        return
+    actor.rotation.y = lerp_angle(actor.rotation.y, _heading_from_direction(flat), clampf(delta * turn_rate, 0.0, 1.0))
+
+
 func _move_hero(delta: float) -> void:
     if hero == null or not is_instance_valid(hero) or popup_shade.visible:
         return
@@ -1244,14 +1258,12 @@ func _move_hero(delta: float) -> void:
     else:
         footstep_clock = 0.0
     _animate_actor(hero, velocity)
-    if motion.length_squared() > 0.08:
-        # Model imports already carry a PI yaw to align their forward axis.
-        # Applying the raw motion yaw on top pointed the hero's back into its
-        # travel direction: it looked like it was running backwards.
-        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(motion.x, motion.z) + PI, clampf(delta * 8.0, 0.0, 1.0))
+    # Face actual *travel velocity* (not a destination that may change while
+    # accelerating). Both player and monsters use one world +Z-forward rule.
+    if travel_step.length_squared() > 0.00003:
+        _turn_actor_towards(hero, travel_step, delta, 9.0)
     elif target != null and is_instance_valid(target):
-        var face: Vector3 = target.position - hero.position
-        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(face.x, face.z) + PI, clampf(delta * 8.0, 0.0, 1.0))
+        _turn_actor_towards(hero, target.position - hero.position, delta, 9.0)
     hero.position.y = 0.0
     if hero_hit_flash > 0.0:
         hero_hit_flash = maxf(0.0, hero_hit_flash - delta)
@@ -1484,11 +1496,22 @@ func _animate_actor(actor: Node3D, speed: float) -> void:
         _play_actor_clip(actor, "Idle", 0.16)
     var model: Node3D = actor.get_child(0) as Node3D if actor.get_child_count() > 0 else null
     if model != null:
-        var effort: float = clampf(speed / 2.6, 0.0, 1.0)
-        var breathing: float = sin(chaos_time * 2.3 + float(actor.get_instance_id() % 11))
-        model.rotation.z = lerpf(model.rotation.z, sin(chaos_time * 10.0) * 0.048 * effort + breathing * 0.012, clampf(get_process_delta_time() * 8.0, 0.0, 1.0))
-        model.position.y = lerpf(model.position.y, maxf(0.0, sin(chaos_time * 13.2)) * 0.065 * effort + breathing * 0.008, clampf(get_process_delta_time() * 10.0, 0.0, 1.0))
-    _pose_fantasy_skeleton(actor, speed)
+        if not actor.has_meta("visual_rest_position"):
+            actor.set_meta("visual_rest_position", model.position)
+        var rest: Vector3 = actor.get_meta("visual_rest_position", Vector3.ZERO)
+        if has_motion:
+            # Jog_Fwd/Walk already animate the entire skeleton. Previous code
+            # added a procedural pose on top, forcing arms and legs into unnatural
+            # angles while also pulling the fitted mesh into the floor.
+            model.position.y = lerpf(model.position.y, rest.y, clampf(get_process_delta_time() * 10.0, 0.0, 1.0))
+            model.rotation.z = lerpf(model.rotation.z, 0.0, clampf(get_process_delta_time() * 9.0, 0.0, 1.0))
+        else:
+            # Lightweight fallback only if this model truly has no anim clip.
+            var effort: float = clampf(speed / 2.6, 0.0, 1.0)
+            var bob: float = maxf(0.0, sin(chaos_time * 10.0)) * 0.024 * effort
+            model.position.y = lerpf(model.position.y, rest.y + bob, clampf(get_process_delta_time() * 9.0, 0.0, 1.0))
+    if not has_motion:
+        _pose_fantasy_skeleton(actor, speed)
 
 func _actor_attack(actor: Node3D, magic: bool = false) -> void:
     if actor == null or not is_instance_valid(actor):
@@ -2547,8 +2570,9 @@ func _spawn_horde() -> void:
                 if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
                 _bind_motion_driver(root)
-                _play_actor_clip(root, "Idle", 0.0, 1.0)
-                _pose_fantasy_skeleton(root, 0.0)
+                if not _play_actor_clip(root, "Idle", 0.0, 1.0):
+                    _pose_fantasy_skeleton(root, 0.0)
+                root.set_meta("visual_rest_position", instance.position)
         if elite:
             var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
             var halo := TorusMesh.new()
@@ -2574,6 +2598,8 @@ func _spawn_horde() -> void:
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
         var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
         root.position = spawn_center + (Vector3(0.0, 0.0, -0.90) if elite else _random_spawn())
+        if hero != null and is_instance_valid(hero):
+            root.rotation.y = _heading_from_direction(hero.position - root.position)
         var variant_hp: float = [13.0, 10.5, 16.0][_boss_variant()]
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else float(current_encounter.get("hp_factor", 1.0)))
         root.set_meta("ai_role", "boss" if elite else ai_role)
@@ -2819,7 +2845,7 @@ func _update_chaos(delta: float) -> void:
         if engaged and hero != null:
             var face: Vector3 = hero.position - mob.position
             if face.length_squared() > 0.02:
-                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(face.x, face.z) + PI, clampf(delta * 5.0, 0, 1))
+                _turn_actor_towards(mob, face, delta, 7.0)
             if role == "caster" and not popup_shade.visible:
                 var cast_in: float = float(mob.get_meta("ai_next_cast", 5.0)) - delta
                 if cast_in <= 0.0 and hero.position.distance_squared_to(mob.position) < 36.0:
@@ -3067,13 +3093,16 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
     _fit_visual_model(model, 1.89 if not enemy else 1.58)
-    model.rotation.y = PI
+    # Forward correction belongs to the actor root only. A second PI rotation
+    # on the visual mesh cancels/reverses its actual movement direction.
+    model.rotation.y = 0.0
+    root.set_meta("visual_rest_position", model.position)
     _darken_character_materials(model, false)
     if not enemy:
         _attach_hero_clips(model)
     _bind_motion_driver(root)
-    _play_actor_clip(root, "Idle", 0.0, 1.0)
-    _pose_fantasy_skeleton(root, 0.0)
+    if not _play_actor_clip(root, "Idle", 0.0, 1.0):
+        _pose_fantasy_skeleton(root, 0.0)
     # Subtle class-colored ground contact; silhouettes stay readable at the
     # wider portrait camera distance without cartoon outlines.
     var contact := TorusMesh.new()
