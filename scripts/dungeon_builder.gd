@@ -113,12 +113,37 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             _spike(parent, at, h * 1.2, 0.48, rock_material)
             _block(parent, at + Vector3(float(side) * 0.36, 0.02, 0.44), Vector3(0.82, 0.035, 1.05), accent_material)
 
+func _terrain_texture() -> ImageTexture:
+    # Deterministic rock, snow, leaf-litter, void and lava texture variants.
+    # Lightweight CPU noise replaces featureless solid-color floors on Android.
+    var dark_colors := ["22232b", "5d7482", "233927", "242039", "3a1c1c"]
+    var light_colors := ["68636a", "aecfdb", "536f45", "5d487a", "9b5536"]
+    var dark: Color = Color(dark_colors[current_theme])
+    var light: Color = Color(light_colors[current_theme])
+    var noise := FastNoiseLite.new()
+    noise.seed = 141 + current_stage * 7919
+    noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+    noise.frequency = 0.085
+    var img := Image.create(96, 96, false, Image.FORMAT_RGB8)
+    for y in range(96):
+        for x in range(96):
+            var broad: float = noise.get_noise_2d(float(x), float(y))
+            var grit: float = sin(float(x) * 2.41 + float(y) * 1.73) * 0.09
+            var weight: float = clampf(0.49 + broad * 0.40 + grit, 0.05, 0.96)
+            img.set_pixel(x, y, dark.lerp(light, weight))
+    return ImageTexture.create_from_image(img)
+
 func _set_materials() -> void:
     floor_material = _solid(Color(FLOOR_COLORS[current_theme]))
     if current_theme == 0 and ResourceLoader.exists("res://assets/pbr/stone_floor_diff_1k.jpg"):
         floor_material.albedo_texture = load("res://assets/pbr/stone_floor_diff_1k.jpg")
         floor_material.uv1_scale = Vector3(2.5, 2.5, 1)
-        floor_material.albedo_color = Color("84828c")
+        floor_material.albedo_color = Color("94939b")
+    else:
+        floor_material.albedo_texture = _terrain_texture()
+        floor_material.albedo_color = Color("d9e0df")
+        floor_material.uv1_scale = Vector3(3.5, 3.5, 1)
+    floor_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     rock_material = _solid(Color(ROCKS[current_theme]))
     accent_material = _solid(Color(ACCENTS[current_theme]), true)
 
@@ -156,6 +181,10 @@ func generate(floor_number: int) -> PackedVector3Array:
     # black skybox. Landscapes need to occupy the whole portrait view.
     var terrain_colors := ["221e25", "273d4b", "152b1b", "1a142a", "2d1110"]
     var terrain := _solid(Color(terrain_colors[current_theme]))
+    terrain.albedo_texture = floor_material.albedo_texture
+    terrain.albedo_color = Color("84828c") if current_theme == 0 else Color("b4bdba")
+    terrain.uv1_scale = Vector3(11, 11, 1)
+    terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
     walk_points = PackedVector3Array()
     var variation: float = float((current_stage - 1) % 10)
