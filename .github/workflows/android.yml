@@ -180,6 +180,14 @@ jobs:
           godot --headless --editor --path . --quit 2>&1 | tee build/import.log
           if grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' build/import.log; then exit 1; fi
 
+      - name: Validate offline adaptive encounter AI
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --script res://scripts/ci_ai_test.gd 2>&1 | tee build/ai-test.log
+          grep -q "AI DIRECTOR PASS" build/ai-test.log
+          if grep -E 'SCRIPT ERROR|Parse Error|AI DIRECTOR FAIL|Invalid call|Invalid access' build/ai-test.log; then exit 1; fi
+
       - name: Smoke-test running game
         shell: bash
         run: |
