@@ -640,9 +640,11 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
     frame.add_child(viewport_box)
     var preview := SubViewport.new()
     preview.size = Vector2i(102, 143)
-    preview.transparent_bg = true
+    # The chooser starts hidden, so WHEN_VISIBLE can leave nested Android
+    # subviewports unrendered after the popup is opened. Force a tiny live view.
+    preview.transparent_bg = false
     preview.own_world_3d = true
-    preview.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+    preview.render_target_update_mode = SubViewport.UPDATE_ALWAYS
     viewport_box.add_child(preview)
 
     var characters: Array = ["ashen_armored_knight", "ashen_ranger", "ashen_mage", "ashen_shadow_knight"]
