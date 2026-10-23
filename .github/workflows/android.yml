@@ -212,6 +212,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+      - name: Export signed ARM64 Android APK
+        shell: bash
+        run: |
+          godot --headless --path . --export-debug Android build/AshenIdle.apk 2>&1 | tee build/export.log
+          test -s build/AshenIdle.apk
+          unzip -t build/AshenIdle.apk | tail -1
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose build/AshenIdle.apk
+
+      - name: Upload APK for installation
+        uses: actions/upload-artifact@v4
+        with:
+          name: AshenIdle-Android-APK
+          path: build/AshenIdle.apk
+          retention-days: 30
+
       - name: Render and encode genuine moving gameplay QA
         shell: bash
         run: |
@@ -237,21 +252,6 @@ jobs:
         with:
           name: AshenIdle-Motion-Preview
           path: build/gameplay-motion.mp4
-          retention-days: 30
-
-      - name: Export signed ARM64 Android APK
-        shell: bash
-        run: |
-          godot --headless --path . --export-debug Android build/AshenIdle.apk 2>&1 | tee build/export.log
-          test -s build/AshenIdle.apk
-          unzip -t build/AshenIdle.apk | tail -1
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose build/AshenIdle.apk
-
-      - name: Upload APK for installation
-        uses: actions/upload-artifact@v4
-        with:
-          name: AshenIdle-Android-APK
-          path: build/AshenIdle.apk
           retention-days: 30
 
       - name: Publish direct-download APK
