@@ -230,8 +230,14 @@ func _run() -> void:
     if not _check(int(game.get("stage")) == 10, "First boss must unlock on floor 10"):
         quit(15)
         return
-    game.call("_complete_wave")
-    game.call("_complete_wave")
+    # Synthetic QA skips combat, so explicitly clear any bonus treasure the
+    # director spawns on the way. Real play NEVER skips an uncollected drop.
+    for target_room in [2, 3]:
+        for attempt in range(3):
+            game.call("_clear_ground_drops")
+            game.call("_complete_wave")
+            if int(game.get("dungeon_room_index")) == target_room:
+                break
     if not _check(int(game.get("dungeon_room_index")) == 3, "Boss must guard final room after two regular encounters"):
         quit(57)
         return
