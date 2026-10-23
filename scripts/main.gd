@@ -184,7 +184,7 @@ var last_hit_sound_msec := 0
 var auto_equip := true
 var auto_gear_button: Button
 var ground_drops: Array = []   # Real loot: stays on ground until the hero reaches it.
-var drop_prompt: PanelContainer
+var drop_prompt: Panel
 var drop_comparison: Label
 var pending_comparison: Dictionary = {}
 var recovered_ground_drops: Array = []
@@ -567,7 +567,9 @@ func _build_ui() -> void:
 
     # The loot inspection is a real choice only in MANUAL mode. Keep the modal
     # inside the scaled portrait UI so no compare buttons leave the screen.
-    drop_prompt = PanelContainer.new()
+    # Ordinary Panel rather than PanelContainer: otherwise the automatic
+    # minimum-size propagation inflates to 900+px on tall Android screens.
+    drop_prompt = Panel.new()
     drop_prompt.name = "LootComparison"
     drop_prompt.size = Vector2(558, 448)
     drop_prompt.position = Vector2(81, (overlay.size.y - 448) * 0.5)
@@ -576,6 +578,8 @@ func _build_ui() -> void:
     drop_prompt.add_theme_stylebox_override("panel", _skin(Color("0a1018f7"), Color("d4ac69")))
     overlay.add_child(drop_prompt)
     var compare_col := VBoxContainer.new()
+    compare_col.position = Vector2(16, 17)
+    compare_col.size = Vector2(526, 402)
     compare_col.add_theme_constant_override("separation", 14)
     drop_prompt.add_child(compare_col)
     var compare_title := _label("EQUIPMENT FOUND", 26, Color("f3ca81"))
