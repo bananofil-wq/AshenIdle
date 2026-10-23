@@ -226,6 +226,8 @@ jobs:
             build/legendary-preview.png
             build/talent-preview.png
             build/inventory-preview.png
+            build/evolution-75-preview.png
+            build/evolution-500-preview.png
           if-no-files-found: ignore
           retention-days: 30
 
