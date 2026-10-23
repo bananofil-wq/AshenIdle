@@ -16,6 +16,8 @@ var randomizer := RandomNumberGenerator.new()
 var floor_material: StandardMaterial3D
 var rock_material: StandardMaterial3D
 var accent_material: StandardMaterial3D
+var landmark_count := 0
+var route_style := 0
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
     var m := StandardMaterial3D.new()
@@ -243,8 +245,57 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
         for side in [-1.0, 1.0]:
             _block(parent, at + Vector3(side * 5.0, -0.02, 0), Vector3(1.0, 0.10, 8.7), accent_material)
 
+func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
+    # Different focal structures on each floor create silhouettes that remain
+    # distinguishable at phone scale, without placing walls in the walk lane.
+    var side: float = -1.0 if index % 2 == 0 else 1.0
+    var at: Vector3 = room + Vector3(side * 5.95, 0.0, -1.55)
+    var structure := Node3D.new()
+    structure.name = "BiomeLandmark_%d" % index
+    parent.add_child(structure)
+    landmark_count += 1
+    match current_theme:
+        0: # Collapsed crypt chapel, arch and burnt pedestal.
+            for column in range(3):
+                var p := at + Vector3(0, 0, float(column - 1) * 1.45)
+                _column(structure, p, randomizer.randf_range(2.0, 3.8), 0.32, rock_material)
+                _block(structure, p + Vector3(0.0, 2.5, 0.0), Vector3(0.88, 0.30, 0.87), floor_material)
+            _block(structure, at + Vector3(0.42 * side, 0.35, 2.05), Vector3(2.15, 0.7, 0.90), rock_material)
+            _spike(structure, at + Vector3(0, 0, 2.05), 1.20, 0.20, accent_material)
+        1: # Uneven glacial outcrop with cut faces and tall crystal spires.
+            _mountain(structure, at + Vector3(side * 1.2, -0.05, 0), 7.0 + float(index), 3.15)
+            for shard in range(6):
+                var offset := at + Vector3(randomizer.randf_range(-2.1, 2.2), 0.0, randomizer.randf_range(-1.4, 1.5))
+                _spike(structure, offset, randomizer.randf_range(1.8, 4.8), randomizer.randf_range(0.24, 0.49), accent_material if shard % 3 == 0 else rock_material)
+        2: # Interwoven grove and fallen trunk at the woodland edge.
+            for tree_index in range(3):
+                _tree(structure, at + Vector3(side * float(tree_index) * 1.4, 0.0, float(tree_index - 1) * 2.0))
+            var fallen := _block(structure, at + Vector3(0.0, 0.21, 1.5), Vector3(3.5, 0.36, 0.38), rock_material)
+            fallen.rotation.y = 0.44
+            for root_index in range(4):
+                var root := _block(structure, at + Vector3(float(root_index - 2) * 0.63, 0.04, 2.50), Vector3(0.14, 0.14, 1.1), rock_material)
+                root.rotation.y = float(root_index) * 0.4
+        3: # Jagged violet altar with suspended-looking obelisk shards.
+            _column(structure, at, 2.15, 1.55, rock_material, 6)
+            for obelisk in range(5):
+                var angle: float = float(obelisk) * TAU / 5.0
+                var p := at + Vector3(cos(angle) * 1.5, 0, sin(angle) * 1.5)
+                _column(structure, p, 2.0 + float(obelisk % 3) * 1.25, 0.38, rock_material, 4)
+                _block(structure, p + Vector3(0, 1.9, 0.30), Vector3(0.16, 0.55, 0.12), accent_material)
+            _spike(structure, at + Vector3(0, 2.15, 0), 3.6, 0.47, accent_material)
+        4: # Volcanic cliff shelf, magma seams, stacked dark basalt columns.
+            _mountain(structure, at + Vector3(side, -0.10, 0), 6.5, 3.6)
+            for spike_i in range(5):
+                var p := at + Vector3(float(spike_i - 2) * 0.78, 0, randomizer.randf_range(-1.3, 1.3))
+                _column(structure, p, randomizer.randf_range(1.6, 4.5), 0.45, rock_material, 6)
+                if spike_i % 2 == 0:
+                    _block(structure, p + Vector3(0.3, 0.12, 0.0), Vector3(0.16, 0.08, 1.8), accent_material)
+
+
 func generate(floor_number: int) -> PackedVector3Array:
     current_stage = maxi(1, floor_number)
+    landmark_count = 0
+    route_style = (current_stage - 1) % 5
     current_theme = posmod(int((current_stage - 1) / 10), THEMES.size())
     randomizer.seed = 7919 + current_stage * 15427
     for child in get_children():
@@ -263,11 +314,14 @@ func generate(floor_number: int) -> PackedVector3Array:
     walk_points = PackedVector3Array()
     var variation: float = float((current_stage - 1) % 10)
     walk_points.append(Vector3(0, 0, 5))
+    var drift: float = 0.0
     for i in range(1, 4):
-        var shifted: float = randomizer.randf_range(-2.15, 2.15)
-        if i == 3:
-            shifted *= 0.6
-        walk_points.append(Vector3(shifted, 0, 5.0 - DISTANCE * float(i) - variation * 0.22 * float(i)))
+        # A room may veer or snake; the same dungeon theme does not mean the
+        # same hallway shape for 10 consecutive floors.
+        var bend: float = sin(float(current_stage) * 1.719 + float(i) * 1.43) * (1.85 + float(route_style) * 0.33)
+        drift = clampf(drift * 0.62 + bend, -4.4, 4.4)
+        var shift: float = drift + randomizer.randf_range(-0.65, 0.65)
+        walk_points.append(Vector3(shift, 0, 5.0 - DISTANCE * float(i) - variation * 0.22 * float(i)))
 
     # Each stage is a long traversable chain of chambers linked by real corridors.
     for i in range(walk_points.size()):
@@ -282,6 +336,8 @@ func generate(floor_number: int) -> PackedVector3Array:
                 _block(room, wall, Vector3(0.55, 1.3 if current_theme != 1 else 0.72, 10.3), rock_material)
         _decorate(room, p, i + (current_stage % 10))
         _ground_details(room, p)
+        if i > 0:
+            _landmark(room, p, i)
         if i > 0:
             _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), 5.9, floor_material)
         if i == 3 and current_stage % 10 == 0:
@@ -326,4 +382,12 @@ func generate(floor_number: int) -> PackedVector3Array:
     entrance.name = "EntranceGate"
     add_child(entrance)
     _arch(entrance, walk_points[0] + Vector3(0, 0, 4.5), rock_material)
+    var exit_gate := Node3D.new()
+    exit_gate.name = "ExitGate"
+    add_child(exit_gate)
+    var end_position: Vector3 = walk_points[3] + Vector3(0, 0, -4.05)
+    _arch(exit_gate, end_position, rock_material)
+    var exit_core := _column(exit_gate, end_position + Vector3(0, 0.0, -0.2), 0.05, 1.45, accent_material, 16)
+    exit_core.name = "RiftGate"
+    # This exit marks the destination; gameplay advances only after combat.
     return walk_points
