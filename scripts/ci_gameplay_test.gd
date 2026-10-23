@@ -98,6 +98,22 @@ func _run() -> void:
     if not _check(str(actor.get_meta("clip_state", "")).contains("Jog"), "Movement should select run clip"):
         quit(39)
         return
+    # Regression: an actor's +Z axis must always point into real movement.
+    # The previous fixes added PI to BOTH the hero root and its GLB model, and
+    # another PI to enemies, so meshes visibly ran with their backs forward.
+    var hero_visual: Node3D = actor.get_child(0) as Node3D
+    if not _check(hero_visual != null and absf(hero_visual.rotation.y) < 0.01, "No double 180-degree yaw on animated hero mesh"):
+        quit(104)
+        return
+    for direction in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]:
+        game.call("_turn_actor_towards", actor, direction, 1.0, 12.0)
+        var facing_direction: Vector3 = actor.global_transform.basis.z.normalized()
+        if not _check(facing_direction.dot(direction) > 0.99, "Running actor must face its travel vector in all four directions"):
+            quit(105)
+            return
+    if not _check(hero_visual.position.distance_to(actor.get_meta("visual_rest_position", Vector3.INF)) < 0.02, "Jogging must preserve the fitted visual's ground position"):
+        quit(106)
+        return
     var skeleton: Skeleton3D
     for part in actor.find_children("*", "Skeleton3D", true, false):
         skeleton = part as Skeleton3D
@@ -159,6 +175,18 @@ func _run() -> void:
     if not _check(enemies.size() >= 5, "Initial wave should contain several real enemies"):
         quit(11)
         return
+    for enemy in enemies:
+        var actor_enemy: Node3D = enemy as Node3D
+        if actor_enemy == null or not is_instance_valid(actor_enemy):
+            continue
+        var to_hero: Vector3 = (game.get("hero") as Node3D).position - actor_enemy.position
+        to_hero.y = 0.0
+        if to_hero.length_squared() > 0.02:
+            if not _check(actor_enemy.global_transform.basis.z.normalized().dot(to_hero.normalized()) > 0.985,
+                "Enemies must spawn facing their approaching hero, never backwards"):
+                quit(107)
+                return
+    print("DIRECTION QA PASS: hero jog +Z forward, no visual double yaw, enemy initial facing and ground-height preserved")
     var first: Node3D = enemies[0]
     var old_health: float = float(first.get_meta("hp"))
     game.call("_hit_mob", first, 1.0, false)
