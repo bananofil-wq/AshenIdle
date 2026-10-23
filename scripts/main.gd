@@ -584,10 +584,14 @@ func _build_ui() -> void:
             titles[1], int(costs[1]), spell_help[1],
             titles[2], int(costs[2]), spell_help[2]
         ]
-        var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(510, 149))
-        class_button.add_theme_font_size_override("font_size", 14)
+        var hero_row := HBoxContainer.new()
+        hero_row.add_theme_constant_override("separation", 8)
+        hero_column.add_child(hero_row)
+        hero_row.add_child(_create_hero_preview(class_id))
+        var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(394, 149))
+        class_button.add_theme_font_size_override("font_size", 13)
         class_button.add_theme_stylebox_override("normal", _skin(Color("1a1e2bf5"), [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]))
-        hero_column.add_child(class_button)
+        hero_row.add_child(class_button)
     sfx_toggle_button = _ornate_button("SOUND: ON" if audio_enabled else "SOUND: OFF", _toggle_sound, Vector2(510, 42))
     hero_column.add_child(sfx_toggle_button)
     hero_return_button = _ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(510, 43))
@@ -621,6 +625,55 @@ func _build_ui() -> void:
     inv_outer.add_child(_ornate_button("RETURN TO BATTLE", _close_inventory_panel, Vector2(550, 56)))
 
 
+
+
+func _create_hero_preview(class_id: int) -> PanelContainer:
+    # Real in-engine 3D character portraits, not stock fantasy icons.
+    # Keep the four previews small and render only while the chooser is visible.
+    var accent: Color = [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]
+    var frame := PanelContainer.new()
+    frame.custom_minimum_size = Vector2(108, 149)
+    frame.add_theme_stylebox_override("panel", _skin(Color("11141d"), accent))
+    var viewport_box := SubViewportContainer.new()
+    viewport_box.custom_minimum_size = Vector2(102, 143)
+    viewport_box.stretch = true
+    frame.add_child(viewport_box)
+    var preview := SubViewport.new()
+    preview.size = Vector2i(102, 143)
+    preview.transparent_bg = true
+    preview.own_world_3d = true
+    preview.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+    viewport_box.add_child(preview)
+
+    var characters: Array = ["ashen_armored_knight", "ashen_ranger", "ashen_mage", "ashen_shadow_knight"]
+    var packed: PackedScene = _get_asset_scene(characters[class_id])
+    if packed != null:
+        var statue: Node3D = packed.instantiate() as Node3D
+        if statue != null:
+            preview.add_child(statue)
+            _fit_visual_model(statue, 1.78)
+            statue.rotation.y = PI
+    var camera := Camera3D.new()
+    preview.add_child(camera)
+    camera.position = Vector3(1.8, 1.74, 3.75)
+    camera.look_at(Vector3(0, 0.96, 0), Vector3.UP)
+    camera.fov = 37.0
+    camera.current = true
+    var highlight := DirectionalLight3D.new()
+    preview.add_child(highlight)
+    highlight.rotation_degrees = Vector3(-39, -24, 0)
+    highlight.light_color = accent.lightened(0.43)
+    highlight.light_energy = 2.1
+    var environment := WorldEnvironment.new()
+    var palette := Environment.new()
+    palette.background_mode = Environment.BG_COLOR
+    palette.background_color = Color("14151f")
+    palette.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    palette.ambient_light_color = Color("c0b2b3")
+    palette.ambient_light_energy = 0.65
+    environment.environment = palette
+    preview.add_child(environment)
+    return frame
 
 
 func _max_mp() -> float:
