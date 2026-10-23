@@ -1034,8 +1034,17 @@ func _move_hero(delta: float) -> void:
     var motion: Vector3 = destination - hero.position
     motion.y = 0.0
     var speed: float = 3.75 if not in_encounter else 3.20
-    if motion.length() > 0.10:
-        hero.position += motion.normalized() * minf(motion.length(), speed * delta)
+    # Acceleration, braking and directional blending keep traversal from
+    # looking like rigid chess-piece movement on mobile.
+    var desired_velocity := motion.normalized() * speed if motion.length_squared() > 0.01 else Vector3.ZERO
+    var travel_velocity: Vector3 = hero.get_meta("travel_velocity", Vector3.ZERO)
+    travel_velocity = travel_velocity.move_toward(desired_velocity, 15.0 * delta)
+    var travel_step: Vector3 = travel_velocity * delta
+    if travel_step.length_squared() > motion.length_squared():
+        travel_step = motion
+        travel_velocity = Vector3.ZERO
+    hero.position += travel_step
+    hero.set_meta("travel_velocity", travel_velocity)
     var velocity: float = hero.position.distance_to(before) / maxf(0.001, delta)
     dungeon_travel_distance += hero.position.distance_to(before)
     if velocity > 0.65 and sound_bank != null and audio_enabled:
@@ -2417,9 +2426,20 @@ func _update_chaos(delta: float) -> void:
         mob.set_meta("knockback", knockback.move_toward(Vector3.ZERO, delta * 7.0))
         var chase: Vector3 = desired - mob.position
         chase.y = 0
-        if engaged and stagger <= 0.0 and chase.length() > 0.18:
-            var speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
-            mob.position += chase.normalized() * minf(chase.length(), speed * delta)
+        # Natural start/stop speeds make the horde close in organically
+        # instead of sliding at a constant velocity around the player.
+        var ideal_velocity := Vector3.ZERO
+        if engaged and stagger <= 0.0 and chase.length_squared() > 0.0324:
+            var pursuit_speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
+            ideal_velocity = chase.normalized() * pursuit_speed
+        var pursuit_velocity: Vector3 = mob.get_meta("pursuit_velocity", Vector3.ZERO)
+        pursuit_velocity = pursuit_velocity.move_toward(ideal_velocity, delta * (7.0 if boss else 9.0))
+        var chase_step: Vector3 = pursuit_velocity * delta
+        if chase_step.length_squared() > chase.length_squared():
+            chase_step = chase
+            pursuit_velocity = Vector3.ZERO
+        mob.position += chase_step
+        mob.set_meta("pursuit_velocity", pursuit_velocity)
         var velocity: float = mob.position.distance_to(last_position) / maxf(0.001, delta)
         # Faraway unengaged enemies already have an Idle animation playing.
         # Avoid repeatedly traversing and posing their full skeletons off camera.
