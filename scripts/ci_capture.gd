@@ -22,6 +22,22 @@ func _save_capture(filename: String) -> bool:
     print("Saved build/", filename, " (", frame.get_width(), "x", frame.get_height(), ")")
     return true
 
+func _check_modal_fits(panel: Control, label: String) -> bool:
+    # Never accept a screenshot as good when Godot silently expands a Button
+    # beyond the phone width (long descriptions used to escape on the right).
+    var device_width: float = root.get_visible_rect().size.x
+    if panel.get_global_rect().position.x < -1.0 or panel.get_global_rect().end.x > device_width + 1.0:
+        push_error(label + ": modal frame exceeds screen width")
+        return false
+    for candidate in panel.find_children("*", "Button", true, false):
+        var b: Button = candidate as Button
+        var bounds: Rect2 = b.get_global_rect()
+        if bounds.position.x < -2.0 or bounds.end.x > device_width + 2.0:
+            push_error(label + ": button clipped offscreen: " + b.text.substr(0, 30))
+            return false
+    return true
+
+
 func _render_test() -> void:
     # Game CI integration tests intentionally save unusual stats and gear;
     # never let those leftovers make previews look like actual starting gameplay.
@@ -42,6 +58,9 @@ func _render_test() -> void:
     if not (game.get("hero_overlay") as Control).visible:
         push_error("Initial hero chooser is missing")
         quit(11)
+        return
+    if not _check_modal_fits(game.get("hero_overlay") as Control, "Startup class selection"):
+        quit(22)
         return
     if not await _save_capture("startup-hero-selection.png"):
         quit(12)
@@ -165,6 +184,10 @@ func _render_test() -> void:
         game.call("_close_inventory_panel")
         game.set("level", 75)
         game.call("_open_evolution_panel")
+        await create_timer(0.12).timeout
+        if not _check_modal_fits(game.get("evolution_overlay") as Control, "Evolution level 75"):
+            quit(23)
+            return
         if not await _save_capture("evolution-75-preview.png"):
             quit(20)
             return
