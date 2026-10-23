@@ -330,34 +330,46 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
             _stone(parent, p + Vector3(0, 0.06, 0), Vector3(randomizer.randf_range(0.34, 0.90), randomizer.randf_range(0.22, 0.60), randomizer.randf_range(0.44, 1.2)), rock_material)
 
 func _tree(parent: Node3D, at: Vector3) -> void:
-    # Multi-part trunk and irregular foliage clusters: these look like trees,
-    # not cylinders with a single oversized green sphere.
-    var bark := _solid(Color("392c25") if current_theme == 1 else Color("38392e") if current_theme == 2 else Color("44434a"))
-    var trunk_height: float = 2.4 + randomizer.randf_range(0.25, 1.5)
-    _column(parent, at, trunk_height, 0.24, bark, 7)
-    for limb in range(4):
-        var angle: float = TAU * float(limb) / 4.0 + randomizer.randf_range(-0.32, 0.32)
-        var length: float = randomizer.randf_range(0.7, 1.3)
-        var branch := _block(parent, at + Vector3(cos(angle) * length * 0.35, trunk_height * 0.75, sin(angle) * length * 0.35), Vector3(0.16, 0.16, length), bark)
-        branch.rotation.y = angle
-        branch.rotation.x = randomizer.randf_range(-0.27, 0.27)
-    var foliage_color := _solid(Color("397b45") if current_theme == 1 else Color("45603b") if current_theme == 2 else Color("4c7290"))
-    var foliage_light := _solid(Color("6e9f53") if current_theme == 1 else Color("71834b") if current_theme == 2 else Color("80a9b0"))
-    # Staggered conifer-like crowns replace the former oversized green spheres,
-    # which gave the forest a toy-model appearance even with PBR soil.
-    if current_theme == 5:
-        return # Haunted forest trees are skeletal silhouettes without foliage.
-    for cluster in range(6):
-        var tier: int = int(cluster / 3)
-        var angle: float = TAU * float(cluster % 3) / 3.0 + float(tier) * 0.60
-        var leaf := MeshInstance3D.new()
-        var foliage_radius: float = randomizer.randf_range(0.60, 0.90) * (1.0 - 0.18 * float(tier))
-        leaf.mesh = _unit_foliage
-        leaf.material_override = foliage_light if cluster % 3 == 0 else foliage_color
-        leaf.position = at + Vector3(cos(angle) * 0.46, trunk_height - 0.46 + float(tier) * 0.66, sin(angle) * 0.46)
-        leaf.scale = Vector3(foliage_radius, randomizer.randf_range(1.55, 2.18), foliage_radius)
-        leaf.rotation.y = angle
-        parent.add_child(leaf)
+    # Warcraft-inspired broad irregular canopies: sculpted chunky leaf masses,
+    # exaggerated branching and visible bark instead of Christmas-tree cones.
+    var grave: bool = current_theme == 5
+    var swamp: bool = current_theme == 2
+    var bark := _solid(Color("58412f") if current_theme == 1 else Color("37392b") if swamp else Color("47434a"))
+    var trunk_height: float = randomizer.randf_range(3.05, 4.45)
+    _column(parent, at, trunk_height, 0.35 if not grave else 0.25, bark, 7)
+    # Stylized root flares anchor trunks to the ground.
+    for root_index in range(3):
+        var angle: float = TAU * float(root_index) / 3.0 + randomizer.randf_range(-0.26, 0.26)
+        var root_at := at + Vector3(cos(angle) * 0.34, 0.25, sin(angle) * 0.34)
+        var root := _column(parent, root_at, 0.95, 0.16, bark, 5)
+        root.rotation.z = cos(angle) * 0.65
+        root.rotation.x = sin(angle) * 0.65
+    for limb_index in range(4):
+        var angle: float = TAU * float(limb_index) / 4.0 + randomizer.randf_range(-0.35, 0.35)
+        var limb := _block(parent, at + Vector3(cos(angle) * 0.45,
+            trunk_height * 0.82, sin(angle) * 0.45), Vector3(0.17, 0.21, 1.2), bark)
+        limb.rotation.y = angle
+        limb.rotation.x = randomizer.randf_range(-0.3, 0.3)
+    if grave:
+        return
+    var leaf_dark := _solid(Color("356742") if current_theme == 1 else Color("40573a"))
+    var leaf_light := _solid(Color("80a552") if current_theme == 1 else Color("697b42"))
+    var leaf_deep := _solid(Color("274c36") if current_theme == 1 else Color("30422e"))
+    # Shared faceted boulder mesh gets GPU-instanced together with terrain.
+    # Asymmetric lobes yield wide fantasy forest canopies with volume.
+    var total_lobes: int = 4 if swamp else 8
+    for cluster in range(total_lobes):
+        var angle: float = TAU * float(cluster) / float(total_lobes)
+        var radius: float = randomizer.randf_range(0.75, 1.65)
+        var height: float = trunk_height + randomizer.randf_range(-0.20, 1.32)
+        var position := at + Vector3(cos(angle) * radius, height, sin(angle) * radius)
+        var size := Vector3(randomizer.randf_range(1.28, 1.86),
+            randomizer.randf_range(0.85, 1.30), randomizer.randf_range(1.12, 1.78))
+        _stone(parent, position, size,
+            leaf_light if cluster % 3 == 0 else leaf_deep if cluster % 4 == 0 else leaf_dark)
+    _stone(parent, at + Vector3(0, trunk_height + 1.00, 0),
+        Vector3(1.40, 1.22, 1.38), leaf_dark)
+
 
 func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
     # Off-path props communicate biome instantly at portrait-phone scale.
