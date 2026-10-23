@@ -218,6 +218,7 @@ jobs:
             build/gameplay-preview*.png
             build/biome-*.png
             build/boss-preview.png
+            build/boss-biome-*.png
             build/hero-selection-preview.png
             build/startup-hero-selection.png
             build/hero-detail-preview.png
