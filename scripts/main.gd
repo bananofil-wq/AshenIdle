@@ -30,10 +30,10 @@ const CLASS_DESCRIPTIONS = [
     "Shadow fighter. Steals life with each strike."
 ]
 const CLASS_SKILL_DESCRIPTIONS = [
-    ["Flame: elemental slash", "Shield: restores health", "Inferno: mass fire damage"],
-    ["Volley: multiple arrows", "Trap: area control", "Arrowfall: storm of arrows"],
-    ["Fire: explosive spell", "Frost: cold shockwave", "Arcane: extreme magical burst"],
-    ["Reap: life-stealing strike", "Void: dark blast", "Nightfall: shadow devastation"]
+    ["Fire-infused melee", "Restores your health", "Massive fire damage"],
+    ["Hits several foes", "Controls groups of enemies", "Storm of arrows"],
+    ["Explosive fire magic", "Frost shockwave", "Devastating arcane burst"],
+    ["Steals life on hit", "Dark energy blast", "Powerful shadow attack"]
 ]
 const SAVE_FILE = "user://save_v2.json"
 
@@ -364,7 +364,7 @@ func _build_ui() -> void:
     map_dots = Control.new()
     map_dots.custom_minimum_size = Vector2(167, 103)
     map_column.add_child(map_dots)
-    stage_banner = _label("", 19, Color("f0c997"))
+    stage_banner = _label("", 17, Color("f0c997"))
     map_column.add_child(stage_banner)
 
     var controls := VBoxContainer.new()
@@ -552,8 +552,8 @@ func _build_ui() -> void:
     talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 60)))
 
     hero_overlay = PanelContainer.new()
-    hero_overlay.position = Vector2(80, (overlay.size.y - 928.0) * 0.5)
-    hero_overlay.size = Vector2(560, 928)
+    hero_overlay.position = Vector2(80, (overlay.size.y - 820.0) * 0.5)
+    hero_overlay.size = Vector2(560, 820)
     hero_overlay.z_index = 41
     hero_overlay.visible = false
     hero_overlay.add_theme_stylebox_override("panel", _skin(Color("0b0d15f7"), Color("a78053")))
@@ -1398,7 +1398,7 @@ func _refresh() -> void:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
     if hero_mana_label != null:
         hero_mana_label.text = "MP %.0f / %.0f   +%.0f / sec" % [mp, _max_mp(), _mana_regeneration()]
-    stage_banner.text = "ACT %d  •  FLOOR %d/10%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, "  BOSS" if stage % BOSS_INTERVAL == 0 else ""]
+    stage_banner.text = "ACT %d  •  %d/10%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, " BOSS" if stage % BOSS_INTERVAL == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
         boss_panel.visible = stage % BOSS_INTERVAL == 0
