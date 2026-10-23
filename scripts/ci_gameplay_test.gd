@@ -408,6 +408,11 @@ func _run() -> void:
         var millis: int = Time.get_ticks_msec() - started
         slowest_ms = maxi(slowest_ms, millis)
         var builder: Node3D = game.get("dungeon_map")
+        var original_primitives: int = int(builder.get("unbatched_box_count"))
+        var new_batches: int = int(builder.get("box_batch_count"))
+        if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
+            quit(81)
+            return
         var room_mesh: MeshInstance3D = builder.get_node_or_null("Chamber_1/IrregularFloor_1") as MeshInstance3D
         if not _check(room_mesh != null and room_mesh.mesh != null, "Rooms need genuine irregular polygon meshes, not rectangle primitives"):
             quit(76)
@@ -426,6 +431,7 @@ func _run() -> void:
     if not _check(slowest_ms < 4500, "One floor generation exceeds 4.5 seconds on hosted CI hardware"):
         quit(80)
         return
+    print("PERFORMANCE QA PASS: dungeon primitives instanced into material batches, %d generated in %d batches. Peak stage generation %dms" % [int(dungeon.get("unbatched_box_count")), int(dungeon.get("box_batch_count")), slowest_ms])
     print("GRAPHICS V3 QA PASS: %d photographic terrain families, four 3D class previews, 12 skill glyphs, five room silhouettes, all biome boss arenas, layered atmosphere. Peak generation %dms" % [material_count, slowest_ms])
     print("SKILL/ART/AUDIO QA PASS: level gates, per-class ranks, 4+ chain jumps, zoomed camera, differentiated audio and three-dimensional terrain")
     print("GAMEPLAY TEST PASS: three moving encounters per floor, distinct deterministic layouts, biome change after 10 floors, end-room bosses, animated hero, loot, skills and equipment")
