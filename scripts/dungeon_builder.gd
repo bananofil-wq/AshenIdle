@@ -433,6 +433,27 @@ func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
             root.rotation.y = randomizer.randf_range(0, PI)
 
 
+func _biome_beacon(parent: Node3D, center: Vector3, room_id: int) -> void:
+    # Two small pool lights per level produce alternating warm/cool contrast
+    # on actual stone and cliffs. Lights are unshadowed, short-range and only
+    # affect nearby props; unlike full-scene fog/shadows this is mobile-friendly.
+    if room_id % 2 != 0:
+        return
+    var side: float = -1.0 if room_id == 0 else 1.0
+    var at: Vector3 = center + Vector3(side * 4.75, 0.0, -2.45)
+    _column(parent, at, 1.12, 0.28, rock_material, 6)
+    _stone(parent, at + Vector3(0, 1.07, 0), Vector3(0.57, 0.25, 0.57), rock_material)
+    _spike(parent, at + Vector3(0, 1.18, 0), 0.64, 0.19, accent_material)
+    var glow := OmniLight3D.new()
+    glow.name = "WorldLight_%d" % room_id
+    glow.position = at + Vector3(0, 1.65, 0)
+    glow.light_color = Color(ACCENTS[current_theme]).lerp(Color("f1dcc3"), 0.22)
+    glow.light_energy = 0.62
+    glow.omni_range = 7.2
+    glow.shadow_enabled = false
+    parent.add_child(glow)
+
+
 func _boss_sanctum(parent: Node3D, center: Vector3) -> void:
     # A distinct final arena for each biome, not three ordinary mob rooms.
     var boss_stage := Node3D.new()
@@ -726,6 +747,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         var p: Vector3 = walk_points[i]
         _room_floor(room, p, i)
         _surface_story(room, p, i)
+        _biome_beacon(room, p, i)
         _weather_particles(room, p, i)
         for side in [-1.0, 1.0]:
             if current_theme != 2:
