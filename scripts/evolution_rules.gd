@@ -17,6 +17,12 @@ const BRANCH_FEATURES := [
 ]
 # Later tiers upgrade the chosen branch with stronger passive/triggered effects.
 const WEIGHTS := [1.0, 1.5, 2.1, 3.2]
+const CLASS_UNIQUES := [
+    ["Warrior: burning cleave.", "Knight: extra boss mitigation.", "Templar: faster runic casting."],
+    ["Ranger: deadly precision.", "Warden: stronger kill-healing.", "Seeker: wider arrow storms."],
+    ["Mage: blazing spell damage.", "Guardian: reinforced magic defense.", "Weaver: extra lightning jumps."],
+    ["Reaper: life-stealing strikes.", "Sentinel: empowered regeneration.", "Caller: MP restored on casting."]
+]
 
 static func valid_choices(raw: Variant) -> Array:
     var result: Array = [-1, -1, -1, -1]
@@ -59,16 +65,16 @@ static func perk_description(class_id: int, tier: int, branch: int) -> String:
     var weight: float = float(WEIGHTS[tier])
     match branch:
         0:
-            return "%s\n+%d%% damage, +%d%% critical chance. Every fifth strike cleaves nearby foes." % [
-                BRANCH_FEATURES[class_id][0], int(round(7.0 * weight)), int(round(3.0 * weight))
+            return "%s\n+%d%% damage, +%d%% critical chance. Every fifth strike cleaves nearby foes. %s" % [
+                BRANCH_FEATURES[class_id][0], int(round(7.0 * weight)), int(round(3.0 * weight)), CLASS_UNIQUES[class_id][0]
             ]
         1:
-            return "%s\n+%d%% maximum health, +%d%% damage reduction. Recover health on every kill." % [
-                BRANCH_FEATURES[class_id][1], int(round(12.0 * weight)), int(round(2.2 * weight))
+            return "%s\n+%d%% maximum health, +%d%% damage reduction. Recover health on every kill. %s" % [
+                BRANCH_FEATURES[class_id][1], int(round(12.0 * weight)), int(round(2.2 * weight)), CLASS_UNIQUES[class_id][1]
             ]
         2:
-            return "%s\n+%d%% spell damage, -%d%% cooldowns, increased MP and mana recovery." % [
-                BRANCH_FEATURES[class_id][2], int(round(12.0 * weight)), int(round(6.0 * weight))
+            return "%s\n+%d%% spell damage, -%d%% cooldowns, increased MP and mana recovery. %s" % [
+                BRANCH_FEATURES[class_id][2], int(round(12.0 * weight)), int(round(6.0 * weight)), CLASS_UNIQUES[class_id][2]
             ]
     return ""
 
