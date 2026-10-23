@@ -491,11 +491,11 @@ func _build_ui() -> void:
     legendary_item_display = Node3D.new()
     legendary_item_viewport.add_child(legendary_item_display)
     var item_camera := Camera3D.new()
+    legendary_item_viewport.add_child(item_camera)
     item_camera.position = Vector3(0, 0.35, 4.3)
     item_camera.look_at(Vector3(0, 0.18, 0), Vector3.UP)
     item_camera.fov = 36
     item_camera.current = true
-    legendary_item_viewport.add_child(item_camera)
     var item_light := DirectionalLight3D.new()
     item_light.rotation_degrees = Vector3(-48, -30, 0)
     item_light.light_color = Color("ffe0ae")
