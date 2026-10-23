@@ -1193,8 +1193,8 @@ func _pose_fantasy_skeleton(actor: Node3D, speed: float) -> void:
             var right_side: bool = bone_name.contains("right") or bone_name.ends_with("_r") or bone_name.ends_with(".r")
             if not left_side and not right_side:
                 continue
-            var is_arm: bool = (bone_name.contains("upperarm") or bone_name.contains("upper_arm") or bone_name.contains("arm_upper") or bone_name.contains("shoulder"))
-            var is_leg: bool = bone_name.contains("upperleg") or bone_name.contains("upper_leg") or bone_name.contains("thigh")
+            var is_arm: bool = (bone_name.contains("upperarm") or bone_name.contains("upper_arm") or bone_name.contains("arm_upper") or bone_name.contains("shoulder") or ((bone_name.contains("leftarm") or bone_name.contains("rightarm") or bone_name.contains("arm_l") or bone_name.contains("arm_r")) and not bone_name.contains("forearm")))
+            var is_leg: bool = bone_name.contains("upperleg") or bone_name.contains("upper_leg") or bone_name.contains("thigh") or bone_name.contains("upleg") or bone_name.contains("up_leg")
             if not is_arm and not is_leg:
                 continue
             var angle: float = 0.0
