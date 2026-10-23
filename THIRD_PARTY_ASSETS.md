@@ -28,3 +28,12 @@ The game is a development prototype, and these stylized assets are not intended 
 - Files downloaded at build time: floor_tile_large, floor_tile_large_rocks, floor_tile_small_broken_A, pillar_decorated, wall_broken and torch_lit (glTF GLB formats)
 - License: CC0 1.0 Universal
 - License text: https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0/blob/main/LICENSE.txt
+
+## Kenney RPG Audio, Impact Sounds and Sci-fi Sounds
+- Creator: Kenney (https://kenney.nl/assets/)
+- Original packs: https://kenney.nl/assets/rpg-audio , https://kenney.nl/assets/impact-sounds , https://kenney.nl/assets/sci-fi-sounds
+- Selected original OGG recordings are downloaded by `scripts/fetch_audio.py` during CI before Godot import.
+- Source mirror: https://github.com/GeorgeQLe/assets-sfx-combat
+- License: Creative Commons CC0 1.0 Universal. No attribution required.
+- Used for sword attacks, boss/impact audio, looting, class abilities, and concrete/snow/grass/wood footsteps.
+- The game also includes an original synthesized audio fallback if any OGG is unavailable in a development environment.
