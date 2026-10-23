@@ -2930,9 +2930,9 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
                 var branch := _cone(visual, 0.27, 0.07, 1.48,
                     Vector3(sign * 0.62, 1.47, 0), bark)
                 branch.rotation.z = sign * 0.78
-                var root := _cone(visual, 0.36, 0.10, 1.05,
+                var tree_root := _cone(visual, 0.36, 0.10, 1.05,
                     Vector3(sign * 0.34, 0.39, 0), bark.darkened(0.15))
-                root.rotation.z = sign * 0.43
+                tree_root.rotation.z = sign * 0.43
                 _sphere_part(visual, 0.42, Vector3(sign * 0.88, 2.07, 0.12), canopy)
                 _sphere_part(visual, 0.12, Vector3(sign * 0.19, 1.92, 0.45), Color("ffbe65"))
             _sphere_part(visual, 0.52, Vector3(0, 2.32, -0.10), canopy.lightened(0.14))
