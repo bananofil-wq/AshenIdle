@@ -196,12 +196,29 @@ func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
     mesh_builder.begin(Mesh.PRIMITIVE_TRIANGLES)
     var rim := PackedVector3Array()
     var count: int = 22
+    var room_shape: int = posmod(current_stage + room_id, 5)
     var room_width: float = 5.6 + float((current_stage + room_id) % 3) * 0.45
     var room_depth: float = 5.8 + float((room_id + current_stage) % 4) * 0.31
     for j in range(count):
         var angle: float = TAU * float(j) / float(count)
-        var jagged: float = randomizer.randf_range(0.88, 1.08)
-        rim.append(Vector3(cos(angle) * room_width * jagged, -0.16, sin(angle) * room_depth * jagged))
+        var jagged: float = randomizer.randf_range(0.94, 1.06)
+        var width_scale: float = 1.0
+        var depth_scale: float = 1.0
+        match room_shape:
+            0: # circular subterranean chapel
+                width_scale = 1.06
+            1: # narrow longitudinal shrine
+                width_scale = 0.84
+                depth_scale = 1.18
+            2: # asymmetric cavern with a wider southern bay
+                width_scale = 0.95 + 0.16 * sin(angle)
+            3: # broken star chamber
+                width_scale = 0.95 + 0.10 * sin(angle * 5.0)
+                depth_scale = 0.97 + 0.08 * sin(angle * 5.0)
+            4: # wide combat courtyard
+                width_scale = 1.24
+                depth_scale = 0.90
+        rim.append(Vector3(cos(angle) * room_width * jagged * width_scale, -0.16, sin(angle) * room_depth * jagged * depth_scale))
     var middle := Vector3(0.0, -0.16, 0.0)
     for j in range(count):
         var a: Vector3 = rim[j]
@@ -212,6 +229,7 @@ func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
     mesh_builder.generate_normals()
     var platform := MeshInstance3D.new()
     platform.name = "IrregularFloor_%d" % room_id
+    platform.set_meta("room_shape", room_shape)
     platform.mesh = mesh_builder.commit()
     platform.material_override = floor_material
     platform.position = center
