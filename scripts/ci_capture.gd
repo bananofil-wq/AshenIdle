@@ -102,6 +102,9 @@ func _render_test() -> void:
         if not await _save_capture("skills-ultimate-shadow.png"):
             quit(27)
             return
+        # Isolate the lightning art so the previous lasting shadow ultimate
+        # does not turn the second screenshot into a layered spiderweb.
+        vfx.call("clear_all")
         vfx.call("cast", 2, 1, 6, fx_hero.global_position, fx_center,
             [fx_center + Vector3(1.5, 0, 0), fx_center + Vector3(-1.0, 0, -1)])
         await create_timer(0.09).timeout
