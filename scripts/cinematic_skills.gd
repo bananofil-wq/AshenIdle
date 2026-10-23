@@ -10,7 +10,7 @@ const PALETTE := [
     [Color("ff7a36"), Color("ffb255"), Color("b51b19")],
     [Color("93dd69"), Color("9fefff"), Color("e7c77a")],
     [Color("ec8153"), Color("98ddff"), Color("dcb3ff")],
-    [Color("e8516c"), Color("ac67f3"), Color("ed3d59")]
+    [Color("ad4355"), Color("7950a2"), Color("b42c4d")]
 ]
 var effects: Array = []
 var elapsed := 0.0
@@ -28,7 +28,7 @@ func _ready() -> void:
             var rel := Vector2(float(x) - 47.5, float(y) - 47.5) / 47.5
             var distance: float = rel.length()
             var swirls: float = 0.56 + 0.25 * sin(rel.x * 14.0 + rel.y * 7.0) * sin(rel.y * 12.0 - rel.x * 4.0)
-            var alpha: float = pow(maxf(0.0, 1.0 - distance), 2.5) * swirls
+            var alpha: float = pow(maxf(0.0, 1.0 - distance), 1.5) * swirls
             image.set_pixel(x, y, Color(1.0, 1.0, 1.0, alpha))
     haze_texture = ImageTexture.create_from_image(image)
 
@@ -90,7 +90,7 @@ func _material(color: Color, alpha: float = 0.85, additive: bool = true) -> Stan
     mat.albedo_color = Color(color.r, color.g, color.b, alpha)
     mat.emission_enabled = true
     mat.emission = color
-    mat.emission_energy_multiplier = 1.35 if additive else 0.60
+    mat.emission_energy_multiplier = 0.68 if additive else 0.06
     return mat
 
 func _spawn(mesh: Mesh, at: Vector3, color: Color, alpha: float,
@@ -111,7 +111,7 @@ func _smoke(at: Vector3, extent: float, duration: float = 1.4) -> void:
     var shape := PlaneMesh.new()
     shape.size = Vector2(extent, extent)
     var plume := _spawn(shape, at + Vector3(0, 0.18, 0),
-        Color("442735"), 0.64, duration, "smoke", false)
+        Color("0c0715"), 0.91, duration, "smoke", false)
     if plume != null:
         var mat: StandardMaterial3D = plume.material_override as StandardMaterial3D
         mat.albedo_texture = haze_texture
@@ -143,8 +143,10 @@ func _ring(at: Vector3, radius: float, width: float, tint: Color,
     var mesh := TorusMesh.new()
     mesh.inner_radius = radius - width
     mesh.outer_radius = radius
-    mesh.rings = 4
-    mesh.ring_segments = 54
+    # Major-ring subdivisions, not tube subdivisions. Four rings created a
+    # giant bright DIAMOND instead of a circular shockwave on Godot.
+    mesh.rings = 64
+    mesh.ring_segments = 8
     var node := _spawn(mesh, at + Vector3(0, 0.105, 0), tint, alpha, duration, style)
     if node != null and style == "shock":
         node.scale = Vector3.ONE * 0.46
@@ -201,7 +203,7 @@ func _sigil(center: Vector3, radius: float, tint: Color,
         if i % 3 == 0:
             paths.append([q * radius * 0.58, q.rotated(Vector3.UP, 0.24) * radius * 0.77, 0.023])
     var mesh: Mesh = _mesh_from_strokes(paths, 0.024)
-    _spawn(mesh, center + Vector3(0, 0.15, 0), tint, 0.79, lifetime, "rune")
+    _spawn(mesh, center + Vector3(0, 0.15, 0), tint, 0.40, lifetime, "rune")
 
 func _fractures(center: Vector3, radius: float, tint: Color,
         duration: float = 1.5, thorns: int = 7) -> void:
@@ -217,7 +219,7 @@ func _fractures(center: Vector3, radius: float, tint: Color,
                 cos(theta + angular_wiggle) * radius * progress,
                 0.0,
                 sin(theta + angular_wiggle) * radius * progress)
-            paths.append([previous, endpoint, 0.085 * (1.1 - progress * 0.58)])
+            paths.append([previous, endpoint, 0.058 * (1.1 - progress * 0.58)])
             if j == 3 or j == 5:
                 var off := theta + (0.38 if j == 3 else -0.43)
                 var fork := endpoint + Vector3(cos(off) * radius * 0.27, 0,
@@ -227,12 +229,12 @@ func _fractures(center: Vector3, radius: float, tint: Color,
     var background: Array = paths + branch_paths
     _spawn(_mesh_from_strokes(background, 0.08),
         center + Vector3(0, 0.115, 0), Color("100b17"), 0.91, duration * 1.22, "fissure", false)
-    _spawn(_mesh_from_strokes(paths, 0.065),
-        center + Vector3(0, 0.142, 0), tint, 0.75, duration, "fissure")
-    _ring(center, radius * 0.74, 0.055, tint, 0.50, "shock", 0.8)
+    _spawn(_mesh_from_strokes(paths, 0.046),
+        center + Vector3(0, 0.142, 0), tint, 0.46, duration, "fissure")
+    _ring(center, radius * 0.74, 0.045, tint, 0.45, "shock", 0.44)
 
 func _whip(origin: Vector3, destination: Vector3, tint: Color,
-        width: float = 0.20, duration: float = 0.42) -> void:
+        width: float = 0.20, duration: float = 0.42, dark: bool = false) -> void:
     # One continuous sinuous mesh, not a single rigid neon tube.
     var axis: Vector3 = destination - origin
     var across := Vector3(-axis.z, 0, axis.x).normalized()
@@ -245,7 +247,9 @@ func _whip(origin: Vector3, destination: Vector3, tint: Color,
         now.y = (axis * f).y + sin(f * PI) * 0.2
         paths.append([previous, now, width * (1.05 - 0.55 * f)])
         previous = now
-    _spawn(_mesh_from_strokes(paths, width), origin, tint, 0.82, duration, "beam")
+    _spawn(_mesh_from_strokes(paths, width), origin,
+        tint if not dark else tint.darkened(0.38),
+        0.58 if not dark else 0.53, duration, "beam", not dark)
 
 func _embers(at: Vector3, tint: Color, power: int = 10) -> void:
     # Tiny procedural rising tongues have depth and motion without a giant
@@ -258,6 +262,14 @@ func _embers(at: Vector3, tint: Color, power: int = 10) -> void:
             randomizer.randf_range(0.025, 0.095),
             tint.lightened(randomizer.randf_range(0.08, 0.45)), 0.45)
         sparks_total += 1
+
+func clear_all() -> void:
+    for entry in effects:
+        var node: MeshInstance3D = entry["node"] as MeshInstance3D
+        if is_instance_valid(node):
+            node.queue_free()
+    effects.clear()
+
 
 func cast(hero_class: int, slot: int, rank: int, start: Vector3,
         destination: Vector3, targets: Array) -> void:
@@ -300,7 +312,7 @@ func cast(hero_class: int, slot: int, rank: int, start: Vector3,
                     _ring(point, 0.47, 0.08, primary, 0.28)
                     current = endpoint
             else:
-                _whip(origin, impact + Vector3(0, 0.15, 0), Color("4d1945"), 0.31, 0.7)
+                _whip(origin, impact + Vector3(0, 0.15, 0), Color("4d1945"), 0.18, 0.7, true)
                 _smoke(destination, 4.8 + scale_bonus, 1.7)
                 _fractures(destination, 2.35 + scale_bonus, primary, 1.8, 9)
                 _sigil(destination, 1.7 + scale_bonus, Color("b36ae0"), 1.6, 24)
@@ -311,19 +323,22 @@ func cast(hero_class: int, slot: int, rank: int, start: Vector3,
             var radius: float = 2.35 + scale_bonus * 1.5
             _smoke(destination, radius * 3.0, 2.3)
             _sigil(destination, radius, primary, 1.85, 32)
-            _ring(destination, radius * 0.86, 0.16, primary, 0.7, "charge", 0.72)
+            _ring(destination, radius * 0.86, 0.10, primary, 0.7, "charge", 0.45)
             _fractures(destination, radius * 1.30, primary, 2.15, 10)
-            _ring(destination, radius, 0.19, Color("f9d1b1"), 0.53, "shock")
-            for i in range(5):
-                var theta: float = TAU * float(i) / 5.0
+            _ring(destination, radius, 0.105,
+                primary.lightened(0.33), 0.53, "shock", 0.47)
+            # A handful of heavy smoky tendrils, not five glowing white
+            # ribbons crossing at the same spot (the old neon spiderweb).
+            for i in range(3):
+                var theta: float = TAU * float(i) / 3.0
                 var edge := destination + Vector3(cos(theta) * radius * 0.9,
                     randomizer.randf_range(0.32, 0.8), sin(theta) * radius * 0.9)
-                _whip(origin, edge, primary, 0.17, 0.65)
+                _whip(origin, edge, primary, 0.085, 0.58, cls == 3)
             if cls == 2:
                 for i in range(mini(targets.size(), 6)):
                     var point: Vector3 = targets[i] as Vector3
                     _bolts(origin, point + Vector3(0, 0.8, 0), primary, 2)
             elif cls == 3:
-                _sigil(destination, radius * 1.2, Color("3a153d"), 2.7, 28)
-                _fractures(destination, radius * 1.55, Color("d32955"), 2.5, 12)
+                _sigil(destination, radius * 1.2, Color("30172c"), 2.7, 20)
+                _fractures(destination, radius * 1.44, Color("8e244a"), 2.5, 7)
             _embers(destination, Color("ffb983") if cls == 0 else primary, 9)
