@@ -77,6 +77,12 @@ func _process(delta: float) -> void:
             tint.a = float(effect["alpha"]) * opacity
             material.albedo_color = tint
         if t >= 1.0:
+            if kind == "travel":
+                # A projectile finishes at the actual enemy location with a
+                # small flash (not a persistent screen-filling laser).
+                var at: Vector3 = effect["to"]
+                _ring(at, 0.35, 0.075, effect["color"], 0.24, "shock", 0.63)
+                _embers(at, effect["color"], 3)
             node.queue_free()
             effects.remove_at(i)
 
@@ -262,6 +268,53 @@ func _embers(at: Vector3, tint: Color, power: int = 10) -> void:
             randomizer.randf_range(0.025, 0.095),
             tint.lightened(randomizer.randf_range(0.08, 0.45)), 0.45)
         sparks_total += 1
+
+func shoot_basic(hero_class: int, origin: Vector3, target: Vector3, critical: bool = false) -> void:
+    # A real moving mesh visibly travels FROM the actor TO the foe. Previous
+    # combat used invisible instant damage and only drew a beam at the victim.
+    var span: Vector3 = target - origin
+    if span.length_squared() < 0.20 or effects.size() > MAX_EFFECTS - 9:
+        return
+    var cls: int = clampi(hero_class, 0, 3)
+    var colors := [Color("ffac63"), Color("bddb7b"), Color("86caff"), Color("d473a5")]
+    var tint: Color = colors[cls].lightened(0.20 if critical else 0.0)
+    var bolt_mesh: Mesh
+    if cls == 1:
+        var arrow := CylinderMesh.new()
+        arrow.top_radius = 0.014
+        arrow.bottom_radius = 0.033
+        arrow.height = 0.68
+        arrow.radial_segments = 6
+        bolt_mesh = arrow
+    elif cls == 3:
+        var void_sphere := SphereMesh.new()
+        void_sphere.radius = 0.16
+        void_sphere.height = 0.32
+        void_sphere.radial_segments = 10
+        void_sphere.rings = 5
+        bolt_mesh = void_sphere
+    else:
+        var orb := SphereMesh.new()
+        orb.radius = 0.18 if critical else 0.13
+        orb.height = 0.36 if critical else 0.26
+        orb.radial_segments = 10
+        orb.rings = 5
+        bolt_mesh = orb
+    var distance: float = origin.distance_to(target)
+    var time_to_hit: float = clampf(distance / (13.5 if cls == 1 else 11.2), 0.12, 0.50)
+    var projectile := _spawn(bolt_mesh, origin, tint, 0.98,
+        time_to_hit, "travel")
+    if projectile == null:
+        return
+    if cls == 1:
+        projectile.quaternion = Quaternion(Vector3.UP, span.normalized())
+    var data: Dictionary = effects.back()
+    data["from"] = origin
+    data["to"] = target
+    # Brief tapering energy afterimage, avoids exposing effects as white rods.
+    if cls == 2 or cls == 3:
+        _beam(origin, origin.lerp(target, 0.33), 0.035, tint, 0.16, 0.38)
+
 
 func clear_all() -> void:
     for entry in effects:
