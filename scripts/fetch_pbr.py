@@ -10,7 +10,7 @@ from urllib.request import urlopen
 from urllib.error import URLError
 import time
 
-MATERIALS = ["snow_02", "forest_ground_01", "rock_face_03", "volcanic_rock_tiles", "rock_06"]
+MATERIALS = ["snow_02", "forrest_ground_01", "rock_face_03", "volcanic_rock_tiles", "rock_06"]
 CHANNELS = ["diff", "nor_gl", "rough"]
 DEST = Path("assets/pbr")
 DEST.mkdir(exist_ok=True, parents=True)
