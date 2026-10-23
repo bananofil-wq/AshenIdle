@@ -1133,9 +1133,12 @@ func _fight() -> void:
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     if hero_class == 3:
         hp = minf(_max_hp(), hp + damage * 0.035)
-    if hero_class == 2 or hero_class == 3:
-        # Directional caster bolts: a visible link from the moving hero to the target.
-        _energy_arc(hero.global_position + Vector3(0.0, 1.45, 0.0), target.global_position + Vector3(0.0, 0.95, 0.0), Color("a86aff") if hero_class == 2 else Color("ed4058"), 0.075 if crit else 0.046)
+    # The earlier long neon lines were stationary VFX. Rangers and casters
+    # now launch a real traveling projectile from the weapon to the target.
+    if cinematic_skills != null and (hero_class != 0 or hero.global_position.distance_to(target.global_position) > 2.2):
+        cinematic_skills.call("shoot_basic", hero_class,
+            hero.global_position + Vector3(0.0, 1.25, 0.0),
+            target.global_position + Vector3(0.0, 0.90, 0.0), crit)
     var impact_point: Vector3 = target.global_position
     _hit_mob(target, damage, crit)
     if hero_class == 3 and _evolution_weight(0) > 0.0:
