@@ -686,6 +686,7 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
         holder.add_child(viewport_holder)
         var preview_viewport := SubViewport.new()
         preview_viewport.size = Vector2i(216, 298)
+        preview_viewport.own_world_3d = true
         preview_viewport.transparent_bg = true
         preview_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
         viewport_holder.add_child(preview_viewport)
@@ -694,6 +695,14 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
             preview_viewport.add_child(preview_model)
             _fit_visual_model(preview_model, 2.6)
             preview_model.rotation.y = -0.38
+            _attach_hero_clips(preview_model)
+            for clip_node in preview_model.find_children("*", "AnimationPlayer", true, false):
+                var animation_player: AnimationPlayer = clip_node as AnimationPlayer
+                if animation_player != null:
+                    for clip in animation_player.get_animation_list():
+                        if str(clip).to_lower().contains("idle"):
+                            animation_player.play(str(clip))
+                            break
             var camera := Camera3D.new()
             camera.position = Vector3(2.65, 2.18, 4.65)
             camera.fov = 37.0
@@ -715,8 +724,9 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
     emblem.set("class_id", class_id)
     emblem.set("accent", accent)
     if packed != null:
-        emblem.position = Vector2(71, 1)
-        emblem.size = Vector2(33, 42)
+        emblem.position = Vector2(66, 2)
+        emblem.size = Vector2(108, 149)
+        emblem.scale = Vector2(0.34, 0.34)
     else:
         emblem.size = Vector2(108, 149)
     emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1111,11 +1121,11 @@ func _apply_biome() -> void:
     scene.fog_enabled = true
     scene.fog_light_color = [Color("59423d"), Color("64879b"), Color("526851"), Color("48305e"), Color("704238")][next_biome]
     scene.fog_density = [0.009, 0.006, 0.004, 0.010, 0.008][next_biome]
-    scene.adjustment_brightness = [0.83, 0.96, 0.87, 0.77, 0.86][next_biome]
-    scene.adjustment_saturation = [0.79, 0.78, 0.96, 0.78, 0.99][next_biome]
+    scene.adjustment_brightness = [0.73, 0.72, 0.77, 0.70, 0.79][next_biome]
+    scene.adjustment_saturation = [0.78, 0.73, 0.84, 0.84, 0.92][next_biome]
     if key_sun != null:
         key_sun.light_color = [Color("ffbd88"), Color("c2e7ff"), Color("c3dda1"), Color("bc9aff"), Color("ffa16b")][next_biome]
-        key_sun.light_energy = [1.05, 1.13, 1.06, 0.88, 1.10][next_biome]
+        key_sun.light_energy = [0.86, 0.74, 0.88, 0.76, 0.95][next_biome]
     scene.ambient_light_color = [Color("677186"), Color("88b5c8"), Color("79a27a"), Color("805aa6"), Color("aa634b")][next_biome]
     if fire_light != null:
         fire_light.light_color = [Color("ff6332"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
