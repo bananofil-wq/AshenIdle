@@ -59,6 +59,19 @@ func _render_test() -> void:
         return
 
     if suffix == "tall":
+        # Capture the five different biome families from the actual Godot renderer.
+        # Each floor creates a new traversable path, not a recolored static arena.
+        for biome_floor in [11, 21, 31, 41]:
+            game.set("stage", biome_floor)
+            game.call("_spawn_enemy")
+            game.call("_refresh")
+            await create_timer(0.12).timeout
+            if not await _save_capture("biome-%d.png" % biome_floor):
+                quit(14)
+                return
+        game.set("stage", 8)
+        game.call("_spawn_enemy")
+        game.call("_refresh")
         # Inspect actual hero asset at game size with mobs hidden (not concept art).
         for mob in (game.get("arena_mobs") as Array).duplicate():
             if is_instance_valid(mob):
