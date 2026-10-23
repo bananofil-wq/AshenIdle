@@ -530,6 +530,22 @@ func _run() -> void:
         if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
             quit(81)
             return
+        # Graphics V4: relief must be real geometry and distant props should
+        # not share one scene-wide MultiMesh that defeats frustum culling.
+        var left_bank: MeshInstance3D = builder.get_node_or_null("ExteriorTerrain/TerrainBank_Left") as MeshInstance3D
+        var right_bank: MeshInstance3D = builder.get_node_or_null("ExteriorTerrain/TerrainBank_Right") as MeshInstance3D
+        if not _check(left_bank != null and right_bank != null and left_bank.mesh != null and right_bank.mesh != null, "Every biome requires two real sculpted terrain banks"):
+            quit(101)
+            return
+        if not _check(left_bank.mesh.get_aabb().size.y > 0.25 and right_bank.mesh.get_aabb().size.y > 0.25, "Exterior landscape must not be a flat plane"):
+            quit(102)
+            return
+        var regions: Dictionary = {}
+        for batch_node in builder.find_children("BatchedEnvironment_*", "MultiMeshInstance3D", true, false):
+            regions[int(batch_node.get_meta("spatial_chunk", 10000))] = true
+        if not _check(regions.size() >= 2 and not regions.has(10000), "Batched scenery must have separate spatially culled sections"):
+            quit(103)
+            return
         var room_mesh: MeshInstance3D = builder.get_node_or_null("Chamber_1/IrregularFloor_1") as MeshInstance3D
         if not _check(room_mesh != null and room_mesh.mesh != null, "Rooms need genuine irregular polygon meshes, not rectangle primitives"):
             quit(76)
@@ -549,7 +565,7 @@ func _run() -> void:
         quit(80)
         return
     print("PERFORMANCE QA PASS: dungeon primitives instanced into material batches, %d generated in %d batches. Peak stage generation %dms" % [int(dungeon.get("unbatched_box_count")), int(dungeon.get("box_batch_count")), slowest_ms])
-    print("GRAPHICS V3 QA PASS: %d photographic terrain families, four 3D class previews, 12 skill glyphs, five room silhouettes, all biome boss arenas, layered atmosphere. Peak generation %dms" % [material_count, slowest_ms])
+    print("GRAPHICS V4 QA PASS: %d photographic terrain families, four 3D class previews, 12 skill glyphs, five room silhouettes, all biome boss arenas, layered atmosphere, sculpted terrain and spatial culling. Peak generation %dms" % [material_count, slowest_ms])
     print("SKILL/ART/AUDIO QA PASS: level gates, per-class ranks, 4+ chain jumps, zoomed camera, differentiated audio and three-dimensional terrain")
     print("GAMEPLAY TEST PASS: three moving encounters per floor, distinct deterministic layouts, biome change after 10 floors, end-room bosses, animated hero, loot, skills and equipment")
     quit(0)
