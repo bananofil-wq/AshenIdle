@@ -1548,23 +1548,25 @@ func _apply_biome() -> void:
         Color("536c84"), Color("625775"), Color("4b83aa")][next_biome]
     scene.fog_density = [0.0020, 0.0026, 0.0042, 0.0030, 0.0030,
         0.0038, 0.0028, 0.0045, 0.0023, 0.0028][next_biome]
-    scene.adjustment_brightness = [1.04, 1.06, 1.0, 1.02, 1.03,
-        1.01, 1.10, 1.05, 1.06, 1.08][next_biome]
-    scene.adjustment_contrast = [1.17, 1.16, 1.16, 1.14, 1.18,
-        1.2, 1.14, 1.2, 1.18, 1.18][next_biome]
+    scene.adjustment_brightness = [1.075, 1.075, 1.025, 1.04, 1.045,
+        1.055, 1.10, 1.07, 1.065, 1.09][next_biome]
+    scene.adjustment_contrast = [1.10, 1.13, 1.13, 1.14, 1.17,
+        1.12, 1.14, 1.16, 1.15, 1.16][next_biome]
     scene.adjustment_saturation = [0.94, 1.13, 0.89, 0.96, 1.12,
         0.86, 1.07, 0.99, 1.12, 1.08][next_biome]
     if key_sun != null:
         key_sun.light_color = [Color("ffcf9d"), Color("f5d992"), Color("c7c69d"),
             Color("c9e4f2"), Color("ffbd8b"), Color("c7e1d9"), Color("ffdfab"),
             Color("d4e3fa"), Color("d8c7ff"), Color("b3e5ff")][next_biome]
-        key_sun.light_energy = [1.36, 1.38, 1.23, 1.38, 1.43,
-            1.19, 1.52, 1.45, 1.35, 1.38][next_biome]
+        key_sun.light_energy = [1.43, 1.41, 1.29, 1.38, 1.43,
+            1.28, 1.52, 1.45, 1.35, 1.38][next_biome]
     scene.ambient_light_color = [Color("97989c"), Color("a1b28c"), Color("999e84"),
         Color("8dabbc"), Color("a59a90"), Color("899c9c"), Color("c5ae94"),
         Color("9eb1ca"), Color("b3a1cc"), Color("9ecbdf")][next_biome]
-    scene.ambient_light_energy = [0.52, 0.59, 0.47, 0.59, 0.55,
-        0.49, 0.60, 0.58, 0.54, 0.58][next_biome]
+    # Stylized fantasy light must reveal armor, relief and architecture;
+    # old dark brown ambient made the actual assets almost invisible.
+    scene.ambient_light_energy = [0.71, 0.67, 0.58, 0.65, 0.63,
+        0.67, 0.67, 0.64, 0.64, 0.67][next_biome]
     if fire_light != null:
         fire_light.light_color = [Color("ffb166"), Color("e6cc74"), Color("97a659"),
             Color("f1e1ca"), Color("ff9a60"), Color("93cbaa"), Color("ffcf88"),
