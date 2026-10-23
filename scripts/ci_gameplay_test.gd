@@ -263,7 +263,14 @@ func _run() -> void:
     if not _check(first_dungeon.size() == 4 and first_dungeon[0].distance_to(first_dungeon[3]) > 32.0, "A floor must physically traverse three separate chambers"):
         quit(58)
         return
-    var biome_a: int = int((game.get("dungeon_map") as Node).get("current_theme"))
+    var dungeon_model: Node3D = game.get("dungeon_map") as Node3D
+    if not _check(int(dungeon_model.get("landmark_count")) == 3, "Each floor should have three biome-specific 3D landmark structures"):
+        quit(70)
+        return
+    if not _check(dungeon_model.get_node_or_null("ExitGate") != null, "Floor exit must have an identifiable rendered gateway"):
+        quit(71)
+        return
+    var biome_a: int = int(dungeon_model.get("current_theme"))
     game.set("stage", 2)
     game.call("_spawn_enemy")
     var second_dungeon: PackedVector3Array = game.get("dungeon_points")
@@ -348,7 +355,11 @@ func _run() -> void:
     game.set("stage", 6)
     game.call("_spawn_enemy")
     (game.get("hero") as Node3D).position = (game.get("dungeon_points") as PackedVector3Array)[1]
+    var fx_before: int = (game.get("spell_fx") as Array).size()
     var linked: int = int(game.call("_cast_chain_lightning", 2, 1.0))
+    if not _check((game.get("spell_fx") as Array).size() >= fx_before + 12, "Chain Lightning should render jagged multi-segment arcs, not straight lines"):
+        quit(72)
+        return
     if not _check(linked >= 4, "Higher ranked Chain Lightning must reach at least four enemies"):
         quit(65)
         return
