@@ -15,6 +15,7 @@ func _capture() -> void:
         return
     root.add_child(game)
     current_scene = game
+    game.call("_select_class", 0)
     game.set("level", 9)
     game.set("stage", 8)
     game.set("highest", 8)
