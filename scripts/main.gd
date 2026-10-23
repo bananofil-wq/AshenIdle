@@ -814,21 +814,24 @@ func _finish_hero_preview(model: Node3D, camera: Camera3D) -> void:
 
 
 func _max_mp() -> float:
-    return float(CLASS_MP_BASE[hero_class]) + float(level - 1) * float(CLASS_MP_PER_LEVEL[hero_class]) + _bonus("mana")
+    var baseline: float = float(CLASS_MP_BASE[hero_class]) + float(level - 1) * float(CLASS_MP_PER_LEVEL[hero_class]) + _bonus("mana")
+    return baseline + 22.0 * _evolution_weight(2)
 
 func _mana_regeneration() -> float:
-    return float(CLASS_MP_REGEN[hero_class]) + float(level - 1) * 0.10 + _bonus("mana_regen")
+    var baseline: float = float(CLASS_MP_REGEN[hero_class]) + float(level - 1) * 0.10 + _bonus("mana_regen")
+    return baseline * (1.0 + 0.14 * _evolution_weight(2))
 
 func _defense_reduction() -> float:
-    return clampf(float(CLASS_DEFENSE[hero_class]) + float(skills[2]) * 0.014 + _bonus("defense") / 100.0, 0.0, 0.72)
+    var baseline: float = float(CLASS_DEFENSE[hero_class]) + float(skills[2]) * 0.014 + _bonus("defense") / 100.0
+    return clampf(baseline + 0.022 * _evolution_weight(1), 0.0, 0.84)
 
 func _max_hp() -> float:
-    var modifier = [1.2, 0.9, 0.85, 1.0][hero_class]
-    return (100.0 + float(level) * 12.0 + float(skills[1]) * 24.0 + _bonus("hp")) * modifier
+    var modifier: float = float([1.2, 0.9, 0.85, 1.0][hero_class])
+    return (100.0 + float(level) * 12.0 + float(skills[1]) * 24.0 + _bonus("hp")) * modifier * (1.0 + 0.12 * _evolution_weight(1))
 
 func _damage() -> float:
-    var modifier = [1.0, 1.15, 1.32, 1.10][hero_class]
-    return (8.0 + float(level) * 2.5 + float(skills[0]) * 4.0 + _bonus("damage") + _bonus("elemental") * 0.45) * modifier
+    var modifier: float = float([1.0, 1.15, 1.32, 1.10][hero_class])
+    return (8.0 + float(level) * 2.5 + float(skills[0]) * 4.0 + _bonus("damage") + _bonus("elemental") * 0.45) * modifier * (1.0 + 0.07 * _evolution_weight(0))
 
 func _bonus(key: String) -> float:
     var total = 0.0
@@ -950,7 +953,7 @@ func _process(delta: float) -> void:
     minimap_refresh_timer += delta
     if tick > 0.36 and popup_shade.visible:
         tick = 0.36
-    var attack_interval := 0.35 / (1.0 + minf(1.0, _bonus("speed") / 100.0))
+    var attack_interval := 0.35 / (1.0 + minf(1.0, _bonus("speed") / 100.0) + 0.035 * _evolution_weight(0))
     if tick >= attack_interval and not popup_shade.visible:
         tick -= attack_interval
         _fight()
@@ -969,18 +972,35 @@ func _fight() -> void:
     var attack_reach: float = 5.9 if hero_class == 1 or hero_class == 2 else 2.45
     if hero.position.distance_to(target.position) > attack_reach:
         return
-    var crit: bool = rng.randf() < clampf(0.20 + _bonus("crit") / 100.0 + (0.08 if hero_class == 1 else 0.0), 0.20, 0.75)
+    var crit: bool = rng.randf() < clampf(0.20 + _bonus("crit") / 100.0 + (0.08 if hero_class == 1 else 0.0) + 0.03 * _evolution_weight(0), 0.20, 0.85)
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     if hero_class == 3:
         hp = minf(_max_hp(), hp + damage * 0.035)
     if hero_class == 2 or hero_class == 3:
         # Directional caster bolts: a visible link from the moving hero to the target.
         _energy_arc(hero.global_position + Vector3(0.0, 1.45, 0.0), target.global_position + Vector3(0.0, 0.95, 0.0), Color("a86aff") if hero_class == 2 else Color("ed4058"), 0.075 if crit else 0.046)
+    var impact_point: Vector3 = target.global_position
     _hit_mob(target, damage, crit)
-    _slash_trail(target.global_position, crit)
+    _slash_trail(impact_point, crit)
     _play_audio(0)
     attack_animation_index += 1
     _actor_attack(hero, hero_class == 2)
+    # Evolved assault branches learn a real cleave: each fifth basic hit
+    # damages nearby enemies, and each ascension strengthens the impact.
+    var assault_power: float = _evolution_weight(0)
+    if assault_power > 0.0 and attack_animation_index % 5 == 0:
+        var victims := 0
+        for candidate in arena_mobs.duplicate():
+            var secondary: Node3D = candidate as Node3D
+            if secondary == null or not is_instance_valid(secondary) or secondary == target:
+                continue
+            if secondary.global_position.distance_squared_to(impact_point) <= 12.25:
+                _hit_mob(secondary, damage * (0.26 + assault_power * 0.045), false)
+                victims += 1
+            if victims >= mini(4, 1 + EVO.count_branch(_evolution_picks(), 0)):
+                break
+        if victims > 0:
+            _burst_particles(impact_point + Vector3(0, 1.0, 0), [Color("fd7d45"), Color("9ccc6e"), Color("aa8bfd"), Color("db5080")][hero_class], 12, 1.4, 0.35)
     camera_kick = minf(1.0, camera_kick + (0.36 if crit else 0.11))
     if crit:
         camera_shake = maxf(camera_shake, 0.11)
@@ -1449,6 +1469,10 @@ func _kill_mob(target: Node3D) -> void:
         target.queue_free()
     wave_kills += 1
     kills += 1
+    # Bastion path converts finishing blows into survivability, including
+    # during long unattended boss grinds.
+    if _evolution_weight(1) > 0.0:
+        hp = minf(_max_hp(), hp + _max_hp() * (0.008 * _evolution_weight(1)))
     gold += stage * 2 + (25 if boss else 3)
     xp += 5 + stage * 2 + (60 if boss else 0)
     if boss or rng.randf() < 0.22:
@@ -1842,6 +1866,18 @@ func _sync_equipment_visuals() -> void:
     underglow.inner_radius = 0.46
     underglow.outer_radius = 0.50
     _mesh(equipped_vfx, underglow, Vector3(0, 0.10, 0), _mat(aura_color.darkened(0.38), 0.0, true))
+    # Distinct, cheap persistent evolution aura. Each invested branch adds one
+    # narrow luminous ring; strength grows with the four evolution milestones.
+    var branch_tints := [Color("fc8b4f"), Color("71c4e1"), Color("b58ef5")]
+    for branch in range(3):
+        var path_power: float = _evolution_weight(branch)
+        if path_power <= 0.0:
+            continue
+        var halo := TorusMesh.new()
+        halo.inner_radius = 0.53 + path_power * 0.018 + float(branch) * 0.11
+        halo.outer_radius = halo.inner_radius + 0.025
+        var glow: MeshInstance3D = _mesh(equipped_vfx, halo, Vector3(0, 0.11 + float(branch) * 0.035, 0), _bright(branch_tints[branch]))
+        glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     if equipped.has("Armor"):
         var armor_item: Dictionary = equipped["Armor"]
         var armor_color := Color("7e3f35") if str(armor_item.get("element", "")) == "FIRE" else Color("494e71")
@@ -2223,7 +2259,7 @@ func _use_skill(index: int) -> void:
         _refresh()
         return
     mp -= mana_cost
-    skill_cooldowns[index] = float([3.2, 5.2, 12.0][index]) * maxf(0.58, 1.0 - 0.035 * float(rank - 1))
+    skill_cooldowns[index] = float([3.2, 5.2, 12.0][index]) * maxf(0.58, 1.0 - 0.035 * float(rank - 1)) * maxf(0.50, 1.0 - 0.06 * _evolution_weight(2))
     var palettes: Array = [
         [Color("ff6b20"), Color("e2bd68"), Color("ffb23a")],
         [Color("87c866"), Color("95d9db"), Color("fff09a")],
@@ -2236,7 +2272,7 @@ func _use_skill(index: int) -> void:
     camera_kick = maxf(camera_kick, 0.9 if index == 2 else 0.4)
     camera_shake = maxf(camera_shake, 0.28 if index == 2 else 0.09)
     _play_audio(5 if hero_class == 2 and index == 1 else 3)
-    var multiplier: float = float([1.25, 1.60, 2.80][index]) * (1.0 + float(rank - 1) * 0.16)
+    var multiplier: float = float([1.25, 1.60, 2.80][index]) * (1.0 + float(rank - 1) * 0.16) * (1.0 + 0.12 * _evolution_weight(2))
     if hero_class == 2:
         multiplier *= 1.18
     elif hero_class == 3 and index == 2:
@@ -2244,7 +2280,7 @@ func _use_skill(index: int) -> void:
     if hero_class == 0 and index == 1:
         hp = minf(_max_hp(), hp + _max_hp() * 0.11)
     if hero_class == 2 and index == 1:
-        var num_jumps: int = _cast_chain_lightning(rank, _damage() * multiplier)
+        var num_jumps: int = _cast_chain_lightning(rank + EVO.count_branch(_evolution_picks(), 2), _damage() * multiplier)
         combat_note = "CHAIN LIGHTNING R%d — %d TARGETS" % [rank, num_jumps]
         if arena_mobs.is_empty():
             _complete_wave()
