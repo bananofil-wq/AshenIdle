@@ -212,10 +212,19 @@ func _run() -> void:
     if not _check(int(game.get("stage")) == prior and int(game.get("dungeon_room_index")) == 2, "First encounter opens the second dungeon room"):
         quit(14)
         return
-    game.call("_complete_wave")
+    # The synthetic test deliberately skips each battle and therefore has no
+    # hero walk-to-loot interval. Clear bonus rewards between forced room
+    # advances; normal gameplay still refuses to skip an uncollected item.
+    for target_room in [3]:
+        for attempt in range(3):
+            game.call("_clear_ground_drops")
+            game.call("_complete_wave")
+            if int(game.get("dungeon_room_index")) == target_room:
+                break
     if not _check(int(game.get("dungeon_room_index")) == 3, "Second encounter opens third room"):
         quit(55)
         return
+    game.call("_clear_ground_drops")
     game.call("_complete_wave")
     if not _check(int(game.get("stage")) == prior + 1, "Finishing all three rooms advances to next floor"):
         quit(56)
