@@ -6,6 +6,8 @@ const RATE := 22050
 var banks: Dictionary = {}
 var randomizer := RandomNumberGenerator.new()
 var last_hit_ms := -10000
+var footsteps: Dictionary = {}
+var recorded_count := 0
 
 func _ready() -> void:
     randomizer.randomize()
@@ -14,6 +16,49 @@ func _ready() -> void:
         for variant in range(2):
             options.append(_make_clip(sound_id, variant))
         banks[sound_id] = options
+    _load_recorded()
+
+func _load_recorded() -> void:
+    # Prefer Kenney's real-world CC0 OGG recordings. Synthetic clips are only
+    # fallback, e.g. when running a local Godot project without build assets.
+    var names: Array = ["sword", "loot", "legendary", "knight", "boss",
+        "ranger", "mage", "reaper", "chain", "level"]
+    for sound_id in range(names.size()):
+        var clips: Array = []
+        for variant in range(2):
+            var file: String = "res://assets/sfx/%s_%d.ogg" % [names[sound_id], variant]
+            if ResourceLoader.exists(file):
+                var stream: AudioStream = load(file) as AudioStream
+                if stream != null:
+                    clips.append(stream)
+                    recorded_count += 1
+        if not clips.is_empty():
+            banks[sound_id] = clips
+    for theme_id in range(5):
+        var surface: String = ["concrete", "snow", "grass", "wood", "concrete"][theme_id]
+        var steps: Array = []
+        for variant in range(2):
+            var file: String = "res://assets/sfx/step_%s_%d.ogg" % [surface, variant]
+            if ResourceLoader.exists(file):
+                var stream: AudioStream = load(file) as AudioStream
+                if stream != null:
+                    steps.append(stream)
+        footsteps[theme_id] = steps
+
+func play_step(theme_id: int) -> void:
+    if not footsteps.has(theme_id):
+        return
+    var choices: Array = footsteps[theme_id]
+    if choices.is_empty():
+        return
+    var stream: AudioStream = choices[randomizer.randi_range(0, choices.size() - 1)]
+    var voice := AudioStreamPlayer.new()
+    voice.stream = stream
+    voice.volume_db = -24.0
+    voice.pitch_scale = randomizer.randf_range(0.93, 1.08)
+    add_child(voice)
+    voice.finished.connect(voice.queue_free)
+    voice.play()
 
 func _make_clip(sound_id: int, variant: int) -> AudioStreamWAV:
     var lengths: Array = [0.24, 0.48, 0.73, 0.48, 0.85, 0.50, 0.52, 0.51, 0.64, 0.43]
@@ -103,7 +148,8 @@ func play_effect(kind: int, hero_class: int = 0) -> void:
         if now - last_hit_ms < 130:
             return
         last_hit_ms = now
-    var clip: AudioStreamWAV = banks[sound_id][randomizer.randi_range(0, 1)]
+    var candidates: Array = banks[sound_id]
+    var clip: AudioStream = candidates[randomizer.randi_range(0, candidates.size() - 1)]
     var voice := AudioStreamPlayer.new()
     voice.stream = clip
     voice.volume_db = [-13.0, -10.0, -8.5, -9.0, -8.0, -9.0, -9.0][clampi(kind, 0, 6)]
