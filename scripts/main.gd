@@ -571,17 +571,17 @@ func _build_ui() -> void:
         var costs: Array = CLASS_SKILL_COSTS[class_id]
         var titles: Array = CLASS_SPELLS[class_id]
         var descriptions: Array = CLASS_SKILL_DESCRIPTIONS[class_id]
-        var class_text := "%s  %s\nDEF %d%%    MP %d    REGEN %d/sec\n%s\n%s (%d)   •   %s (%d)   •   %s (%d)\n%s  |  %s  |  %s" % [
-            "▶" if class_id == hero_class else "◆",
-            CLASSES[class_id].to_upper(),
+        var class_text := "%s  %s\nDEF %d%%    MP %d    REGEN %d/sec\n%s\n%s (%d MP): %s\n%s (%d MP): %s\n%s (%d MP): %s" % [
+            "▶" if class_id == hero_class else "◆", CLASSES[class_id].to_upper(),
             int(float(CLASS_DEFENSE[class_id]) * 100.0),
             int(float(CLASS_MP_BASE[class_id])),
             int(float(CLASS_MP_REGEN[class_id])),
             CLASS_DESCRIPTIONS[class_id],
-            titles[0], int(costs[0]), titles[1], int(costs[1]), titles[2], int(costs[2]),
-            descriptions[0], descriptions[1], descriptions[2]
+            titles[0], int(costs[0]), descriptions[0],
+            titles[1], int(costs[1]), descriptions[1],
+            titles[2], int(costs[2]), descriptions[2]
         ]
-        var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(510, 172))
+        var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(510, 149))
         class_button.add_theme_font_size_override("font_size", 14)
         class_button.add_theme_stylebox_override("normal", _skin(Color("1a1e2bf5"), [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]))
         hero_column.add_child(class_button)
@@ -1141,8 +1141,13 @@ func _complete_wave() -> void:
 
 func _try_boss() -> void:
     grind_mode = false
-    stage = maxi(BOSS_INTERVAL, int(ceil(float(highest) / float(BOSS_INTERVAL))) * BOSS_INTERVAL)
+    if highest < BOSS_INTERVAL:
+        combat_note = "FIRST BOSS UNLOCKS ON FLOOR 10"
+        _refresh()
+        return
+    stage = maxi(BOSS_INTERVAL, int(floor(float(highest) / float(BOSS_INTERVAL))) * BOSS_INTERVAL)
     hp = _max_hp()
+    mp = _max_mp()
     combat_note = "BOSS CHALLENGE"
     _spawn_enemy()
     _refresh()
