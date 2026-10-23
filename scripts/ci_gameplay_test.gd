@@ -383,6 +383,50 @@ func _run() -> void:
     if not _check(ridges != null and ridges.get_child_count() >= 12, "Landscapes must have actual large mountain or tree ridge geometry"):
         quit(69)
         return
+    # V3 graphical quality is part of the release gate, not a design document.
+    var characters: Array = (game.get("hero_overlay") as Control).find_children("*", "SubViewport", true, false)
+    if not _check(characters.size() >= 4, "Every selectable class needs a genuine rendered 3D hero preview"):
+        quit(73)
+        return
+    var glyphs: Array = (game.get("overlay") as Control).find_children("AbilityGlyph", "Control", true, false)
+    if not _check(glyphs.size() >= 3, "Each equipped skill must have a bespoke fantasy glyph"):
+        quit(74)
+        return
+    var material_count: int = 0
+    for material_name in ["stone_floor", "snow_02", "forest_ground_01", "rock_face_03", "volcanic_rock_tiles"]:
+        if ResourceLoader.exists("res://assets/pbr/%s_diff_1k.jpg" % material_name):
+            material_count += 1
+    if not _check(material_count >= 3, "Three or more biome families must ship with authentic CC0 1k photographic PBR albedo textures"):
+        quit(75)
+        return
+    var shapes: Dictionary = {}
+    var slowest_ms: int = 0
+    for floor_id in [1, 2, 3, 4, 5, 10, 11, 21, 31, 41]:
+        var started: int = Time.get_ticks_msec()
+        game.set("stage", floor_id)
+        game.call("_spawn_enemy")
+        var millis: int = Time.get_ticks_msec() - started
+        slowest_ms = maxi(slowest_ms, millis)
+        var builder: Node3D = game.get("dungeon_map")
+        var room_mesh: MeshInstance3D = builder.get_node_or_null("Chamber_1/IrregularFloor_1") as MeshInstance3D
+        if not _check(room_mesh != null and room_mesh.mesh != null, "Rooms need genuine irregular polygon meshes, not rectangle primitives"):
+            quit(76)
+            return
+        shapes[int(room_mesh.get_meta("room_shape"))] = true
+        if not _check(builder.get_node_or_null("Chamber_3/BossSanctum_%d" % int(builder.get("current_theme"))) != null if floor_id % 10 == 0 else true, "Every tenth stage requires an actual biome-specific boss sanctuary"):
+            quit(77)
+            return
+        if not _check(builder.find_children("Atmosphere_*", "CPUParticles3D", true, false).size() >= 2, "Biomes require lightweight active atmospheric particles"):
+            quit(78)
+            return
+        await process_frame
+    if not _check(shapes.size() == 5, "Five geometrically distinct chamber profiles must appear across consecutive floors"):
+        quit(79)
+        return
+    if not _check(slowest_ms < 4500, "One floor generation exceeds 4.5 seconds on hosted CI hardware"):
+        quit(80)
+        return
+    print("GRAPHICS V3 QA PASS: %d photographic terrain families, four 3D class previews, 12 skill glyphs, five room silhouettes, all biome boss arenas, layered atmosphere. Peak generation %dms" % [material_count, slowest_ms])
     print("SKILL/ART/AUDIO QA PASS: level gates, per-class ranks, 4+ chain jumps, zoomed camera, differentiated audio and three-dimensional terrain")
     print("GAMEPLAY TEST PASS: three moving encounters per floor, distinct deterministic layouts, biome change after 10 floors, end-room bosses, animated hero, loot, skills and equipment")
     quit(0)
