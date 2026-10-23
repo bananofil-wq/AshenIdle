@@ -152,6 +152,11 @@ func generate(floor_number: int) -> PackedVector3Array:
         remove_child(child)
         child.queue_free()
     _set_materials()
+    # Surround the playable route with biome-specific terrain, not an empty
+    # black skybox. Landscapes need to occupy the whole portrait view.
+    var terrain_colors := ["221e25", "273d4b", "152b1b", "1a142a", "2d1110"]
+    var terrain := _solid(Color(terrain_colors[current_theme]))
+    _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
     walk_points = PackedVector3Array()
     var variation: float = float((current_stage - 1) % 10)
     walk_points.append(Vector3(0, 0, 5))
@@ -182,6 +187,22 @@ func generate(floor_number: int) -> PackedVector3Array:
                 var angle := TAU * float(k) / 8.0
                 _spike(room, p + Vector3(cos(angle) * 3.8, 0, sin(angle) * 3.8), 1.1, 0.21, accent_material)
 
+    # The surrounding world continues beyond the route. Procedural rock,
+    # snow and tree silhouettes create strong biome differences on every floor.
+    var wilderness := Node3D.new()
+    wilderness.name = "ExteriorLandscape"
+    add_child(wilderness)
+    for i in range(65):
+        var z: float = randomizer.randf_range(-47.0, 12.0)
+        var x: float = randomizer.randf_range(-18.0, 18.0)
+        var close_to_route := false
+        for point in walk_points:
+            if absf(z - point.z) < 7.2 and absf(x - point.x) < 6.1:
+                close_to_route = true
+                break
+        if close_to_route:
+            continue
+        _feature(wilderness, Vector3(x, -0.32, z), 1 if x > 0 else -1, i)
     # A directional entry gate makes forward traversal explicit.
     var entrance := Node3D.new()
     entrance.name = "EntranceGate"
