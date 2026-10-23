@@ -65,15 +65,15 @@ static func perk_description(class_id: int, tier: int, branch: int) -> String:
     var weight: float = float(WEIGHTS[tier])
     match branch:
         0:
-            return "%s\n+%d%% damage, +%d%% critical chance. Every fifth strike cleaves nearby foes. %s" % [
+            return "%s\n+%d%% damage  •  +%d%% crit\nEvery fifth strike cleaves nearby foes.\n%s" % [
                 BRANCH_FEATURES[class_id][0], int(round(7.0 * weight)), int(round(3.0 * weight)), CLASS_UNIQUES[class_id][0]
             ]
         1:
-            return "%s\n+%d%% maximum health, +%d%% damage reduction. Recover health on every kill. %s" % [
+            return "%s\n+%d%% maximum health  •  +%d%% defense\nHeal on every kill.\n%s" % [
                 BRANCH_FEATURES[class_id][1], int(round(12.0 * weight)), int(round(2.2 * weight)), CLASS_UNIQUES[class_id][1]
             ]
         2:
-            return "%s\n+%d%% spell damage, -%d%% cooldowns, increased MP and mana recovery. %s" % [
+            return "%s\n+%d%% spell damage  •  -%d%% cooldowns\nExtra MP and mana recovery.\n%s" % [
                 BRANCH_FEATURES[class_id][2], int(round(12.0 * weight)), int(round(6.0 * weight)), CLASS_UNIQUES[class_id][2]
             ]
     return ""
