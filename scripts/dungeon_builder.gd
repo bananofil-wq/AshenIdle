@@ -3,9 +3,9 @@ extends Node3D
 # floor has a deterministic but distinct winding layout, props and encounter rooms.
 # The boss is always on the tenth floor of its biome.
 const THEMES := ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"]
-const FLOOR_COLORS := ["55505a", "879dad", "374c38", "343049", "3d3437"]
+const FLOOR_COLORS := ["55505a", "879dad", "374c38", "464544", "3d3437"]
 const ACCENTS := ["eb864e", "8bdcff", "8acb69", "82669c", "ff6232"]
-const ROCKS := ["35313c", "50647a", "354337", "302c4a", "34262b"]
+const ROCKS := ["35313c", "50647a", "354337", "45413f", "34262b"]
 const WIDTH := 9.0
 const DISTANCE := 14.0
 
@@ -251,7 +251,7 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
 
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
-    var earth := _solid(Color("463c39") if current_theme == 2 else Color("51505a"))
+    var earth := _solid(Color("463c39") if current_theme == 2 else Color("343438") if current_theme == 3 else Color("51505a"))
     for i in range(25):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
@@ -416,27 +416,35 @@ func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> voi
 
 
 func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
-    # Floor-specific environmental patterns: frost veins, root networks,
-    # glowing faults and ancient masonry. Only thin meshes, no obstacles.
-    var dust := _solid(Color("4e4140") if current_theme == 0 else Color("dcecf2") if current_theme == 1 else Color("334a2e") if current_theme == 2 else Color("3e2b58") if current_theme == 3 else Color("29282a"))
-    var symbol := TorusMesh.new()
-    symbol.inner_radius = 1.65 + float(room_id % 2) * 0.25
-    symbol.outer_radius = symbol.inner_radius + 0.026
-    var glyph := MeshInstance3D.new()
-    glyph.mesh = symbol
-    glyph.position = center + Vector3(0, 0.018, -1.25)
-    glyph.rotation.y = float(current_stage * 17 + room_id * 13) * 0.1
-    glyph.material_override = accent_material if current_theme == 4 and room_id == 3 else dust
-    parent.add_child(glyph)
-    for k in range(9):
-        var p: Vector3 = center + Vector3(randomizer.randf_range(-4.4, 4.4), 0.024, randomizer.randf_range(-4.5, 4.5))
-        var streak := _block(parent, p, Vector3(randomizer.randf_range(0.22, 0.92), 0.019, randomizer.randf_range(0.09, 0.19)), dust if current_theme == 3 or k % 3 != 0 else accent_material)
-        streak.rotation.y = randomizer.randf_range(-PI, PI)
-    if current_theme == 2:
-        for k in range(7):
-            var p: Vector3 = center + Vector3(randomizer.randf_range(-4.5, 4.5), 0.04, randomizer.randf_range(-5.0, 5.0))
-            var root := _block(parent, p, Vector3(1.15, 0.10, 0.12), rock_material)
-            root.rotation.y = randomizer.randf_range(0, PI)
+    # Worn paving stones and fractures. Previously every room was covered
+    # in identical fluorescent rings and matchstick-like luminous shards.
+    var grout := _solid(Color("27282a") if current_theme == 3 else Color("33343a"))
+    var chipped := _solid(Color("58534d") if current_theme == 3 else Color("4c4947"))
+    for i in range(12):
+        var side: float = -1.0 if i % 2 == 0 else 1.0
+        var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.2, 5.1),
+            0.028, randomizer.randf_range(-4.7, 4.7))
+        if i % 4 == 0:
+            _stone(parent, p, Vector3(randomizer.randf_range(0.35, 0.7),
+                randomizer.randf_range(0.16, 0.29),
+                randomizer.randf_range(0.45, 0.90)), rock_material)
+        else:
+            var crack := _block(parent, p, Vector3(randomizer.randf_range(0.27, 0.95),
+                0.014, randomizer.randf_range(0.035, 0.075)),
+                chipped if i % 3 == 0 else grout)
+            crack.rotation.y = randomizer.randf_range(-PI, PI)
+    if room_id == 3 and current_stage % 10 == 0:
+        var rim := TorusMesh.new()
+        rim.inner_radius = 2.65
+        rim.outer_radius = 2.74
+        rim.rings = 48
+        rim.ring_segments = 7
+        var glyph := MeshInstance3D.new()
+        glyph.name = "BossRitualInlay"
+        glyph.mesh = rim
+        glyph.position = center + Vector3(0, 0.015, -0.95)
+        glyph.material_override = chipped
+        parent.add_child(glyph)
 
 
 func _biome_beacon(parent: Node3D, center: Vector3, room_id: int) -> void:
@@ -453,9 +461,9 @@ func _biome_beacon(parent: Node3D, center: Vector3, room_id: int) -> void:
     var glow := OmniLight3D.new()
     glow.name = "WorldLight_%d" % room_id
     glow.position = at + Vector3(0, 1.65, 0)
-    glow.light_color = Color(ACCENTS[current_theme]).lerp(Color("f1dcc3"), 0.22)
-    glow.light_energy = 0.62
-    glow.omni_range = 7.2
+    glow.light_color = Color("ffca8b") if current_theme == 3 else Color(ACCENTS[current_theme]).lerp(Color("f1dcc3"), 0.36)
+    glow.light_energy = 1.05 if current_theme == 3 else 0.72
+    glow.omni_range = 8.0
     glow.shadow_enabled = false
     parent.add_child(glow)
 
@@ -526,7 +534,7 @@ func _build_exterior_terrain(parent: Node3D) -> void:
     earth.vertex_color_use_as_albedo = true
     earth.albedo_color = [
         Color("6e676a"), Color("c0d8e3"), Color("526b51"),
-        Color("786a98"), Color("75676a")
+        Color("99958c"), Color("75676a")
     ][current_theme]
     earth.uv1_scale = Vector3(2.0, 2.0, 1.0)
     var x_steps: int = 11
@@ -568,8 +576,8 @@ func _build_exterior_terrain(parent: Node3D) -> void:
 func _terrain_texture() -> ImageTexture:
     # Deterministic rock, snow, leaf-litter, void and lava texture variants.
     # Lightweight CPU noise replaces featureless solid-color floors on Android.
-    var dark_colors := ["22232b", "5d7482", "233927", "242039", "3a1c1c"]
-    var light_colors := ["68636a", "aecfdb", "536f45", "5d487a", "9b5536"]
+    var dark_colors := ["22232b", "5d7482", "233927", "2e2d30", "3a1c1c"]
+    var light_colors := ["68636a", "aecfdb", "536f45", "726b66", "9b5536"]
     var dark: Color = Color(dark_colors[current_theme])
     var light: Color = Color(light_colors[current_theme])
     var noise := FastNoiseLite.new()
@@ -595,7 +603,7 @@ func _set_materials() -> void:
     var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
     if ResourceLoader.exists(diffuse_path):
         floor_material.albedo_texture = load(diffuse_path)
-        floor_material.albedo_color = [Color("919eaf"), Color("8da5b8"), Color("84997b"), Color("9b8eb0"), Color("857981")][current_theme]
+        floor_material.albedo_color = [Color("919eaf"), Color("8da5b8"), Color("84997b"), Color("b9b5a9"), Color("857981")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
         floor_material.albedo_color = Color("c0c5c5")
@@ -608,14 +616,14 @@ func _set_materials() -> void:
     if ResourceLoader.exists(rough_path):
         floor_material.roughness_texture = load(rough_path)
     floor_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-    floor_material.roughness = 0.82 if current_theme == 1 else 0.95
+    floor_material.roughness = 0.82 if current_theme == 1 else 0.88
     rock_material = _solid(Color(ROCKS[current_theme]))
     rock_material.uv1_scale = Vector3(2.7, 2.7, 1.0)
     var cliff_key: String = "rock_face_03" if current_theme != 4 else "volcanic_rock_tiles"
     var cliff_path: String = "res://assets/pbr/%s_diff_1k.jpg" % cliff_key
     if ResourceLoader.exists(cliff_path):
         rock_material.albedo_texture = load(cliff_path)
-        rock_material.albedo_color = [Color("596477"), Color("748ea3"), Color("536d55"), Color("74668b"), Color("544b52")][current_theme]
+        rock_material.albedo_color = [Color("596477"), Color("748ea3"), Color("536d55"), Color("ada8a0"), Color("544b52")][current_theme]
         var cliff_normal: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % cliff_key
         if ResourceLoader.exists(cliff_normal):
             rock_material.normal_enabled = true
@@ -739,7 +747,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     var terrain_colors := ["26303c", "273d4b", "152b1b", "1a142a", "2d1110"]
     var terrain := _solid(Color(terrain_colors[current_theme]))
     terrain.albedo_texture = floor_material.albedo_texture
-    terrain.albedo_color = [Color("454f5a"), Color("7d91a9"), Color("485c49"), Color("77717e"), Color("534348")][current_theme]
+    terrain.albedo_color = [Color("454f5a"), Color("7d91a9"), Color("485c49"), Color("a19d95"), Color("534348")][current_theme]
     terrain.uv1_scale = Vector3(11, 11, 1)
     terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
