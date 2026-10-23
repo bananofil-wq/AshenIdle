@@ -108,6 +108,8 @@ var hero_mana_label: Label
 var combat_bar: ColorRect
 var skill_buttons: Array = []
 var cinematic_skills: Node3D
+var active_skill_zones: Array = []
+var defensive_ward_timer := 0.0
 var spawned_boss := false
 var screen_note: Label
 var popup_shade: ColorRect
@@ -993,6 +995,9 @@ func _spawn_enemy() -> void:
         enemy_hp = enemy_max
         return
     _clear_boss_telegraph()
+    # Persistent spells never damage monsters on the next floor.
+    active_skill_zones.clear()
+    defensive_ward_timer = 0.0
     if dungeon_map != null:
         dungeon_points = dungeon_map.call("generate", stage) as PackedVector3Array
     dungeon_room_index = 1
@@ -1061,6 +1066,8 @@ func _process(delta: float) -> void:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
+    _update_skill_zones(delta)
+    defensive_ward_timer = maxf(0.0, defensive_ward_timer - delta)
     _update_camera(delta)
     _update_journey_hud()
     _update_boss_cast(delta)
@@ -1137,6 +1144,8 @@ func _fight() -> void:
     var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075) * (1.0 - _defense_reduction())
     if stage % BOSS_INTERVAL == 0:
         incoming *= [1.28, 1.10, 1.48][_boss_variant()]
+    if defensive_ward_timer > 0.0:
+        incoming *= 0.61
     var attacker: Node3D = _choose_target()
     if attacker != null and is_instance_valid(attacker):
         var distance_to_attacker: float = hero.global_position.distance_to(attacker.global_position)
@@ -1350,6 +1359,8 @@ func _update_boss_cast(delta: float) -> void:
             var impact_damage: float = (10.0 + float(stage) * 0.9) * [1.1, 0.9, 1.4][_boss_variant()]
             var mage_ward: float = 1.0 - minf(0.30, 0.035 * _evolution_weight(1)) if hero_class == 2 else 1.0
             var reduced: float = impact_damage * (1.0 - _defense_reduction()) * mage_ward
+            if defensive_ward_timer > 0.0:
+                reduced *= 0.61
             var warning_color: Color = [Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()]
             _burst_particles(boss_warning_center + Vector3(0, 0.22, 0), warning_color, 43, 2.0, 0.42)
             camera_shake = maxf(camera_shake, 0.18)
@@ -2459,6 +2470,7 @@ func _use_skill(index: int) -> void:
         multiplier *= 1.30
     if hero_class == 0 and index == 1:
         hp = minf(_max_hp(), hp + _max_hp() * 0.11)
+        defensive_ward_timer = 3.7 + 0.14 * float(rank)
     if hero_class == 2 and index == 1:
         var num_jumps: int = _cast_chain_lightning(rank + EVO.count_branch(_evolution_picks(), 2), _damage() * multiplier)
         combat_note = "CHAIN LIGHTNING R%d — %d TARGETS" % [rank, num_jumps]
@@ -2466,6 +2478,12 @@ func _use_skill(index: int) -> void:
             _complete_wave()
         _refresh()
         return
+    # Traps, void fissures and ultimate runes remain active after their
+    # spectacular first impact, instead of causing one instant damage number.
+    if index == 2 or (index == 1 and hero_class != 0):
+        var zone_target: Node3D = _choose_target()
+        var zone_center: Vector3 = zone_target.global_position if zone_target != null and is_instance_valid(zone_target) else hero.global_position
+        _create_skill_zone(index, zone_center, rank)
     var targets: Array = arena_mobs.duplicate()
     targets.shuffle()
     var seeker_volley: int = EVO.count_branch(_evolution_picks(), 2) if hero_class == 1 else 0
@@ -2486,6 +2504,56 @@ func _use_skill(index: int) -> void:
     if arena_mobs.is_empty():
         _complete_wave()
     _refresh()
+
+func _create_skill_zone(index: int, at: Vector3, rank: int) -> void:
+    var ultimate: bool = index == 2
+    active_skill_zones.append({
+        "stage": stage, "room": dungeon_room_index, "class": hero_class,
+        "origin": at, "radius": (3.5 if ultimate else 2.4) + minf(0.6, float(rank) * 0.035),
+        "time": 2.15 if ultimate else 1.40, "pulse": 0.36,
+        "damage": _damage() * (0.17 if ultimate else 0.11),
+        "interval": 0.48 if ultimate else 0.55,
+        "index": index
+    })
+    # Hard cap handles rapid spell chains and offline grind progression.
+    while active_skill_zones.size() > 5:
+        active_skill_zones.pop_front()
+
+
+func _update_skill_zones(delta: float) -> void:
+    if popup_shade == null or popup_shade.visible or active_skill_zones.is_empty():
+        return
+    for i in range(active_skill_zones.size() - 1, -1, -1):
+        var zone: Dictionary = active_skill_zones[i]
+        if int(zone["stage"]) != stage or int(zone["room"]) != dungeon_room_index:
+            active_skill_zones.remove_at(i)
+            continue
+        zone["time"] = float(zone["time"]) - delta
+        zone["pulse"] = float(zone["pulse"]) - delta
+        if float(zone["pulse"]) <= 0.0:
+            zone["pulse"] = float(zone["interval"])
+            var center: Vector3 = zone["origin"]
+            var radius_squared: float = pow(float(zone["radius"]), 2.0)
+            var hit_count := 0
+            for candidate in arena_mobs.duplicate():
+                var mob: Node3D = candidate as Node3D
+                if mob == null or not is_instance_valid(mob) or not arena_mobs.has(mob):
+                    continue
+                var difference: Vector3 = mob.global_position - center
+                difference.y = 0.0
+                if difference.length_squared() > radius_squared:
+                    continue
+                _hit_mob(mob, float(zone["damage"]), false)
+                if int(zone["class"]) == 1:
+                    mob.set_meta("snared_until", Time.get_ticks_msec() + 1100)
+                elif int(zone["class"]) == 3:
+                    hp = minf(_max_hp(), hp + float(zone["damage"]) * 0.022)
+                hit_count += 1
+                if hit_count >= 7:
+                    break
+        if float(zone["time"]) <= 0.0:
+            active_skill_zones.remove_at(i)
+
 
 func _cast_class_visual(index: int, tint: Color) -> void:
     # Cinematic direction follows the uploaded reference: a directional
@@ -2805,6 +2873,8 @@ func _update_chaos(delta: float) -> void:
         if engaged and stagger <= 0.0 and chase.length_squared() > 0.0324:
             var pursuit_speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
             pursuit_speed *= 1.38 if role == "flanker" else 0.78 if role == "guardian" else 0.92 if role == "caster" else 1.14
+            if Time.get_ticks_msec() < int(mob.get_meta("snared_until", 0)):
+                pursuit_speed *= 0.45
             ideal_velocity = chase.normalized() * pursuit_speed
         var pursuit_velocity: Vector3 = mob.get_meta("pursuit_velocity", Vector3.ZERO)
         pursuit_velocity = pursuit_velocity.move_toward(ideal_velocity, delta * (7.0 if boss else 9.0))
