@@ -200,6 +200,7 @@ jobs:
           name: AshenIdle-Gameplay-Screenshot
           path: |
             build/gameplay-preview*.png
+            build/biome-*.png
             build/boss-preview.png
             build/hero-selection-preview.png
             build/startup-hero-selection.png
