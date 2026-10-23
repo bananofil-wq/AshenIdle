@@ -330,7 +330,7 @@ func _build_ui() -> void:
 
     var portrait := PanelContainer.new()
     portrait.position = Vector2(14, 18)
-    portrait.size = Vector2(280, 120)
+    portrait.size = Vector2(280, 171)
     portrait.add_theme_stylebox_override("panel", _skin(Color("0a0c12ed"), Color("65594d")))
     overlay.add_child(portrait)
     var portrait_box := VBoxContainer.new()
@@ -344,25 +344,31 @@ func _build_ui() -> void:
     hero_heart.color = Color("ab342a")
     hero_heart.custom_minimum_size = Vector2(250, 5)
     portrait_box.add_child(hero_heart)
+    hero_mana_label = _label("", 13, Color("9ac9f1"))
+    portrait_box.add_child(hero_mana_label)
+    hero_mana_bar = ColorRect.new()
+    hero_mana_bar.color = Color("427fd8")
+    hero_mana_bar.custom_minimum_size = Vector2(250, 5)
+    portrait_box.add_child(hero_mana_bar)
     power_label = _label("", 16, Color("ffd375"))
     portrait_box.add_child(power_label)
 
     var map_panel := PanelContainer.new()
     map_panel.position = Vector2(512, 18)
-    map_panel.size = Vector2(192, 145)
+    map_panel.size = Vector2(192, 177)
     map_panel.add_theme_stylebox_override("panel", _skin(Color("0a0c12ed"), Color("65594d")))
     overlay.add_child(map_panel)
     var map_column := VBoxContainer.new()
     map_panel.add_child(map_column)
     map_column.add_child(_label("THE LOST LANDS", 15, Color("cabbad")))
     map_dots = Control.new()
-    map_dots.custom_minimum_size = Vector2(167, 70)
+    map_dots.custom_minimum_size = Vector2(167, 103)
     map_column.add_child(map_dots)
     stage_banner = _label("", 19, Color("f0c997"))
     map_column.add_child(stage_banner)
 
     var controls := VBoxContainer.new()
-    controls.position = Vector2(14, 193)
+    controls.position = Vector2(14, 209)
     controls.add_theme_constant_override("separation", 7)
     overlay.add_child(controls)
     controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(105, 43)))
@@ -1356,12 +1362,16 @@ func _refresh() -> void:
     if status == null or inventory == null:
         return
     status.text = "%s   LVL %d" % [CLASSES[hero_class], level]
-    details.text = "HP %.0f / %.0f    XP %d / %d" % [hp, _max_hp(), xp, level * 30]
+    details.text = "HP %.0f / %.0f   DEF %.0f%%\nXP %d / %d" % [hp, _max_hp(), _defense_reduction() * 100.0, xp, level * 30]
     power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
     if auto_gear_button != null:
         auto_gear_button.text = "AUTO: ON" if auto_equip else "AUTO: OFF"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
-    stage_banner.text = "ACT %d  •  %d/5%s" % [floori(float(stage - 1) / 5.0) + 1, posmod(stage - 1, 5) + 1, "  BOSS" if stage % BOSS_INTERVAL == 0 else ""]
+    if hero_mana_bar != null:
+        hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
+    if hero_mana_label != null:
+        hero_mana_label.text = "MP %.0f / %.0f   +%.0f / sec" % [mp, _max_mp(), _mana_regeneration()]
+    stage_banner.text = "ACT %d  •  FLOOR %d/10%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, "  BOSS" if stage % BOSS_INTERVAL == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
         boss_panel.visible = stage % BOSS_INTERVAL == 0
@@ -1572,29 +1582,32 @@ func _refresh_minimap() -> void:
         return
     for child in map_dots.get_children():
         child.queue_free()
-    # Five real checkpoints per act, instead of a fake random minimap.
-    var rail := ColorRect.new()
-    rail.color = Color("594333")
-    rail.position = Vector2(15, 31)
-    rail.size = Vector2(154, 3)
-    map_dots.add_child(rail)
-    var checkpoint := posmod(stage - 1, 5)
-    for i in range(5):
+    var current: int = posmod(stage - 1, BOSS_INTERVAL)
+    # Two rows, five stages per row: all ten gates remain legible in portrait.
+    for row_index in range(2):
+        var rail := ColorRect.new()
+        rail.color = Color("65534b")
+        rail.position = Vector2(19, 28 + row_index * 28)
+        rail.size = Vector2(140, 2)
+        map_dots.add_child(rail)
+    for i in range(BOSS_INTERVAL):
         var node := PanelContainer.new()
-        node.position = Vector2(9 + i * 37, 20)
-        node.size = Vector2(22, 22)
+        var col_index: int = posmod(i, 5)
+        var row_index: int = int(i / 5)
+        node.position = Vector2(11 + col_index * 34, 17 + row_index * 28)
+        node.size = Vector2(20, 20)
         var style := StyleBoxFlat.new()
-        style.bg_color = Color("eac177") if i < checkpoint else Color("e46b39") if i == checkpoint else Color("1e202e")
-        style.border_color = Color("f4bd78") if i <= checkpoint else Color("78604b")
-        style.set_border_width_all(2)
-        style.set_corner_radius_all(11)
+        style.bg_color = Color("d7ba8b") if i < current else Color("db603d") if i == current else Color("1c2330")
+        style.border_color = Color("edc78f") if i <= current else Color("736253")
+        style.set_border_width_all(1)
+        style.set_corner_radius_all(10)
         node.add_theme_stylebox_override("panel", style)
         map_dots.add_child(node)
-        var number := _label(str(i + 1), 12, Color("10131b") if i <= checkpoint else Color("c2a98b"))
-        number.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-        node.add_child(number)
-    var hint := _label("BOSS AT THE FINAL GATE", 12, Color("d8b37d"))
-    hint.position = Vector2(9, 52)
+        var numeral := _label(str(i + 1), 10, Color("10131b") if i <= current else Color("c4b6ae"))
+        numeral.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        node.add_child(numeral)
+    var hint := _label("BOSS ON FLOOR 10", 12, Color("d8b37d"))
+    hint.position = Vector2(8, 79)
     hint.size = Vector2(165, 20)
     hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     map_dots.add_child(hint)
