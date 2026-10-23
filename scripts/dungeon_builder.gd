@@ -23,6 +23,7 @@ var unbatched_box_count := 0
 var _unit_box: BoxMesh = BoxMesh.new()
 var _unit_spike: CylinderMesh = CylinderMesh.new()
 var _unit_foliage: SphereMesh = SphereMesh.new()
+var _unit_boulder: Mesh
 var _unit_columns: Dictionary = {}
 var _material_cache: Dictionary = {}
 
@@ -39,6 +40,40 @@ func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
         m.emission_energy_multiplier = 0.9
     _material_cache[key] = m
     return m
+
+func _build_boulder_mesh() -> Mesh:
+    # Single shared sculpted rock, then scaled/rotated thousands of ways with
+    # MultiMesh. This replaces the little rectangular boxes littering the map.
+    var builder := SurfaceTool.new()
+    builder.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var sides: int = 11
+    var top := Vector3(0.08, 0.68, -0.10)
+    for i in range(sides):
+        var a: float = TAU * float(i) / float(sides)
+        var b: float = TAU * float(i + 1) / float(sides)
+        var radius_a: float = 0.89 + 0.14 * sin(float(i) * 4.7)
+        var radius_b: float = 0.89 + 0.14 * sin(float(i + 1) * 4.7)
+        var p0 := Vector3(cos(a) * radius_a, -0.43, sin(a) * radius_a)
+        var p1 := Vector3(cos(b) * radius_b, -0.43, sin(b) * radius_b)
+        var p2 := Vector3(cos(a) * radius_a * 0.70, 0.29 + 0.12 * sin(a * 3.0), sin(a) * radius_a * 0.70)
+        var p3 := Vector3(cos(b) * radius_b * 0.70, 0.29 + 0.12 * sin(b * 3.0), sin(b) * radius_b * 0.70)
+        for point in [p0, p2, p1, p1, p2, p3, p2, top, p3]:
+            builder.set_uv(Vector2(point.x * 0.45 + 0.5, point.z * 0.45 + 0.5))
+            builder.add_vertex(point)
+    builder.generate_normals()
+    return builder.commit()
+
+
+func _stone(parent: Node3D, at: Vector3, dimensions: Vector3, mat: Material) -> MeshInstance3D:
+    var piece := MeshInstance3D.new()
+    piece.mesh = _unit_boulder
+    piece.material_override = mat
+    piece.position = at
+    piece.scale = dimensions
+    piece.rotation.y = randomizer.randf_range(-PI, PI)
+    parent.add_child(piece)
+    return piece
+
 
 func _block(parent: Node3D, at: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
     # One shared unit cube. Scale carries individual dimensions; all small
@@ -60,7 +95,7 @@ func _batch_static_boxes() -> void:
         var part: MeshInstance3D = child as MeshInstance3D
         if part == null or part.mesh == null or part.material_override == null:
             continue
-        var eligible: bool = part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage
+        var eligible: bool = part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage or part.mesh == _unit_boulder
         if not eligible:
             for unit in _unit_columns.values():
                 if part.mesh == unit:
@@ -163,8 +198,7 @@ func _connect(parent: Node3D, a: Vector3, b: Vector3, width: float, mat: Materia
         var p: Vector3 = a.lerp(b, float(i) / float(n))
         for side in [-1.0, 1.0]:
             if (i + int(side) + current_stage) % 3 == 0:
-                var pebble := _block(parent, p + lateral * side * (width * 0.56), Vector3(0.38, 0.15, 0.49), rock_material)
-                pebble.rotation.y = randomizer.randf_range(0, TAU)
+                _stone(parent, p + lateral * side * (width * 0.56), Vector3(0.34, 0.22, 0.54), rock_material)
 
 func _arch(parent: Node3D, center: Vector3, stone: Material) -> void:
     # Two broken pillars and interrupted lintels frame the gate, without a
@@ -182,15 +216,16 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
     stone.vertex_color_use_as_albedo = true
     var builder := SurfaceTool.new()
     builder.begin(Mesh.PRIMITIVE_TRIANGLES)
-    var sides: int = 9
+    var sides: int = 13
     var ridge: Array = []
     for i in range(sides):
         ridge.append(randomizer.randf_range(0.72, 1.16))
-    for tier in range(3):
-        var bottom_h: float = float(tier) / 3.0 * height
-        var top_h: float = float(tier + 1) / 3.0 * height
-        var bottom_scale: float = [1.0, 0.64, 0.32][tier]
-        var top_scale: float = [0.64, 0.32, 0.035][tier]
+    var profile: Array = [1.0, 0.86, 0.66, 0.46, 0.21, 0.035]
+    for tier in range(5):
+        var bottom_h: float = float(tier) / 5.0 * height
+        var top_h: float = float(tier + 1) / 5.0 * height
+        var bottom_scale: float = float(profile[tier])
+        var top_scale: float = float(profile[tier + 1])
         for i in range(sides):
             var angle0: float = TAU * float(i) / float(sides)
             var angle1: float = TAU * float(i + 1) / float(sides)
@@ -202,7 +237,7 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
             var p3: Vector3 = direction1 * width * top_scale * float(ridge[(i + 1) % sides]) + Vector3(0, top_h, 0)
             var shade: float = randomizer.randf_range(0.57, 0.95)
             var tone: Color = Color(shade, shade * 0.99, shade * 1.02)
-            if current_theme == 1 and tier == 2:
+            if current_theme == 1 and tier >= 3:
                 tone = Color("e0eef3") * randomizer.randf_range(0.85, 1.0)
             for vertex in [p0, p2, p1, p1, p2, p3]:
                 builder.set_color(tone)
@@ -217,7 +252,7 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
     var earth := _solid(Color("463c39") if current_theme == 2 else Color("51505a"))
-    for i in range(17):
+    for i in range(25):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
         if current_theme == 2:
@@ -230,8 +265,7 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
         elif current_theme == 4:
             _mountain(parent, p, randomizer.randf_range(0.55, 1.5), randomizer.randf_range(0.35, 0.8))
         else:
-            var rubble := _block(parent, p + Vector3(0, 0.10, 0), Vector3(0.48, 0.22, 0.58), rock_material)
-            rubble.rotation.y = randomizer.randf_range(0.0, TAU)
+            _stone(parent, p + Vector3(0, 0.06, 0), Vector3(randomizer.randf_range(0.34, 0.90), randomizer.randf_range(0.22, 0.60), randomizer.randf_range(0.44, 1.2)), rock_material)
 
 func _tree(parent: Node3D, at: Vector3) -> void:
     # Multi-part trunk and irregular foliage clusters: these look like trees,
@@ -260,8 +294,9 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
     var h: float = randomizer.randf_range(1.0, 2.7)
     match current_theme:
         0:
-            # Crypt masonry and shattered gravestones.
+            # Broken tombstones half-buried among irregular rock rubble.
             _column(parent, at, h, 0.34, rock_material)
+            _stone(parent, at + Vector3(0.45, 0.04, 0.35), Vector3(0.85, 0.48, 0.80), rock_material)
             if variant % 3 == 0:
                 _block(parent, at + Vector3(0.50, 0.42, 0), Vector3(0.56, 0.82, 0.19), floor_material)
         1:
@@ -275,7 +310,7 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             if variant % 2 == 0:
                 _tree(parent, at)
             else:
-                _column(parent, at, 0.55, 0.65, rock_material)
+                _stone(parent, at, Vector3(1.5, 0.8, 1.1), rock_material)
         3:
             # Floating-looking void obelisks with luminous runes.
             _column(parent, at, h * 1.20, 0.41, rock_material, 4)
@@ -635,6 +670,8 @@ func generate(floor_number: int) -> PackedVector3Array:
     box_batch_count = 0
     unbatched_box_count = 0
     _material_cache.clear()
+    if _unit_boulder == null:
+        _unit_boulder = _build_boulder_mesh()
     _unit_spike.bottom_radius = 1.0
     _unit_spike.top_radius = 0.04
     _unit_spike.height = 1.0
@@ -692,8 +729,13 @@ func generate(floor_number: int) -> PackedVector3Array:
                 # continuous rectangular slabs on every floor.
                 for panel in range(4):
                     var span: float = 2.1 + randomizer.randf_range(-0.15, 0.22)
-                    var fragment := _block(room, wall + Vector3(randomizer.randf_range(-0.25, 0.25), 0, -3.65 + float(panel) * 2.45), Vector3(0.62, randomizer.randf_range(0.8, 2.25), span), rock_material)
+                    var p_wall: Vector3 = wall + Vector3(randomizer.randf_range(-0.25, 0.25), 0, -3.65 + float(panel) * 2.45)
+                    var fragment := _block(room, p_wall, Vector3(0.62, randomizer.randf_range(0.8, 2.25), span), rock_material)
                     fragment.rotation.y = randomizer.randf_range(-0.12, 0.12)
+                    # Rough fractured caps and fallen masonry break the straight
+                    # cartoon-box silhouette without expensive individual meshes.
+                    _stone(room, p_wall + Vector3(0.1, fragment.scale.y * 0.48, 0), Vector3(0.83, 0.42, span * 0.52), rock_material)
+                    _stone(room, p_wall + Vector3(side * 0.64, -0.09, 0.35), Vector3(0.77, 0.31, 0.89), rock_material)
         _decorate(room, p, i + (current_stage % 10))
         _ground_details(room, p)
         if i > 0:
@@ -713,7 +755,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     var wilderness := Node3D.new()
     wilderness.name = "ExteriorLandscape"
     add_child(wilderness)
-    for i in range(24):
+    for i in range(36):
         var z: float = randomizer.randf_range(-47.0, 12.0)
         var x: float = randomizer.randf_range(-18.0, 18.0)
         var close_to_route := false
@@ -723,7 +765,10 @@ func generate(floor_number: int) -> PackedVector3Array:
                 break
         if close_to_route:
             continue
-        _feature(wilderness, Vector3(x, -0.32, z), 1 if x > 0 else -1, i)
+        var place := Vector3(x, -0.32, z)
+        _feature(wilderness, place, 1 if x > 0 else -1, i)
+        if i % 2 == 0:
+            _stone(wilderness, place + Vector3(randomizer.randf_range(-1.4, 1.4), 0.15, randomizer.randf_range(-0.9, 0.9)), Vector3(randomizer.randf_range(0.55, 1.45), randomizer.randf_range(0.45, 1.10), randomizer.randf_range(0.5, 1.35)), rock_material)
     # Silhouettes of large ridgelines occupy the distance: mountains are actual
     # 3D geometry, with height, slope and light catching the cliff faces.
     var far_ridges := Node3D.new()
