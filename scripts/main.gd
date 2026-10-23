@@ -1176,6 +1176,37 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
         actor.set_meta("clip_state", best)
     return true
 
+func _pose_fantasy_skeleton(actor: Node3D, speed: float) -> void:
+    # GLB retargeted clips can miss upper-arm tracks and leave T-pose limbs.
+    # This lightweight additive fallback keeps arms down and legs walking on
+    # imported human rigs, regardless of their original animation library.
+    var effort: float = clampf(speed / 2.4, 0.0, 1.0)
+    var cycle: float = sin(chaos_time * 8.8)
+    for part in actor.find_children("*", "Skeleton3D", true, false):
+        var skeleton: Skeleton3D = part as Skeleton3D
+        if skeleton == null:
+            continue
+        for bone_id in range(skeleton.get_bone_count()):
+            var bone_name: String = skeleton.get_bone_name(bone_id).to_lower()
+            var left_side: bool = bone_name.contains("left") or bone_name.ends_with("_l") or bone_name.ends_with(".l")
+            var right_side: bool = bone_name.contains("right") or bone_name.ends_with("_r") or bone_name.ends_with(".r")
+            if not left_side and not right_side:
+                continue
+            var is_arm: bool = (bone_name.contains("upperarm") or bone_name.contains("upper_arm") or bone_name.contains("arm_upper") or bone_name.contains("shoulder"))
+            var is_leg: bool = bone_name.contains("upperleg") or bone_name.contains("upper_leg") or bone_name.contains("thigh")
+            if not is_arm and not is_leg:
+                continue
+            var angle: float = 0.0
+            var axis: Vector3 = Vector3.FORWARD
+            if is_arm:
+                angle = (0.72 if left_side else -0.72) + (cycle * 0.23 * effort * (-1.0 if left_side else 1.0))
+            else:
+                axis = Vector3.RIGHT
+                angle = cycle * 0.36 * effort * (-1.0 if left_side else 1.0)
+            var target_pose: Quaternion = Quaternion(axis, angle)
+            var current_pose: Quaternion = skeleton.get_bone_pose_rotation(bone_id)
+            skeleton.set_bone_pose_rotation(bone_id, current_pose.slerp(target_pose, 0.48))
+
 func _animate_actor(actor: Node3D, speed: float) -> void:
     if actor == null or not is_instance_valid(actor):
         return
@@ -1188,11 +1219,13 @@ func _animate_actor(actor: Node3D, speed: float) -> void:
         has_motion = _play_actor_clip(actor, "Run", 0.14, 1.0)
     if not has_motion:
         _play_actor_clip(actor, "Idle", 0.16)
-        # Mild procedural fallback on rigs that lack locomotion clips.
-        var model: Node3D = actor.get_child(0) as Node3D if actor.get_child_count() > 0 else null
-        if model != null:
-            var effort: float = clampf(speed / 2.6, 0.0, 1.0)
-            model.rotation.z = lerpf(model.rotation.z, sin(chaos_time * 10.0 + float(actor.get_instance_id() % 11)) * 0.047 * effort, clampf(get_process_delta_time() * 8.0, 0.0, 1.0))
+    var model: Node3D = actor.get_child(0) as Node3D if actor.get_child_count() > 0 else null
+    if model != null:
+        var effort: float = clampf(speed / 2.6, 0.0, 1.0)
+        var breathing: float = sin(chaos_time * 2.3 + float(actor.get_instance_id() % 11))
+        model.rotation.z = lerpf(model.rotation.z, sin(chaos_time * 10.0) * 0.048 * effort + breathing * 0.012, clampf(get_process_delta_time() * 8.0, 0.0, 1.0))
+        model.position.y = lerpf(model.position.y, maxf(0.0, sin(chaos_time * 13.2)) * 0.065 * effort + breathing * 0.008, clampf(get_process_delta_time() * 10.0, 0.0, 1.0))
+    _pose_fantasy_skeleton(actor, speed)
 
 func _actor_attack(actor: Node3D, magic: bool = false) -> void:
     if actor == null or not is_instance_valid(actor):
