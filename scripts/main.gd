@@ -653,9 +653,19 @@ func _build_ui() -> void:
     hero_overlay.visible = false
     hero_overlay.add_theme_stylebox_override("panel", _skin(Color("0b0d15f7"), Color("a78053")))
     overlay.add_child(hero_overlay)
+    # Hero choices may be taller than the usable screen on compact phones.
+    # Give the card list a true vertical viewport instead of letting a VBox
+    # resize its parent beyond the top/bottom screen edges.
+    var hero_scroll := ScrollContainer.new()
+    hero_scroll.name = "HeroChoiceScroll"
+    hero_scroll.custom_minimum_size = Vector2(522, 770)
+    hero_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    hero_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    hero_overlay.add_child(hero_scroll)
     var hero_column := VBoxContainer.new()
+    hero_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     hero_column.add_theme_constant_override("separation", 9)
-    hero_overlay.add_child(hero_column)
+    hero_scroll.add_child(hero_column)
     var hero_title := _label("CHOOSE YOUR HERO", 29, Color("f2cf99"))
     hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hero_column.add_child(hero_title)
