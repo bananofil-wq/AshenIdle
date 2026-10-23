@@ -393,10 +393,10 @@ func _run() -> void:
         quit(74)
         return
     var material_count: int = 0
-    for material_name in ["stone_floor", "snow_02", "forest_ground_01", "rock_face_03", "volcanic_rock_tiles"]:
+    for material_name in ["stone_floor", "snow_02", "forrest_ground_01", "rock_face_03", "volcanic_rock_tiles"]:
         if ResourceLoader.exists("res://assets/pbr/%s_diff_1k.jpg" % material_name):
             material_count += 1
-    if not _check(material_count >= 3, "Three or more biome families must ship with authentic CC0 1k photographic PBR albedo textures"):
+    if not _check(material_count == 5, "All five biome families must ship with authentic CC0 1k photographic PBR albedo textures"):
         quit(75)
         return
     var shapes: Dictionary = {}
