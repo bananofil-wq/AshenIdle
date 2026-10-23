@@ -127,6 +127,10 @@ var ember_motes: Array = []
 var ritual_marks: Array = []
 var attack_animation_index := 0
 var biome_index := -1
+var dungeon_map: Node3D
+var dungeon_points := PackedVector3Array()
+var dungeon_room_index := 1
+var dungeon_travel_distance := 0.0
 var boss_telegraph: MeshInstance3D
 var boss_cast_timer := 4.5
 var boss_cast_windup := 0.0
@@ -277,14 +281,12 @@ func _build_world() -> void:
     arcane.light_energy = 0.68
     arcane.omni_range = 12
 
-    _box(self, Vector3(22.5, 1.1, 22.5), Vector3(0, -0.62, 0), Color("0c0e13"))
-    _make_dungeon_floor()
-    _place_dungeon_detail()
-    _decorate_arena()
-    _scatter_embers()
-    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
-    # All on-screen creatures are real combat entities; no decorative fake opponent.
-    _spawn_horde()
+    # The old static arena is replaced by interconnected dungeon chambers.
+    var dungeon_script: Script = preload("res://scripts/dungeon_builder.gd")
+    dungeon_map = dungeon_script.new() as Node3D
+    dungeon_map.name = "TraversableDungeon"
+    add_child(dungeon_map)
+    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(0, 0, 5), false)
 
 func _panel_color() -> StyleBoxFlat:
     var b = StyleBoxFlat.new()
@@ -706,6 +708,15 @@ func _spawn_enemy() -> void:
         enemy_hp = enemy_max
         return
     _clear_boss_telegraph()
+    if dungeon_map != null:
+        dungeon_points = dungeon_map.call("generate", stage) as PackedVector3Array
+    dungeon_room_index = 1
+    if hero != null and dungeon_points.size() > 0:
+        hero.position = dungeon_points[0]
+    if camera_ref != null and hero != null:
+        camera_focus = hero.position
+        camera_ref.position = hero.position + Vector3(0.0, 13.8, 14.9)
+        camera_ref.look_at(hero.position + Vector3(0, 0.8, -2.3), Vector3.UP)
     _spawn_horde()
     _update_wave_health()
     _apply_biome()
@@ -758,6 +769,10 @@ func _fight() -> void:
         return
     var target: Node3D = _choose_target()
     if target == null or not is_instance_valid(target):
+        return
+    # Stop attacking through walls / from a different room. Travel comes first.
+    var attack_reach: float = 5.9 if hero_class == 1 or hero_class == 2 else 2.45
+    if hero.position.distance_to(target.position) > attack_reach:
         return
     var crit: bool = rng.randf() < clampf(0.20 + _bonus("crit") / 100.0 + (0.08 if hero_class == 1 else 0.0), 0.20, 0.75)
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
@@ -873,39 +888,40 @@ func _choose_target() -> Node3D:
 func _move_hero(delta: float) -> void:
     if hero == null or not is_instance_valid(hero) or popup_shade.visible:
         return
-    var destination := Vector3(-0.4, 0.0, 0.7)
-    var before_position: Vector3 = hero.position
+    var before: Vector3 = hero.position
+    var destination: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else hero.position
     var target: Node3D = _choose_target()
-    if target != null:
-        var retreat: Vector3 = hero.position - target.position
-        retreat.y = 0.0
-        if retreat.length_squared() < 0.01:
-            retreat = Vector3.RIGHT
-        destination = target.position + retreat.normalized() * (1.85 if hero_class == 1 or hero_class == 2 else 1.05)
-        destination.x = clampf(destination.x, -3.2, 3.2)
-        destination.z = clampf(destination.z, -3.2, 3.2)
-        var look_dir: Vector3 = target.position - hero.position
-        if look_dir.length_squared() > 0.1:
-            hero.rotation.y = lerp_angle(hero.rotation.y, atan2(look_dir.x, look_dir.z), clampf(delta * 6.0, 0.0, 1.0))
-    # Bosses target a ground position when charging. The auto-fighter must
-    # react and dodge rather than standing in an unavoidable area attack.
+    var in_encounter: bool = hero.position.distance_to(destination) < 5.5
+    # Along the corridor: always move towards the next room. Only stop for
+    # actual enemies when close enough to the chamber.
+    if in_encounter and target != null and is_instance_valid(target):
+        var from_target: Vector3 = hero.position - target.position
+        from_target.y = 0.0
+        if from_target.length_squared() < 0.03:
+            from_target = Vector3.RIGHT
+        destination = target.position + from_target.normalized() * (3.45 if hero_class == 1 or hero_class == 2 else 1.45)
     if boss_cast_windup > 0.0 and boss_telegraph != null and is_instance_valid(boss_telegraph):
         var away: Vector3 = hero.position - boss_warning_center
         away.y = 0.0
-        if away.length_squared() < 0.02:
-            away = hero.position - target.position if target != null else Vector3.RIGHT
-        if away.length_squared() < 0.02:
+        if away.length_squared() < 0.03:
             away = Vector3.RIGHT
-        destination = boss_warning_center + away.normalized() * 2.75
-        destination.x = clampf(destination.x, -4.5, 4.5)
-        destination.z = clampf(destination.z, -4.5, 4.5)
-    var movement: Vector3 = destination - hero.position
-    movement.y = 0.0
-    var desired_speed: float = minf(3.6, movement.length() * 2.8)
-    if movement.length() > 0.08:
-        hero.position += movement.normalized() * minf(movement.length(), desired_speed * delta)
-    var velocity: float = Vector2(hero.position.x - before_position.x, hero.position.z - before_position.z).length() / maxf(0.001, delta)
+        destination = boss_warning_center + away.normalized() * 2.90
+    # Never leave the current chamber or the walkable spine of the corridor.
+    var route_x: float = dungeon_points[dungeon_room_index].x if dungeon_points.size() > dungeon_room_index else 0.0
+    destination.x = clampf(destination.x, route_x - 3.35, route_x + 3.35)
+    var motion: Vector3 = destination - hero.position
+    motion.y = 0.0
+    var speed: float = 3.75 if not in_encounter else 3.20
+    if motion.length() > 0.10:
+        hero.position += motion.normalized() * minf(motion.length(), speed * delta)
+    var velocity: float = hero.position.distance_to(before) / maxf(0.001, delta)
+    dungeon_travel_distance += hero.position.distance_to(before)
     _animate_actor(hero, velocity)
+    if motion.length_squared() > 0.08:
+        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(motion.x, motion.z), clampf(delta * 8.0, 0.0, 1.0))
+    elif target != null and is_instance_valid(target):
+        var face: Vector3 = target.position - hero.position
+        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(face.x, face.z), clampf(delta * 8.0, 0.0, 1.0))
     hero.position.y = 0.0
     if hero_hit_flash > 0.0:
         hero_hit_flash = maxf(0.0, hero_hit_flash - delta)
@@ -984,20 +1000,20 @@ func _update_boss_cast(delta: float) -> void:
         _refresh()
 
 func _apply_biome() -> void:
-    var next_biome: int = posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), 3)
+    var next_biome: int = posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), 5)
     if biome_index == next_biome or bg_environment == null:
         return
     biome_index = next_biome
     var scene: Environment = bg_environment.environment
-    scene.background_color = [Color("070a12"), Color("07121b"), Color("170b1e")][next_biome]
-    scene.ambient_light_color = [Color("677186"), Color("5b8ea2"), Color("91617b")][next_biome]
+    scene.background_color = [Color("070a12"), Color("091925"), Color("0b1e12"), Color("130e24"), Color("250b09")][next_biome]
+    scene.ambient_light_color = [Color("677186"), Color("88b5c8"), Color("79a27a"), Color("805aa6"), Color("aa634b")][next_biome]
     if fire_light != null:
-        fire_light.light_color = [Color("ff6332"), Color("59a5f7"), Color("d53f8c")][next_biome]
+        fire_light.light_color = [Color("ff6332"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
     if mystic_light != null:
-        mystic_light.light_color = [Color("965eff"), Color("6fcad8"), Color("d18d4b")][next_biome]
+        mystic_light.light_color = [Color("965eff"), Color("63b4d3"), Color("5b9f66"), Color("743ee0"), Color("ff9b45")][next_biome]
     if center_banner != null:
-        center_banner.text = ["THE CINDER CRYPT", "THE FROST WASTES", "THE VOID CITADEL"][next_biome]
-        center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("f2bddc")][next_biome])
+        center_banner.text = ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"][next_biome]
+        center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("b0e3a4"), Color("d4b4ff"), Color("ffbb81")][next_biome])
 
 func _bind_motion_driver(actor: Node3D) -> void:
     if actor == null:
@@ -1076,29 +1092,23 @@ func _update_camera(delta: float) -> void:
     if not cinematic_camera:
         return
     camera_time += delta
-    # Follow combat from an isometric overhead boom. Avoid exaggerated camera
-    # movement that would disorient a portrait-screen player.
-    var hero_target: Vector3 = hero.global_position
-    hero_target.x = clampf(hero_target.x, -3.1, 3.1)
-    hero_target.z = clampf(hero_target.z, -3.1, 3.1)
-    var focus: Vector3 = hero_target * 0.63
+    # Portrait-isometric tracking down a long world, not an orbit of one arena.
+    # Lead the hero by several metres so the next room is in view.
+    var focus: Vector3 = hero.global_position + Vector3(0, 0.70, -2.2)
     var target: Node3D = _choose_target()
-    if target != null:
-        focus += (target.global_position - hero_target) * 0.12
-    focus.y = 0.66
-    camera_focus = camera_focus.lerp(focus, clampf(delta * 2.1, 0.0, 1.0))
-    var boss_fight: bool = stage % BOSS_INTERVAL == 0
-    var look_offset := Vector3(0, 13.6 if boss_fight else 13.4, 15.1 if boss_fight else 14.5)
-    var subtle_orbit: float = sin(camera_time * 0.31) * 0.32
-    var random_shake := Vector3(
-        sin(camera_time * 83.0) * camera_shake,
-        cos(camera_time * 69.0) * camera_shake * 0.50,
-        sin(camera_time * 51.0) * camera_shake * 0.5
-    )
-    var destination: Vector3 = camera_focus + look_offset + Vector3(subtle_orbit, 0.0, -camera_kick * 0.26) + random_shake
-    camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.3, 0.0, 1.0))
-    camera_ref.look_at(camera_focus + Vector3(0.0, 0.6, 0.0), Vector3.UP)
-    camera_ref.fov = lerpf(camera_ref.fov, (37.5 if boss_fight else 39.0) - camera_kick * 0.7, clampf(delta * 2.0, 0.0, 1.0))
+    if target != null and hero.position.distance_to(target.position) < 7.5:
+        focus = focus.lerp(target.global_position + Vector3(0, 0.8, 0), 0.17)
+    camera_focus = camera_focus.lerp(focus, clampf(delta * 3.1, 0, 1))
+    var boss_fight: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
+    var random_shake := Vector3(sin(camera_time * 83.0) * camera_shake, cos(camera_time * 69.0) * camera_shake * 0.5, sin(camera_time * 51.0) * camera_shake * 0.5)
+    var destination: Vector3 = camera_focus + Vector3(0, 14.6 if boss_fight else 13.7, 14.9) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
+    camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.2, 0, 1))
+    camera_ref.look_at(camera_focus, Vector3.UP)
+    camera_ref.fov = lerpf(camera_ref.fov, 42.0 if boss_fight else 41.0, clampf(delta * 1.5, 0, 1))
+    if fire_light != null:
+        fire_light.position = hero.position + Vector3(2.8, 3.7, -1.4)
+    if mystic_light != null:
+        mystic_light.position = hero.position + Vector3(-3.8, 3.4, -5.5)
     camera_kick = move_toward(camera_kick, 0.0, delta * 2.7)
     camera_shake = move_toward(camera_shake, 0.0, delta * 0.95)
 
@@ -1203,6 +1213,16 @@ func _update_wave_health() -> void:
     boss_max = maxf(boss_max, 1.0)
 
 func _complete_wave() -> void:
+    # A floor has three linked encounters; clearing one opens the NEXT room.
+    # Progressing beyond the final encounter generates the following floor.
+    if dungeon_room_index < 3:
+        dungeon_room_index += 1
+        combat_note = "CHAMBER CLEARED — ADVANCING TO ROOM %d / 3" % dungeon_room_index
+        hp = minf(_max_hp(), hp + _max_hp() * 0.10)
+        _spawn_horde()
+        _update_wave_health()
+        _refresh()
+        return
     var was_boss: bool = stage % BOSS_INTERVAL == 0
     if grind_mode:
         grind_cycles += 1
@@ -1481,7 +1501,7 @@ func _refresh() -> void:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
     if hero_mana_label != null:
         hero_mana_label.text = "MP %.0f / %.0f   +%.0f / sec" % [mp, _max_mp(), _mana_regeneration()]
-    stage_banner.text = "ACT %d  •  %d/10%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, " BOSS" if stage % BOSS_INTERVAL == 0 else ""]
+    stage_banner.text = "ACT %d  •  FLOOR %d/10  •  ROOM %d/3%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, dungeon_room_index, " BOSS" if stage % BOSS_INTERVAL == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
         boss_panel.visible = stage % BOSS_INTERVAL == 0
@@ -1847,7 +1867,7 @@ func _cast_class_visual(index: int, tint: Color) -> void:
 
 func _random_spawn() -> Vector3:
     var a := rng.randf_range(0.0, TAU)
-    var d := rng.randf_range(1.7, 4.8)
+    var d := rng.randf_range(0.8, 2.8)
     return Vector3(cos(a) * d, 0, sin(a) * d)
 
 
@@ -1857,8 +1877,8 @@ func _spawn_horde() -> void:
             mob.queue_free()
     arena_mobs.clear()
     wave_kills = 0
-    var is_boss: bool = stage % BOSS_INTERVAL == 0
-    var mob_count: int = (6 + mini(int(stage / 20), 4)) if is_boss else (9 + mini(int(stage / 10), 9))
+    var is_boss: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
+    var mob_count: int = (5 + mini(int(stage / 20), 3)) if is_boss else (5 + mini(int(stage / 16), 3))
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
@@ -1895,7 +1915,8 @@ func _spawn_horde() -> void:
             body.radius = 0.38 if not elite else 0.67
             body.height = 1.18 if not elite else 2.1
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
-        root.position = Vector3(0.95, 0.0, -0.45) if elite else _random_spawn()
+        var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
+        root.position = spawn_center + (Vector3(0.0, 0.0, -0.90) if elite else _random_spawn())
         var variant_hp: float = [13.0, 10.5, 16.0][_boss_variant()]
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 1.0)
         root.set_meta("hp", mob_health)
@@ -2074,35 +2095,35 @@ func _update_chaos(delta: float) -> void:
         var mob: Node3D = arena_mobs[i] as Node3D
         if not is_instance_valid(mob):
             continue
-        var is_boss: bool = bool(mob.get_meta("boss", false))
-        var phase: float = float(mob.get_meta("phase", 0.0))
-        var hero_anchor: Vector3 = hero.position if hero != null else Vector3.ZERO
-        # Enemy packs advance, pause to engage, and circle by small offsets.
-        # The previous perpetual large orbit looked like chess pieces gliding.
-        var a: float = float(i) * 2.39996 + sin(chaos_time * 0.57 + phase) * 0.31
-        var radius: float = 1.65 if is_boss else 1.35 + float(i % 5) * 0.34
-        var desired: Vector3 = hero_anchor + Vector3(cos(a) * radius, 0.0, sin(a) * radius)
-        desired.x = clampf(desired.x, -4.9, 4.9)
-        desired.z = clampf(desired.z, -4.9, 4.9)
+        var boss: bool = bool(mob.get_meta("boss", false))
+        var phase: float = float(mob.get_meta("phase", 0))
+        var center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
+        var engaged: bool = hero != null and hero.position.distance_to(center) <= 7.6
+        # Keep the next room populated but stationary until the hero approaches.
+        # Once engaged, creatures close in, stagger and attack naturally.
+        var desired: Vector3 = mob.position
+        if engaged:
+            var angle: float = float(i) * 2.40 + sin(chaos_time * 0.38 + phase) * 0.24
+            var radius: float = 1.45 if boss else 1.23 + float(i % 4) * 0.31
+            desired = hero.position + Vector3(cos(angle) * radius, 0, sin(angle) * radius)
         var last_position: Vector3 = mob.position
-        var stagger: float = maxf(0.0, float(mob.get_meta("stagger", 0.0)) - delta)
+        var stagger: float = maxf(0, float(mob.get_meta("stagger", 0)) - delta)
         mob.set_meta("stagger", stagger)
         var knockback: Vector3 = mob.get_meta("knockback", Vector3.ZERO)
         mob.position += knockback * delta
         mob.set_meta("knockback", knockback.move_toward(Vector3.ZERO, delta * 7.0))
         var chase: Vector3 = desired - mob.position
-        chase.y = 0.0
-        if stagger <= 0.0 and chase.length() > 0.16:
-            var movement_speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.45
-            var travel: float = minf(chase.length(), movement_speed * delta)
-            mob.position += chase.normalized() * travel
-        var mob_velocity: float = Vector2(mob.position.x - last_position.x, mob.position.z - last_position.z).length() / maxf(0.001, delta)
-        _animate_actor(mob, mob_velocity)
-        mob.position.y = 0.0
-        if hero != null:
-            var towards_hero: Vector3 = hero.position - mob.position
-            if towards_hero.length_squared() > 0.01:
-                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(towards_hero.x, towards_hero.z), clampf(delta * (3.4 if is_boss else 5.1), 0.0, 1.0))
+        chase.y = 0
+        if engaged and stagger <= 0.0 and chase.length() > 0.18:
+            var speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
+            mob.position += chase.normalized() * minf(chase.length(), speed * delta)
+        var velocity: float = mob.position.distance_to(last_position) / maxf(0.001, delta)
+        _animate_actor(mob, velocity)
+        mob.position.y = 0
+        if engaged and hero != null:
+            var face: Vector3 = hero.position - mob.position
+            if face.length_squared() > 0.02:
+                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(face.x, face.z), clampf(delta * 5.0, 0, 1))
     for i in range(spell_fx.size() - 1, -1, -1):
         var fx: Dictionary = spell_fx[i]
         fx["time"] = float(fx["time"]) - delta
