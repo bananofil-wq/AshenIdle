@@ -244,6 +244,20 @@ jobs:
           path: build/AshenIdle.apk
           retention-days: 30
 
+      # Publishing here keeps the direct APK available even if optional video
+      # capture or encoding fails on a software-rendered CI runner.
+      - name: Publish direct-download Android APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: preview
+          name: Ashen Idle - Android Preview
+          body: Portrait Android development preview. APK is debug-signed for testing.
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: build/AshenIdle.apk
+
       - name: Render and encode genuine moving gameplay QA
         shell: bash
         run: |
@@ -271,17 +285,13 @@ jobs:
           path: build/gameplay-motion.mp4
           retention-days: 30
 
-      - name: Publish direct-download APK
+      - name: Attach optional gameplay motion video
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview
-          name: Ashen Idle - Android Preview
-          body: Automated portrait-mode Android prototype, debug-signed for direct installation. Download AshenIdle.apk below.
           prerelease: true
           make_latest: false
-          files: |
-            build/AshenIdle.apk
-            build/gameplay-motion.mp4
+          files: build/gameplay-motion.mp4
 
       - name: Upload diagnostics
         if: failure()
