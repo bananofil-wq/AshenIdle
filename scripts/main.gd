@@ -2894,7 +2894,7 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
         "arachnid":
             # Dark segmented chitin, pincers and clustered tiny eyes instead
             # of the previous orange spherical smiley with thick toy legs.
-            var chitin: Color = Color("343039") if current_theme == 0 or current_theme == 5 else tint.darkened(0.71)
+            var chitin: Color = Color("343039") if _boss_variant() == 0 or _boss_variant() == 5 else tint.darkened(0.71)
             var shell: Color = chitin.lightened(0.12)
             _sphere_part(visual, 0.60, Vector3(0, 0.72, -0.34), chitin)
             _sphere_part(visual, 0.37, Vector3(0, 0.73, 0.39), shell)
@@ -2914,7 +2914,7 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
                     _sphere_part(visual, 0.040 if eye_index > 0 else 0.053,
                         Vector3(side * (0.10 + float(eye_index) * 0.10),
                             0.88 - float(eye_index % 2) * 0.10, 0.65),
-                        Color("f2a36d") if current_theme == 4 else Color("c67a48"))
+                        Color("f2a36d") if _boss_variant() == 4 else Color("c67a48"))
         "winged":
             _capsule(visual, 0.30, 0.98, Vector3(0, 1.17, 0), tint)
             for sign in [-1.0, 1.0]:
