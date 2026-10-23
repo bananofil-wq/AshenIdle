@@ -2908,13 +2908,23 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
                 wing.rotation.z = sign * 0.98
             _sphere_part(visual, 0.23, Vector3(0, 1.72, 0.16), tint.lightened(0.20))
         "quadruped":
-            var body := _capsule(visual, 0.39, 1.45, Vector3(0, 0.77, 0), shade)
+            # Species-colored fur replaces the bright biome-colored capsules
+            # that previously passed for wolves, hellhounds and hyenas.
+            var fur: Color = Color("aebed1") if species.contains("FROST") or species.contains("ICE") else Color("403036") if species.contains("HELL") or species.contains("DEATH") else Color("9e805e") if species.contains("HYENA") else Color("64523e")
+            var undercoat: Color = fur.darkened(0.34)
+            var body := _capsule(visual, 0.39, 1.45, Vector3(0, 0.76, 0), fur)
             body.rotation.x = PI * 0.48
-            _sphere_part(visual, 0.34, Vector3(0, 0.88, 0.57), tint)
+            _sphere_part(visual, 0.34, Vector3(0, 0.88, 0.57), fur.lightened(0.13))
+            var muzzle := _capsule(visual, 0.17, 0.48, Vector3(0, 0.70, 0.89), undercoat)
+            muzzle.rotation.x = PI * 0.55
             for sign in [-1.0, 1.0]:
-                _cone(visual, 0.14, 0.12, 0.55, Vector3(sign * 0.29, 0.28, 0.46), shade)
-                _cone(visual, 0.14, 0.12, 0.55, Vector3(sign * 0.29, 0.28, -0.49), shade)
-                _cone(visual, 0.17, 0.015, 0.36, Vector3(sign * 0.22, 1.23, 0.66), tint)
+                _cone(visual, 0.15, 0.11, 0.58, Vector3(sign * 0.30, 0.31, 0.43), undercoat)
+                _cone(visual, 0.15, 0.11, 0.58, Vector3(sign * 0.30, 0.31, -0.46), undercoat)
+                _cone(visual, 0.17, 0.015, 0.45, Vector3(sign * 0.22, 1.27, 0.69), fur)
+                _sphere_part(visual, 0.07, Vector3(sign * 0.17, 0.96, 0.82),
+                    Color("ffd995") if species.contains("HELL") else Color("debc7c"))
+            var tail := _cone(visual, 0.17, 0.025, 0.92, Vector3(0, 1.0, -0.81), fur)
+            tail.rotation.x = -0.65
         "slime":
             _sphere_part(visual, 0.62, Vector3(0, 0.51, 0), tint)
             for sign in [-1.0, 1.0]:
