@@ -3242,9 +3242,12 @@ func _darken_character_materials(model: Node3D, is_elite: bool) -> void:
             if source_mat == null:
                 continue
             var deeper := source_mat.duplicate() as BaseMaterial3D
-            deeper.albedo_color = deeper.albedo_color * (Color("a1a3b3") if not is_elite else Color("8e7892"))
-            deeper.roughness = 0.80
-            deeper.metallic = 0.10
+            # The previous darkening pass suppressed the Quaternius
+            # characters' real diffuse textures. Retain armor shapes and
+            # readable faces under the warmer cinematic key light.
+            deeper.albedo_color = deeper.albedo_color * (Color("f1eee9") if not is_elite else Color("d3c8c0"))
+            deeper.roughness = 0.64
+            deeper.metallic = 0.18
             part.set_surface_override_material(surface_i, deeper)
 
 func _attach_hero_clips(model: Node3D) -> void:
