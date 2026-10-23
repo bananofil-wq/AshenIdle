@@ -21,6 +21,9 @@ var route_style := 0
 var box_batch_count := 0
 var unbatched_box_count := 0
 var _unit_box: BoxMesh = BoxMesh.new()
+var _unit_spike: CylinderMesh = CylinderMesh.new()
+var _unit_foliage: SphereMesh = SphereMesh.new()
+var _unit_columns: Dictionary = {}
 var _material_cache: Dictionary = {}
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
@@ -49,39 +52,43 @@ func _block(parent: Node3D, at: Vector3, size: Vector3, mat: Material) -> MeshIn
     return instance
 
 func _batch_static_boxes() -> void:
-    # On portrait Android, hundreds of unique BoxMesh/Node3D draw calls were
-    # a substantial CPU/GPU overhead. Batch static blocks per material, while
-    # retaining distinct physical shapes and rotations via 3D transforms.
+    # Batch static cubes, crystals, pillars and foliage into a handful of
+    # GPU-instanced MultiMeshes, not hundreds of individual GLES3 draw calls.
     var batches: Dictionary = {}
     var rendered: Array = find_children("*", "MeshInstance3D", true, false)
     for child in rendered:
         var part: MeshInstance3D = child as MeshInstance3D
-        if part == null or part.mesh != _unit_box:
+        if part == null or part.mesh == null or part.material_override == null:
+            continue
+        var eligible: bool = part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage
+        if not eligible:
+            for unit in _unit_columns.values():
+                if part.mesh == unit:
+                    eligible = true
+                    break
+        if not eligible or part.name == "BossDais" or part.name == "RiftGate":
             continue
         var material: Material = part.material_override
-        if material == null:
-            continue
-        var id: int = material.get_instance_id()
-        if not batches.has(id):
-            batches[id] = {"material": material, "transforms": []}
-        var local_transform: Transform3D = global_transform.affine_inverse() * part.global_transform
-        (batches[id]["transforms"] as Array).append(local_transform)
+        var key: String = "%d-%d" % [part.mesh.get_instance_id(), material.get_instance_id()]
+        if not batches.has(key):
+            batches[key] = {"material": material, "mesh": part.mesh, "transforms": []}
+        (batches[key]["transforms"] as Array).append(global_transform.affine_inverse() * part.global_transform)
         unbatched_box_count += 1
         part.queue_free()
     box_batch_count = batches.size()
-    for id in batches:
-        var batch: Dictionary = batches[id]
+    for key in batches:
+        var batch: Dictionary = batches[key]
         var placements: Array = batch["transforms"]
         if placements.is_empty():
             continue
         var multi := MultiMesh.new()
         multi.transform_format = MultiMesh.TRANSFORM_3D
-        multi.mesh = _unit_box
+        multi.mesh = batch["mesh"] as Mesh
         multi.instance_count = placements.size()
         for i in range(placements.size()):
             multi.set_instance_transform(i, placements[i] as Transform3D)
         var instance := MultiMeshInstance3D.new()
-        instance.name = "BatchedEnvironment_%d" % int(id)
+        instance.name = "BatchedEnvironment_%s" % str(key).replace("-", "_")
         instance.multimesh = multi
         instance.material_override = batch["material"] as Material
         instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -89,26 +96,25 @@ func _batch_static_boxes() -> void:
 
 
 func _column(parent: Node3D, at: Vector3, height: float, radius: float, mat: Material, sides: int = 8) -> MeshInstance3D:
-    var shape := CylinderMesh.new()
-    shape.top_radius = radius * 0.77
-    shape.bottom_radius = radius
-    shape.height = height
-    shape.radial_segments = sides
+    if not _unit_columns.has(sides):
+        var shape := CylinderMesh.new()
+        shape.top_radius = 0.77
+        shape.bottom_radius = 1.0
+        shape.height = 1.0
+        shape.radial_segments = sides
+        _unit_columns[sides] = shape
     var part := MeshInstance3D.new()
-    part.mesh = shape
+    part.mesh = _unit_columns[sides] as Mesh
+    part.scale = Vector3(radius, height, radius)
     part.material_override = mat
     part.position = at + Vector3(0, height * 0.5, 0)
     parent.add_child(part)
     return part
 
 func _spike(parent: Node3D, at: Vector3, height: float, radius: float, mat: Material) -> void:
-    var mesh := CylinderMesh.new()
-    mesh.top_radius = 0.02
-    mesh.bottom_radius = radius
-    mesh.height = height
-    mesh.radial_segments = 5
     var instance := MeshInstance3D.new()
-    instance.mesh = mesh
+    instance.mesh = _unit_spike
+    instance.scale = Vector3(radius, height, radius)
     instance.material_override = mat
     instance.position = at + Vector3(0, height * 0.5, 0)
     instance.rotation.z = randomizer.randf_range(-0.14, 0.14)
@@ -198,13 +204,11 @@ func _tree(parent: Node3D, at: Vector3) -> void:
     for cluster in range(6):
         var angle: float = TAU * float(cluster) / 6.0
         var leaf := MeshInstance3D.new()
-        var canopy := SphereMesh.new()
-        canopy.radius = randomizer.randf_range(0.63, 0.93)
-        canopy.height = randomizer.randf_range(1.15, 1.8)
-        leaf.mesh = canopy
+        var foliage_radius: float = randomizer.randf_range(0.63, 0.93)
+        leaf.mesh = _unit_foliage
         leaf.material_override = foliage_color
         leaf.position = at + Vector3(cos(angle) * 0.73, trunk_height + randomizer.randf_range(0.2, 1.0), sin(angle) * 0.73)
-        leaf.scale = Vector3(1.0, randomizer.randf_range(0.75, 1.2), 1.0)
+        leaf.scale = Vector3(foliage_radius, randomizer.randf_range(0.58, 1.07), foliage_radius)
         parent.add_child(leaf)
 
 func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
@@ -455,7 +459,12 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
             _feature(parent, at + offset, side, i + index)
     if current_theme == 0 or current_theme == 3:
         if index > 0:
-            _arch(parent, at + Vector3(0, 0, 4.3), rock_material)
+            # Do not put a full roof beam in front of the mobile camera:
+            # two ruined pillars frame the lane without hiding hero/enemies.
+            for side in [-1.0, 1.0]:
+                var support: Vector3 = at + Vector3(side * 4.15, 0, 3.8)
+                _column(parent, support, randomizer.randf_range(2.3, 3.3), 0.33, rock_material)
+                _block(parent, support + Vector3(side * 0.39, 0.22, 0), Vector3(0.76, 0.42, 1.18), rock_material)
     elif current_theme == 1:
         for side in [-1.0, 1.0]:
             _block(parent, at + Vector3(side * 4.45, -0.1, 0), Vector3(0.9, 0.23, 7.8), rock_material)
@@ -519,6 +528,14 @@ func generate(floor_number: int) -> PackedVector3Array:
     box_batch_count = 0
     unbatched_box_count = 0
     _material_cache.clear()
+    _unit_spike.bottom_radius = 1.0
+    _unit_spike.top_radius = 0.04
+    _unit_spike.height = 1.0
+    _unit_spike.radial_segments = 5
+    _unit_foliage.radius = 1.0
+    _unit_foliage.height = 2.0
+    _unit_foliage.radial_segments = 8
+    _unit_foliage.rings = 4
     landmark_count = 0
     route_style = (current_stage - 1) % 5
     current_theme = posmod(int((current_stage - 1) / 10), THEMES.size())
@@ -585,7 +602,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     var wilderness := Node3D.new()
     wilderness.name = "ExteriorLandscape"
     add_child(wilderness)
-    for i in range(44):
+    for i in range(24):
         var z: float = randomizer.randf_range(-47.0, 12.0)
         var x: float = randomizer.randf_range(-18.0, 18.0)
         var close_to_route := false
@@ -602,8 +619,8 @@ func generate(floor_number: int) -> PackedVector3Array:
     far_ridges.name = "MountainHorizon"
     add_child(far_ridges)
     for side in [-1.0, 1.0]:
-        for r in range(8):
-            var z: float = 8.0 - float(r) * 8.4
+        for r in range(7):
+            var z: float = 8.0 - float(r) * 9.2
             var x: float = side * randomizer.randf_range(11.2, 19.5)
             if current_theme == 2:
                 _tree(far_ridges, Vector3(x, -0.26, z))
