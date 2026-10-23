@@ -206,7 +206,7 @@ func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
     for j in range(count):
         var a: Vector3 = rim[j]
         var b: Vector3 = rim[(j + 1) % count]
-        for vertex in [middle, a, b]:
+        for vertex in [middle, b, a]:
             mesh_builder.set_uv(Vector2(vertex.x * 0.31, vertex.z * 0.31))
             mesh_builder.add_vertex(vertex)
     mesh_builder.generate_normals()
@@ -223,6 +223,35 @@ func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
         var difference: Vector3 = b - a
         var ledge := _block(parent, center + (a + b) * 0.5 + Vector3(0, -0.22, 0), Vector3(0.21, 0.36, difference.length()), rock_material)
         ledge.rotation.y = atan2(difference.x, difference.z) + PI * 0.5
+
+
+func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> void:
+    # Two light emitters per scene: leaves/snow/ashes/void motes. The particle
+    # budget remains bounded on GLES3 mobile and avoids expensive GPU fog.
+    if area_index % 2 != 0:
+        return
+    var weather := CPUParticles3D.new()
+    weather.name = "Atmosphere_%d" % area_index
+    weather.position = center + Vector3(0, 5.2, 0)
+    weather.amount = 22
+    weather.lifetime = 5.0
+    weather.preprocess = 2.0
+    weather.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+    weather.emission_box_extents = Vector3(7.0, 1.9, 6.8)
+    weather.direction = Vector3(0, -1, 0) if current_theme == 1 or current_theme == 2 else Vector3(0, 1, 0)
+    weather.spread = 35
+    weather.gravity = Vector3(0, -0.35, 0) if current_theme == 1 else Vector3(0, 0.15, 0)
+    weather.initial_velocity_min = 0.12
+    weather.initial_velocity_max = 0.58
+    weather.scale_amount_min = 0.02
+    weather.scale_amount_max = 0.05
+    weather.color = [Color("ba8c76", 0.6), Color("d6f1ff", 0.83), Color("9cb272", 0.75), Color("c28cf6", 0.7), Color("ffa15e", 0.7)][current_theme]
+    var sparkle := SphereMesh.new()
+    sparkle.radius = 0.06
+    sparkle.height = 0.13
+    weather.mesh = sparkle
+    weather.emitting = true
+    parent.add_child(weather)
 
 
 func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
@@ -457,6 +486,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         var p: Vector3 = walk_points[i]
         _room_floor(room, p, i)
         _surface_story(room, p, i)
+        _weather_particles(room, p, i)
         for side in [-1.0, 1.0]:
             if current_theme != 2:
                 var wall: Vector3 = p + Vector3(side * 5.4, 0.7, 0)
