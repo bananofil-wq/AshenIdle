@@ -269,6 +269,35 @@ func _cave_formation(parent: Node3D, at: Vector3, hanging: bool = false) -> void
         _stone(parent, at + Vector3(0, -0.08, 0), Vector3(1.15, 0.36, 1.04), rock_material)
 
 
+func _cave_wall_mass(parent: Node3D, at: Vector3, side: float) -> void:
+    # Massive overlapping stone volumes form a cave face, not a low fence.
+    # Use the shared rock mesh so static batching keeps Android draw calls low.
+    var height: float = randomizer.randf_range(3.5, 5.6)
+    _stone(parent, at + Vector3(side * 0.28, height * 0.34, 0),
+        Vector3(1.65, height * 0.80, 2.45), rock_material)
+    _stone(parent, at + Vector3(side * 0.83, height * 0.72, -0.32),
+        Vector3(1.52, height * 0.55, 2.10), rock_material)
+    _stone(parent, at + Vector3(-side * 0.24, height * 0.83, 0.4),
+        Vector3(1.08, 0.88, 1.48), rock_material)
+    if randomizer.randf() < 0.38:
+        _cave_formation(parent, at + Vector3(-side * 0.65, 0, 0.3))
+
+
+func _forest_understory(parent: Node3D, at: Vector3) -> void:
+    # Readable tufts, fern silhouettes and logs around the traversable trail.
+    var leaf := _solid(Color("426442"))
+    var shadow_leaf := _solid(Color("283f31"))
+    for n in range(5):
+        var p := at + Vector3(randomizer.randf_range(-1.05, 1.05), 0,
+            randomizer.randf_range(-1.15, 1.15))
+        _spike(parent, p, randomizer.randf_range(0.28, 0.85),
+            randomizer.randf_range(0.12, 0.23), leaf if n % 2 == 0 else shadow_leaf)
+    if randomizer.randf() < 0.42:
+        var fallen := _block(parent, at + Vector3(0, 0.11, 0),
+            Vector3(1.35, 0.22, 0.24), _solid(Color("4b3729")))
+        fallen.rotation.y = randomizer.randf_range(-PI, PI)
+
+
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
     var earth := _solid(Color("463c39") if current_theme == 2 else Color("343438") if current_theme == 3 else Color("51505a"))
@@ -276,6 +305,8 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
         if current_theme == 2:
+            if i % 2 == 0:
+                _forest_understory(parent, p)
             var log := _block(parent, p + Vector3(0, 0.12, 0), Vector3(randomizer.randf_range(0.6, 1.5), 0.14, 0.21), earth)
             log.rotation.y = randomizer.randf_range(-0.9, 0.9)
             if i % 3 == 0:
@@ -823,6 +854,10 @@ func generate(floor_number: int) -> PackedVector3Array:
                 # Irregular broken wall sections with visible gaps instead of
                 # continuous rectangular slabs on every floor.
                 for panel in range(4):
+                    if current_theme == 0:
+                        _cave_wall_mass(room, wall + Vector3(0,
+                            -0.52, -3.65 + float(panel) * 2.45), side)
+                        continue
                     var span: float = 1.85 + randomizer.randf_range(-0.16, 0.27)
                     var height: float = randomizer.randf_range(1.05, 2.45)
                     var p_wall: Vector3 = wall + Vector3(randomizer.randf_range(-0.26, 0.26), 0,
