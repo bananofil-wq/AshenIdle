@@ -3821,9 +3821,17 @@ func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float =
     sprite.material = _fx_material(tint, 0.69)
     var parts := CPUParticles3D.new()
     parts.mesh = sprite
-    # A restrained cap prevents dozens of overlapping burst emitters from
-    # causing a large frame-time spike during chain lightning and boss kills.
-    parts.amount = mini(count, 52)
+    # Keep full spell spectacle while Android is running smoothly. If the
+    # phone gets overwhelmed, reduce particles before sacrificing combat FPS.
+    # Desktop capture / CI always uses the full-quality visual reference.
+    var burst_budget: int = 52
+    if OS.has_feature("mobile"):
+        var live_fps: int = int(Engine.get_frames_per_second())
+        if live_fps > 0 and live_fps < 27:
+            burst_budget = 14
+        elif live_fps > 0 and live_fps < 42:
+            burst_budget = 28
+    parts.amount = mini(count, burst_budget)
     parts.lifetime = duration
     parts.one_shot = true
     parts.explosiveness = 1.0
