@@ -3575,14 +3575,22 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     _bind_motion_driver(root)
     if not _play_actor_clip(root, "Idle", 0.0, 1.0):
         _pose_fantasy_skeleton(root, 0.0)
-    # Subtle class-colored ground contact; silhouettes stay readable at the
-    # wider portrait camera distance without cartoon outlines.
-    var contact := TorusMesh.new()
-    contact.inner_radius = 0.45 if enemy else 0.58
-    contact.outer_radius = 0.47 if enemy else 0.605
-    var color: Color = Color("ac4c49") if enemy else [Color("f1a16e"), Color("9ccf77"), Color("85caff"), Color("bb91f7")][hero_class]
-    var contact_mesh := _mesh(root, contact, Vector3(0, 0.045, 0), _bright(color.darkened(0.35)))
-    contact_mesh.name = "GroundContactGlow"
+    # A radial soft contact shadow grounds boots without the perpetual
+    # bright selection ring that made screenshots look like a toy prototype.
+    var shade_image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+    for sy in range(64):
+        for sx in range(64):
+            var distance: float = Vector2(float(sx) - 31.5, float(sy) - 31.5).length() / 31.5
+            var fade: float = (1.0 - smoothstep(0.13, 1.0, distance)) * 0.29
+            shade_image.set_pixel(sx, sy, Color(0.025, 0.020, 0.022, fade))
+    var footprint := PlaneMesh.new()
+    footprint.size = Vector2(1.70 if enemy else 2.05, 1.70 if enemy else 2.05)
+    var shadow_material := StandardMaterial3D.new()
+    shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    shadow_material.albedo_texture = ImageTexture.create_from_image(shade_image)
+    var contact_mesh := _mesh(root, footprint, Vector3(0, 0.045, 0), shadow_material)
+    contact_mesh.name = "SoftContactShadow"
     contact_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     return root
 
