@@ -12,14 +12,14 @@ from urllib.request import urlopen
 
 BASE = "https://raw.githubusercontent.com/GeorgeQLe/assets-sfx-combat/main/assets/kenney/"
 ITEMS = {
-    "sword_0": ("impact-sounds", "impactMetal_medium_000"),
-    "sword_1": ("impact-sounds", "impactMetal_heavy_001"),
+    "sword_0": ("rpg-audio", "knifeSlice"),
+    "sword_1": ("rpg-audio", "knifeSlice2"),
     "loot_0": ("rpg-audio", "handleCoins"),
     "loot_1": ("rpg-audio", "handleCoins2"),
     "legendary_0": ("impact-sounds", "impactBell_heavy_000"),
     "legendary_1": ("impact-sounds", "impactBell_heavy_001"),
-    "knight_0": ("rpg-audio", "knifeSlice"),
-    "knight_1": ("rpg-audio", "knifeSlice2"),
+    "knight_0": ("impact-sounds", "impactMetal_medium_000"),
+    "knight_1": ("impact-sounds", "impactMetal_heavy_001"),
     "boss_0": ("sci-fi-sounds", "lowFrequency_explosion_000"),
     "boss_1": ("sci-fi-sounds", "explosionCrunch_000"),
     "ranger_0": ("rpg-audio", "drawKnife1"),
