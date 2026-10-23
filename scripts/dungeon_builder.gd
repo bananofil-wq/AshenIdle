@@ -305,14 +305,14 @@ func _forest_understory(parent: Node3D, at: Vector3) -> void:
 
 
 func _place_prefab(parent: Node3D, at: Vector3, prefab: String, desired_width: float) -> void:
-    # The build already ships six CC0 KayKit Dungeon Remastered models.
-    # They were downloaded but NEVER instantiated in the world; using real
-    # sculpted stone/torch props avoids relying on more procedural cubes.
+    # Place genuine CC0 modular assets at large, readable scale.
+    # Prefix 'halloween/' selects the KayKit Halloween Bits glTF collection.
     var scene: PackedScene
     if _prefab_cache.has(prefab):
         scene = _prefab_cache[prefab] as PackedScene
     else:
-        var path: String = "res://assets/models/%s.glb" % prefab
+        var path: String = ("res://assets/models/%s.gltf" if prefab.begins_with("halloween/")
+            else "res://assets/models/%s.glb") % prefab
         if ResourceLoader.exists(path):
             scene = load(path) as PackedScene
         _prefab_cache[prefab] = scene
@@ -401,25 +401,33 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
     var sign: float = -1.0 if room_id % 2 == 0 else 1.0
     var edge: Vector3 = center + Vector3(sign * 5.85, 0, -1.4)
     match current_theme:
-        0: # Crumbling dungeon masonry, actual 3D torch and fallen stones
-            _place_prefab(parent, edge, "wall_broken", 3.4)
-            _place_prefab(parent, edge + Vector3(sign * 0.6, 0, 2.0),
-                "torch_lit", 0.75)
-            _place_prefab(parent, edge + Vector3(-sign * 0.3, 0, -2.5),
-                "floor_tile_large_rocks", 2.1)
-            _fungus_patch(parent, edge + Vector3(sign * 0.8, 0, -1.5))
+        0: # Real ancient stone tombs, carved arches, coffins and gravestone clusters.
+            # The crypt is structural scenery, not another tiny repeated rock cone.
+            _place_prefab(parent, edge + Vector3(sign * 0.65, 0, -0.5),
+                "halloween/crypt" if room_id % 2 == 0 else "halloween/arch_gate", 4.6)
+            _place_prefab(parent, edge + Vector3(-sign * 0.50, 0, 2.45),
+                "halloween/coffin_decorated", 1.5)
+            _place_prefab(parent, edge + Vector3(-sign * 0.65, 0, -2.55),
+                "halloween/grave_A", 1.45)
+            _place_prefab(parent, center + Vector3(-sign * 4.35, 0, 2.4),
+                "halloween/post_lantern", 0.75)
+            _place_prefab(parent, edge + Vector3(sign * 0.6, 0, 3.5),
+                "halloween/ribcage", 0.46)
+            _fungus_patch(parent, edge + Vector3(-sign * 0.55, 0, -3.15))
         1: # Fantastical sylvan spring and giant glowing mushrooms
             _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0.8),
                 Vector2(2.5, 2.3))
             _fungus_patch(parent, edge + Vector3(-sign * 0.6, 0, -2.0))
             _place_prefab(parent, edge + Vector3(sign * 0.5, 0, -2.4),
                 "floor_tile_large_rocks", 2.5)
-        2: # Marsh pools with fungal decay and reed-choked banks
+        2: # Marsh pools with dead tree silhouettes, broken ruins and fungus.
             _water_feature(parent, edge + Vector3(sign * 0.65, 0, 0.6),
                 Vector2(2.7, 2.0))
             _fungus_patch(parent, edge + Vector3(-sign * 0.3, 0, -2.0))
-            _place_prefab(parent, edge + Vector3(sign * 0.4, 0, -2.5),
-                "wall_broken", 2.3)
+            _place_prefab(parent, edge + Vector3(sign * 0.7, 0, -2.5),
+                "halloween/tree_dead_large", 2.5)
+            _place_prefab(parent, edge + Vector3(-sign * 0.8, 0, 2.5),
+                "halloween/fence_broken", 2.3)
         3: # Larger snow shelves and fractured ancient masonry
             _mountain(parent, edge + Vector3(sign * 1.7, -0.38, 0), 4.2, 2.5)
             _place_prefab(parent, edge + Vector3(0, 0, -2.0), "pillar_decorated", 1.35)
@@ -427,10 +435,15 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
             _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0),
                 Vector2(2.25, 3.0), true)
             _place_prefab(parent, edge + Vector3(-sign * 0.2, 0, 2.4), "wall_broken", 2.4)
-        5: # Mausoleum remnants, torch-lit ruined cemetery
-            _place_prefab(parent, edge, "wall_broken", 3.2)
-            _place_prefab(parent, edge + Vector3(-sign * 0.65, 0, -2.2),
-                "pillar_decorated", 1.3)
+        5: # Fully modeled cemetery: substantial shrines, mausoleums, dead oaks.
+            _place_prefab(parent, edge + Vector3(sign * 0.6, 0, 0),
+                "halloween/crypt" if room_id % 2 == 0 else "halloween/shrine_candles", 4.2)
+            _place_prefab(parent, edge + Vector3(-sign * 0.6, 0, -2.2),
+                "halloween/gravestone", 1.25)
+            _place_prefab(parent, edge + Vector3(-sign * 1.5, 0, 2.7),
+                "halloween/tree_dead_large", 2.7)
+            _place_prefab(parent, center + Vector3(-sign * 4.45, 0, 1.9),
+                "halloween/post_skull", 0.70)
         6: # Desert temple blocks and slumped sandstone
             _place_prefab(parent, edge, "pillar_decorated", 1.7)
             _place_prefab(parent, edge + Vector3(sign * 0.9, 0, 2.5),
@@ -438,10 +451,12 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
         7: # Windworn summit outcrops and broken shrines
             _mountain(parent, edge + Vector3(sign * 1.2, -0.2, 0), 5.9, 2.6)
             _place_prefab(parent, edge + Vector3(0, 0, -2.7), "pillar_decorated", 1.3)
-        8: # Moon observatory ruins and sacred paving
-            _place_prefab(parent, edge, "pillar_decorated", 1.7)
+        8: # Moon temple arches, statuesque masonry and ruined pillars.
+            _place_prefab(parent, edge, "halloween/arch", 3.7)
             _place_prefab(parent, edge + Vector3(-sign * 0.35, 0, 2.2),
-                "floor_tile_small_broken_A", 1.8)
+                "pillar_decorated", 1.8)
+            _place_prefab(parent, edge + Vector3(sign * 0.55, 0, -2.4),
+                "halloween/plaque_candles", 1.5)
         9: # Rift altar with floating irregular shards
             _place_prefab(parent, edge, "pillar_decorated", 1.7)
             for shard in range(3):
