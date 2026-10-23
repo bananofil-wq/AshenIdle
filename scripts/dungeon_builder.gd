@@ -362,7 +362,7 @@ func _terrain_texture() -> ImageTexture:
 func _set_materials() -> void:
     # Physically-based 1k photographic textures from Poly Haven, CC0.
     # Fallback terrain generation is retained for offline development.
-    var keys: Array = ["stone_floor", "snow_02", "forest_ground_01", "rock_face_03", "volcanic_rock_tiles"]
+    var keys: Array = ["stone_floor", "snow_02", "forrest_ground_01", "rock_face_03", "volcanic_rock_tiles"]
     var key: String = str(keys[current_theme])
     floor_material = _solid(Color(FLOOR_COLORS[current_theme]))
     floor_material.uv1_scale = Vector3(2.1, 2.1, 1.0)
