@@ -2,10 +2,13 @@ extends Node3D
 # Procedural, room-to-room dungeon generator. Ten floors share a biome; each
 # floor has a deterministic but distinct winding layout, props and encounter rooms.
 # The boss is always on the tenth floor of its biome.
-const THEMES := ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"]
-const FLOOR_COLORS := ["55505a", "879dad", "374c38", "464544", "3d3437"]
-const ACCENTS := ["eb864e", "8bdcff", "8acb69", "82669c", "ff6232"]
-const ROCKS := ["35313c", "50647a", "354337", "45413f", "34262b"]
+# The ten acts below each span ten floors; act ten ends at floor 100.
+# Beyond floor 100 the art rotation repeats at increasing difficulty.
+const THEMES := ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY", "FROZEN CAVERN", "INFERNAL WASTES",
+    "HAUNTED GRAVE KINGDOM", "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
+const FLOOR_COLORS := ["55505a", "425e35", "423e30", "879dad", "3d3437", "3c454b", "a88759", "65737c", "514362", "334b67"]
+const ACCENTS := ["eb864e", "b2dc73", "9ec044", "8bdcff", "ff6232", "8bc9aa", "f5c169", "87cfff", "b69cff", "70eeef"]
+const ROCKS := ["35313c", "3b4c37", "423d37", "50647a", "34262b", "41464a", "876e58", "414957", "454151", "34415b"]
 const WIDTH := 9.0
 const DISTANCE := 14.0
 
@@ -212,7 +215,7 @@ func _arch(parent: Node3D, center: Vector3, stone: Material) -> void:
 func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void:
     # A real faceted mountain mesh with layered slopes and a broken summit.
     # Unlike placing boxes, its silhouette and cliff faces read at camera distance.
-    var stone := _solid(Color("a5b5cd") if current_theme == 1 else Color("6d6084") if current_theme == 3 else Color("657183") if current_theme == 0 else Color("655857"))
+    var stone := _solid(Color("a5b5cd") if current_theme == 3 else Color("6d6084") if current_theme == 8 else Color("657183") if current_theme == 0 else Color("655857"))
     stone.vertex_color_use_as_albedo = true
     var builder := SurfaceTool.new()
     builder.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -300,21 +303,27 @@ func _forest_understory(parent: Node3D, at: Vector3) -> void:
 
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
-    var earth := _solid(Color("463c39") if current_theme == 2 else Color("343438") if current_theme == 3 else Color("51505a"))
+    var earth := _solid(Color("463c39") if current_theme == 1 or current_theme == 2 else Color("343438") if current_theme == 8 else Color("51505a"))
     for i in range(25):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
-        if current_theme == 2:
+        if current_theme == 1 or current_theme == 2:
             if i % 2 == 0:
                 _forest_understory(parent, p)
             var log := _block(parent, p + Vector3(0, 0.12, 0), Vector3(randomizer.randf_range(0.6, 1.5), 0.14, 0.21), earth)
             log.rotation.y = randomizer.randf_range(-0.9, 0.9)
             if i % 3 == 0:
                 _tree(parent, p + Vector3(side * 1.2, 0, 0))
-        elif current_theme == 1:
+        elif current_theme == 3:
             _spike(parent, p, randomizer.randf_range(0.3, 1.1), 0.18, accent_material if i % 3 == 0 else rock_material)
-        elif current_theme == 4:
+        elif current_theme == 4 or current_theme == 7:
             _mountain(parent, p, randomizer.randf_range(0.55, 1.5), randomizer.randf_range(0.35, 0.8))
+        elif current_theme == 6 and i % 4 == 0:
+            _spike(parent, p, randomizer.randf_range(0.30, 0.70), 0.16, _solid(Color("a58a59")))
+        elif current_theme == 5 and i % 3 == 0:
+            _column(parent, p, randomizer.randf_range(0.4, 1.1), 0.15, rock_material)
+        elif current_theme == 8 or current_theme == 9:
+            _spike(parent, p, randomizer.randf_range(0.4, 0.9), 0.16, accent_material)
         elif current_theme == 0 and i % 5 == 0:
             _cave_formation(parent, p)
         else:
@@ -323,7 +332,7 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
 func _tree(parent: Node3D, at: Vector3) -> void:
     # Multi-part trunk and irregular foliage clusters: these look like trees,
     # not cylinders with a single oversized green sphere.
-    var bark := _solid(Color("392c25") if current_theme == 2 else Color("48515c"))
+    var bark := _solid(Color("392c25") if current_theme == 1 else Color("38392e") if current_theme == 2 else Color("44434a"))
     var trunk_height: float = 2.4 + randomizer.randf_range(0.25, 1.5)
     _column(parent, at, trunk_height, 0.24, bark, 7)
     for limb in range(4):
@@ -332,10 +341,12 @@ func _tree(parent: Node3D, at: Vector3) -> void:
         var branch := _block(parent, at + Vector3(cos(angle) * length * 0.35, trunk_height * 0.75, sin(angle) * length * 0.35), Vector3(0.16, 0.16, length), bark)
         branch.rotation.y = angle
         branch.rotation.x = randomizer.randf_range(-0.27, 0.27)
-    var foliage_color := _solid(Color("397b45") if current_theme == 2 else Color("4c7290"))
-    var foliage_light := _solid(Color("6e9f53") if current_theme == 2 else Color("80a9b0"))
+    var foliage_color := _solid(Color("397b45") if current_theme == 1 else Color("45603b") if current_theme == 2 else Color("4c7290"))
+    var foliage_light := _solid(Color("6e9f53") if current_theme == 1 else Color("71834b") if current_theme == 2 else Color("80a9b0"))
     # Staggered conifer-like crowns replace the former oversized green spheres,
     # which gave the forest a toy-model appearance even with PBR soil.
+    if current_theme == 5:
+        return # Haunted forest trees are skeletal silhouettes without foliage.
     for cluster in range(6):
         var tier: int = int(cluster / 3)
         var angle: float = TAU * float(cluster % 3) / 3.0 + float(tier) * 0.60
@@ -457,14 +468,17 @@ func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> voi
     weather.preprocess = 2.0
     weather.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
     weather.emission_box_extents = Vector3(7.0, 1.9, 6.8)
-    weather.direction = Vector3(0, -1, 0) if current_theme == 1 or current_theme == 2 else Vector3(0, 1, 0)
+    weather.direction = Vector3(0, -1, 0) if current_theme == 1 or current_theme == 2 or current_theme == 3 or current_theme == 7 else Vector3(0, 1, 0)
     weather.spread = 35
-    weather.gravity = Vector3(0, -0.35, 0) if current_theme == 1 else Vector3(0, 0.15, 0)
+    weather.gravity = Vector3(0, -0.35, 0) if current_theme == 3 else Vector3(0, 0.15, 0)
     weather.initial_velocity_min = 0.12
     weather.initial_velocity_max = 0.58
     weather.scale_amount_min = 0.02
     weather.scale_amount_max = 0.05
-    weather.color = [Color("ba8c76", 0.35), Color("d6f1ff", 0.48), Color("9cb272", 0.38), Color("c28cf6", 0.35), Color("ffa15e", 0.35)][current_theme]
+    weather.color = [Color("ba8c76", 0.35), Color("9bc879", 0.48), Color("7e9553", 0.44),
+        Color("d6f1ff", 0.48), Color("ffa15e", 0.35), Color("a5cfc2", 0.36),
+        Color("ebc789", 0.36), Color("bed5ec", 0.50), Color("c28cf6", 0.45),
+        Color("a5e8ff", 0.44)][current_theme]
     var sparkle := SphereMesh.new()
     sparkle.radius = 0.06
     sparkle.height = 0.13
@@ -587,7 +601,7 @@ func _terrain_height(noise: FastNoiseLite, x: float, z: float) -> float:
     var rolling: float = absf(noise.get_noise_2d(x, z))
     var cliff: float = maxf(0.0, noise.get_noise_2d(x + 83.0, z - 29.0))
     var stratification: float = sin(z * 0.19 + x * 0.43) * 0.22
-    var height_scale: float = [0.80, 1.40, 0.93, 1.35, 1.80][current_theme]
+    var height_scale: float = [0.80, 0.93, 0.58, 1.40, 1.80, 0.78, 0.42, 2.05, 1.1, 1.60][current_theme]
     return -0.49 + separation * (0.28 + (rolling * 1.45 + cliff * 1.5 + stratification) * height_scale)
 
 
@@ -602,8 +616,10 @@ func _build_exterior_terrain(parent: Node3D) -> void:
     var earth := floor_material.duplicate() as StandardMaterial3D
     earth.vertex_color_use_as_albedo = true
     earth.albedo_color = [
-        Color("6e676a"), Color("c0d8e3"), Color("526b51"),
-        Color("99958c"), Color("75676a")
+        Color("6e676a"), Color("607f50"), Color("676749"),
+        Color("c0d8e3"), Color("75676a"), Color("667276"),
+        Color("c5a16c"), Color("899ba8"), Color("77708c"),
+        Color("7398b2")
     ][current_theme]
     earth.uv1_scale = Vector3(2.0, 2.0, 1.0)
     var x_steps: int = 11
@@ -645,8 +661,10 @@ func _build_exterior_terrain(parent: Node3D) -> void:
 func _terrain_texture() -> ImageTexture:
     # Deterministic rock, snow, leaf-litter, void and lava texture variants.
     # Lightweight CPU noise replaces featureless solid-color floors on Android.
-    var dark_colors := ["22232b", "5d7482", "233927", "2e2d30", "3a1c1c"]
-    var light_colors := ["68636a", "aecfdb", "536f45", "726b66", "9b5536"]
+    var dark_colors := ["22232b", "233927", "343a27", "5d7482", "3a1c1c",
+        "232c34", "6c4f32", "3d4657", "302640", "1c3451"]
+    var light_colors := ["68636a", "628c51", "687249", "aecfdb", "9b5536",
+        "6b7374", "d4ad75", "93a8b7", "9580a9", "77a5c0"]
     var dark: Color = Color(dark_colors[current_theme])
     var light: Color = Color(light_colors[current_theme])
     var noise := FastNoiseLite.new()
@@ -665,14 +683,17 @@ func _terrain_texture() -> ImageTexture:
 func _set_materials() -> void:
     # Physically-based 1k photographic textures from Poly Haven, CC0.
     # Fallback terrain generation is retained for offline development.
-    var keys: Array = ["stone_floor", "snow_02", "forrest_ground_01", "rock_face_03", "volcanic_rock_tiles"]
+    var keys: Array = ["stone_floor", "forrest_ground_01", "forrest_ground_01", "snow_02", "volcanic_rock_tiles",
+        "stone_floor", "rock_face_03", "rock_face_03", "stone_floor", "rock_face_03"]
     var key: String = str(keys[current_theme])
     floor_material = _solid(Color(FLOOR_COLORS[current_theme]))
     floor_material.uv1_scale = Vector3(2.1, 2.1, 1.0)
     var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
     if ResourceLoader.exists(diffuse_path):
         floor_material.albedo_texture = load(diffuse_path)
-        floor_material.albedo_color = [Color("919eaf"), Color("8da5b8"), Color("84997b"), Color("b9b5a9"), Color("857981")][current_theme]
+        floor_material.albedo_color = [Color("919eaf"), Color("829c77"), Color("81916d"),
+            Color("8da5b8"), Color("857981"), Color("99a6a9"), Color("bda27b"),
+            Color("9cb7c4"), Color("b2a1c9"), Color("8bc3d3")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
         floor_material.albedo_color = Color("c0c5c5")
@@ -691,18 +712,20 @@ func _set_materials() -> void:
     floor_material.metallic = 0.0
     rock_material = _solid(Color(ROCKS[current_theme]))
     rock_material.uv1_scale = Vector3(2.7, 2.7, 1.0)
-    var cliff_key: String = "rock_face_03" if current_theme != 4 else "volcanic_rock_tiles"
+    var cliff_key: String = "volcanic_rock_tiles" if current_theme == 4 else "rock_face_03"
     var cliff_path: String = "res://assets/pbr/%s_diff_1k.jpg" % cliff_key
     if ResourceLoader.exists(cliff_path):
         rock_material.albedo_texture = load(cliff_path)
-        rock_material.albedo_color = [Color("596477"), Color("748ea3"), Color("536d55"), Color("ada8a0"), Color("544b52")][current_theme]
+        rock_material.albedo_color = [Color("596477"), Color("617c62"), Color("756d55"),
+            Color("748ea3"), Color("544b52"), Color("777f85"), Color("c5aa86"),
+            Color("788b9c"), Color("a59abf"), Color("88a3b9")][current_theme]
         var cliff_normal: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % cliff_key
         if ResourceLoader.exists(cliff_normal):
             rock_material.normal_enabled = true
             rock_material.normal_texture = load(cliff_normal)
     # Nonemissive stone and muted inlaid metal replace neon purple rubble.
     accent_material = _solid(Color(ACCENTS[current_theme]), false)
-    if current_theme == 3:
+    if current_theme == 8 or current_theme == 9:
         accent_material.roughness = 0.69
         accent_material.metallic = 0.24
 
@@ -714,7 +737,7 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
         for i in range(n):
             var offset := Vector3(x + randomizer.randf_range(-0.55, 0.55), 0, randomizer.randf_range(-3.7, 3.7))
             _feature(parent, at + offset, side, i + index)
-    if current_theme == 0 or current_theme == 3:
+    if current_theme == 0 or current_theme == 5 or current_theme == 8:
         if index > 0:
             # Do not put a full roof beam in front of the mobile camera:
             # two ruined pillars frame the lane without hiding hero/enemies.
@@ -723,13 +746,13 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
                 _column(parent, support, randomizer.randf_range(2.3, 3.3), 0.33, rock_material)
                 _stone(parent, support + Vector3(side * 0.39, 0.22, 0),
                     Vector3(1.1, 0.60, 1.52), rock_material)
-                if current_theme == 3:
+                if current_theme == 8:
                     _stone(parent, support + Vector3(side * 0.71, -0.05, 0.8),
                         Vector3(1.0, 0.36, 1.0), rock_material)
-    elif current_theme == 1:
+    elif current_theme == 3:
         for side in [-1.0, 1.0]:
             _block(parent, at + Vector3(side * 4.45, -0.1, 0), Vector3(0.9, 0.23, 7.8), rock_material)
-    elif current_theme == 2:
+    elif current_theme == 1 or current_theme == 2:
         for side in [-1.0, 1.0]:
             var stump := at + Vector3(side * 4.6, 0, -2.0)
             _tree(parent, stump)
@@ -816,10 +839,13 @@ func generate(floor_number: int) -> PackedVector3Array:
     _set_materials()
     # Surround the playable route with biome-specific terrain, not an empty
     # black skybox. Landscapes need to occupy the whole portrait view.
-    var terrain_colors := ["26303c", "273d4b", "152b1b", "1a142a", "2d1110"]
+    var terrain_colors := ["26303c", "152b1b", "33341f", "273d4b", "2d1110",
+        "202a2a", "796143", "293847", "271d35", "182b43"]
     var terrain := _solid(Color(terrain_colors[current_theme]))
     terrain.albedo_texture = floor_material.albedo_texture
-    terrain.albedo_color = [Color("454f5a"), Color("7d91a9"), Color("485c49"), Color("a19d95"), Color("534348")][current_theme]
+    terrain.albedo_color = [Color("454f5a"), Color("485c49"), Color("596042"),
+        Color("7d91a9"), Color("534348"), Color("586568"), Color("b99568"),
+        Color("8695a5"), Color("857092"), Color("648da8")][current_theme]
     terrain.uv1_scale = Vector3(11, 11, 1)
     terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
@@ -850,7 +876,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         _biome_beacon(room, p, i)
         _weather_particles(room, p, i)
         for side in [-1.0, 1.0]:
-            if current_theme != 2:
+            if current_theme != 1 and current_theme != 2:
                 var wall: Vector3 = p + Vector3(side * 5.4, 0.7, 0)
                 # Irregular broken wall sections with visible gaps instead of
                 # continuous rectangular slabs on every floor.
@@ -915,7 +941,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         for r in range(7):
             var z: float = 8.0 - float(r) * 9.2
             var x: float = side * randomizer.randf_range(11.2, 19.5)
-            if current_theme == 2:
+            if current_theme == 1 or current_theme == 2 or current_theme == 5:
                 _tree(far_ridges, Vector3(x, -0.26, z))
                 _tree(far_ridges, Vector3(x + side * 2.0, -0.26, z - 0.8))
             else:
