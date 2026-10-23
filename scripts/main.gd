@@ -3062,10 +3062,30 @@ func _attach_hero_clips(model: Node3D) -> void:
                 continue
             var idx_new: int = target_anim.add_track(track_type)
             target_anim.track_set_path(idx_new, NodePath(String(model.get_path_to(receiver_skeleton)) + ":" + bone))
+            var root_translation: bool = (
+                track_type == Animation.TYPE_POSITION_3D
+                and receiver_skeleton.get_bone_parent(receiver_skeleton.find_bone(bone)) < 0
+                and (str(clip_name).to_lower().contains("jog")
+                    or str(clip_name).to_lower().contains("run")
+                    or str(clip_name).to_lower().contains("walk"))
+            )
+            var start_position: Vector3 = Vector3.ZERO
+            if root_translation and source.track_get_key_count(idx) > 0:
+                start_position = source.track_get_key_value(idx, 0) as Vector3
             for key_idx in range(source.track_get_key_count(idx)):
+                var value: Variant = source.track_get_key_value(idx, key_idx)
+                if root_translation and value is Vector3:
+                    # Quaternius jogging clips sometimes contain baked root
+                    # motion. Our game already translates actor.position.
+                    # Clamp XZ root displacement but preserve the vertical gait
+                    # so the rig runs on the spot instead of moonwalking.
+                    var offset: Vector3 = value as Vector3
+                    offset.x = start_position.x + clampf(offset.x - start_position.x, -0.07, 0.07)
+                    offset.z = start_position.z + clampf(offset.z - start_position.z, -0.07, 0.07)
+                    value = offset
                 target_anim.track_insert_key(idx_new,
                     source.track_get_key_time(idx, key_idx),
-                    source.track_get_key_value(idx, key_idx),
+                    value,
                     source.track_get_key_transition(idx, key_idx))
         if target_anim.get_track_count() > 0:
             result.add_animation(clip_name, target_anim)
