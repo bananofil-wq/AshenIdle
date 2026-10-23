@@ -4,6 +4,7 @@ extends Node3D
 # The boss is always on the tenth floor of its biome.
 # The ten acts below each span ten floors; act ten ends at floor 100.
 # Beyond floor 100 the art rotation repeats at increasing difficulty.
+const BIOME_PROFILES = preload("res://scripts/biome_profiles.gd")
 const THEMES := ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY", "FROZEN CAVERN", "INFERNAL WASTES",
     "HAUNTED GRAVE KINGDOM", "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
 const FLOOR_COLORS := ["55505a", "425e35", "423e30", "879dad", "3d3437", "3c454b", "a88759", "65737c", "514362", "334b67"]
@@ -1155,6 +1156,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     landmark_count = 0
     route_style = (current_stage - 1) % 5
     current_theme = posmod(int((current_stage - 1) / 10), THEMES.size())
+    var biome_profile: Dictionary = BIOME_PROFILES.profile_for_stage(current_stage)
     randomizer.seed = 7919 + current_stage * 15427
     for child in get_children():
         remove_child(child)
@@ -1164,7 +1166,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     # black skybox. Landscapes need to occupy the whole portrait view.
     var terrain_colors := ["26303c", "152b1b", "33341f", "273d4b", "2d1110",
         "202a2a", "796143", "293847", "271d35", "182b43"]
-    var terrain := _solid(Color(terrain_colors[current_theme]))
+    var terrain := _solid(biome_profile["ground"] as Color)
     terrain.albedo_texture = floor_material.albedo_texture
     terrain.albedo_color = [Color("454f5a"), Color("485c49"), Color("596042"),
         Color("7d91a9"), Color("534348"), Color("586568"), Color("b99568"),
