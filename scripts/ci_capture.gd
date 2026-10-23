@@ -162,5 +162,24 @@ func _render_test() -> void:
         if not await _save_capture("inventory-preview.png"):
             quit(7)
             return
-        print("Visual QA PASS: first-launch character selection, portrait combat, hero asset, spell VFX, floor-10 boss, loot, talent tree and inventory")
+        game.call("_close_inventory_panel")
+        game.set("level", 75)
+        game.call("_open_evolution_panel")
+        if not await _save_capture("evolution-75-preview.png"):
+            quit(20)
+            return
+        game.call("_choose_evolution", 0)
+        game.set("level", 170)
+        game.call("_open_evolution_panel")
+        game.call("_choose_evolution", 1)
+        game.set("level", 250)
+        game.call("_open_evolution_panel")
+        game.call("_choose_evolution", 2)
+        game.set("level", 500)
+        game.call("_open_evolution_panel")
+        if not await _save_capture("evolution-500-preview.png"):
+            quit(21)
+            return
+        game.call("_close_evolution_panel")
+        print("Visual QA PASS: hero selection, portrait combat, floor-10 boss, loot, talents and level-75/500 three-way evolutions")
     quit(0)
