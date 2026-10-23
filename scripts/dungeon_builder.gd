@@ -815,14 +815,19 @@ func _biome_beacon(parent: Node3D, center: Vector3, room_id: int) -> void:
         return
     var side: float = -1.0 if room_id == 0 else 1.0
     var at: Vector3 = center + Vector3(side * 4.75, 0.0, -2.45)
-    _column(parent, at, 1.12, 0.28, rock_material, 6)
-    _stone(parent, at + Vector3(0, 1.07, 0), Vector3(0.57, 0.25, 0.57), rock_material)
-    _spike(parent, at + Vector3(0, 1.18, 0), 0.64, 0.19, accent_material)
+    if current_theme == 0 or current_theme == 5:
+        # Actual lantern posts replace cheap cone 'torches' in the catacombs.
+        _place_prefab(parent, at, "halloween/post_lantern", 1.2)
+    else:
+        _column(parent, at, 1.12, 0.28, rock_material, 6)
+        _stone(parent, at + Vector3(0, 1.07, 0),
+            Vector3(0.57, 0.25, 0.57), rock_material)
+        _spike(parent, at + Vector3(0, 1.18, 0), 0.64, 0.19, accent_material)
     var glow := OmniLight3D.new()
     glow.name = "WorldLight_%d" % room_id
     glow.position = at + Vector3(0, 1.65, 0)
     glow.light_color = Color("ffca8b") if current_theme == 3 else Color(ACCENTS[current_theme]).lerp(Color("f1dcc3"), 0.36)
-    glow.light_energy = 1.05 if current_theme == 3 else 0.72
+    glow.light_energy = 1.13 if current_theme == 0 or current_theme == 5 else 1.05 if current_theme == 3 else 0.72
     glow.omni_range = 8.0
     glow.shadow_enabled = false
     parent.add_child(glow)
