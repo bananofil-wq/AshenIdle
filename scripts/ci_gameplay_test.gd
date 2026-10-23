@@ -9,6 +9,14 @@ func _check(ok: bool, message: String) -> bool:
         return false
     return true
 
+# Only the test harness can emulate a process restart without rebuilding the
+# whole heavy 3D scene. Players cannot access these state flags in the game UI.
+func _choose_after_simulated_restart(game: Node, class_id: int) -> void:
+    game.set("class_selection_locked", false)
+    game.set("startup_selection", true)
+    game.call("_select_class", class_id)
+    game.set("startup_selection", false)
+
 func _run() -> void:
     var packed: PackedScene = load("res://scenes/main.tscn")
     if packed == null:
@@ -38,22 +46,22 @@ func _run() -> void:
         quit(47)
         return
     for class_id in range(4):
-        game.call("_select_class", class_id)
+        _choose_after_simulated_restart(game, class_id)
         if not _check(game.call("_max_mp") >= 65.0, "Each hero needs a real class-specific MP pool"):
             quit(48)
             return
         if not _check(game.call("_defense_reduction") > 0.0, "Each class needs defensive specialization"):
             quit(49)
             return
-    game.call("_select_class", 0)
+    _choose_after_simulated_restart(game, 0)
     if not _check(game.call("_defense_reduction") > 0.20, "Knight should have high innate defense"):
         quit(50)
         return
-    game.call("_select_class", 2)
+    _choose_after_simulated_restart(game, 2)
     if not _check(game.call("_max_mp") > 2.0 * float(game.get("level")), "Mage should have a large magic resource pool"):
         quit(51)
         return
-    game.call("_select_class", 0)
+    _choose_after_simulated_restart(game, 0)
 
     # Art QA is functional QA: ship genuine armored GLBs, not toy-model fallbacks.
     for character in ["ashen_armored_knight", "ashen_shadow_knight", "ashen_ranger", "ashen_mage", "ashen_shared_anims", "skeleton_dark"]:
@@ -116,15 +124,27 @@ func _run() -> void:
     if not _check(camera.global_position.distance_to(camera_start) > 0.09, "Camera should follow motion"):
         quit(43)
         return
-    # Class selection must not send an exploring character back to the starting gate.
+    # A class cannot be changed by buttons or the old switch shortcut until a restart.
+    var locked_class: int = int(game.get("hero_class"))
     var route_position: Vector3 = actor.position
     game.call("_select_class", 1)
-    var class_swapped_hero: Node3D = game.get("hero") as Node3D
-    if not _check(class_swapped_hero.position.distance_to(route_position) < 0.01, "Switching classes while exploring must preserve dungeon position"):
-        quit(81)
+    game.call("_switch_class")
+    game.call("_show_hero_panel", true)
+    if not _check(int(game.get("hero_class")) == locked_class and bool(game.get("class_selection_locked")) and not bool(game.get("startup_selection")), "Classes must be locked for the entire session"):
+        quit(86)
         return
-    game.call("_select_class", 0)
-    print("MOTION QA PASS: running pose, attack state, camera following and position-safe class swap")
+    var disabled_choices := 0
+    for item in (game.get("hero_choice_buttons") as Array):
+        if (item as Button).disabled:
+            disabled_choices += 1
+    if not _check(disabled_choices == 4, "All class selection buttons must be disabled after starting"):
+        quit(87)
+        return
+    game.call("_close_hero_panel")
+    if not _check((game.get("hero") as Node3D).position.distance_to(route_position) < 0.01, "Blocked class switch must not teleport the exploring hero"):
+        quit(88)
+        return
+    print("MOTION QA PASS: animation, tracking camera and locked class selection")
 
     game.set("stage", 1)
     game.set("highest", 1)
@@ -309,18 +329,18 @@ func _run() -> void:
         quit(61)
         return
 
-    # Classes have independent talent allocations that survive class changes.
-    game.call("_select_class", 2)
+    # Class-specific talents survive a simulated game restart and re-selection.
+    _choose_after_simulated_restart(game, 2)
     game.set("skill_points", 2)
     game.call("_invest_talent", 0)
     var mage_rank: int = int((game.get("skills") as Array)[0])
-    game.call("_select_class", 0)
-    game.call("_select_class", 2)
+    _choose_after_simulated_restart(game, 0)
+    _choose_after_simulated_restart(game, 2)
     if not _check(int((game.get("skills") as Array)[0]) == mage_rank, "Changing heroes must preserve invested class talents"):
         quit(32)
         return
     game.call("_show_hero_panel")
-    if not _check(game.get("hero_overlay").visible, "HERO must open class selector"):
+    if not _check(game.get("hero_overlay").visible and bool(game.get("class_selection_locked")), "Read-only hero showcase must not unlock classes"):
         quit(33)
         return
     game.call("_close_hero_panel")
@@ -352,7 +372,7 @@ func _run() -> void:
         quit(21)
         return
     # Class skills remain locked until the correct hero level.
-    game.call("_select_class", 2)
+    _choose_after_simulated_restart(game, 2)
     game.set("level", 1)
     game.set("skill_cooldowns", [0.0, 0.0, 0.0])
     game.set("mp", game.call("_max_mp"))
@@ -368,8 +388,8 @@ func _run() -> void:
     if not _check(int(game.call("_skill_rank", 1)) == 2 and int(game.get("skill_points")) == before_points - 1, "Skill upgrade must spend one point and increase rank"):
         quit(63)
         return
-    game.call("_select_class", 0)
-    game.call("_select_class", 2)
+    _choose_after_simulated_restart(game, 0)
+    _choose_after_simulated_restart(game, 2)
     if not _check(int(game.call("_skill_rank", 1)) == 2, "Each class must preserve skill ranks independently"):
         quit(64)
         return
@@ -404,6 +424,77 @@ func _run() -> void:
     if not _check(ridges != null and ridges.get_child_count() >= 12, "Landscapes must have actual large mountain or tree ridge geometry"):
         quit(69)
         return
+    # Four ascension thresholds, each offering three class-specific branches.
+    # Choices are permanent and saved per class; branch effects alter real stats.
+    _choose_after_simulated_restart(game, 2)
+    game.set("level", 74)
+    game.call("_open_evolution_panel")
+    var evo_buttons: Array = game.get("evolution_buttons")
+    if not _check(evo_buttons.size() == 3 and (evo_buttons[0] as Button).disabled and (evo_buttons[1] as Button).disabled and (evo_buttons[2] as Button).disabled, "Evolution cannot unlock before level 75"):
+        quit(89)
+        return
+    game.call("_close_evolution_panel")
+    game.set("level", 75)
+    var damage_without_evo: float = float(game.call("_damage"))
+    game.call("_open_evolution_panel")
+    if not _check(evo_buttons.size() == 3 and not (evo_buttons[0] as Button).disabled and str((evo_buttons[0] as Button).text).contains("PYROMANCER"), "Level 75 must present three distinct mage branches"):
+        quit(90)
+        return
+    game.call("_choose_evolution", 0)
+    if not _check(float(game.call("_damage")) > damage_without_evo, "Offensive evolution must increase real combat damage"):
+        quit(91)
+        return
+    if not _check(int((game.call("_evolution_picks") as Array)[0]) == 0, "First branch choice must be committed permanently"):
+        quit(92)
+        return
+    # Reopening at the same milestone must not offer a reroll.
+    game.call("_open_evolution_panel")
+    if not _check((evo_buttons[0] as Button).disabled, "A completed tier must not be rerolled before the next milestone"):
+        quit(93)
+        return
+    game.call("_close_evolution_panel")
+    game.set("level", 170)
+    var hp_without_guardian: float = float(game.call("_max_hp"))
+    game.call("_open_evolution_panel")
+    game.call("_choose_evolution", 1)
+    if not _check(float(game.call("_max_hp")) > hp_without_guardian, "Guardian path must increase real health at level 170"):
+        quit(94)
+        return
+    game.set("level", 250)
+    var regen_before: float = float(game.call("_mana_regeneration"))
+    game.call("_open_evolution_panel")
+    game.call("_choose_evolution", 2)
+    if not _check(float(game.call("_mana_regeneration")) > regen_before, "Arcane path must improve mana recovery at level 250"):
+        quit(95)
+        return
+    game.set("level", 500)
+    var endgame_damage: float = float(game.call("_damage"))
+    game.call("_open_evolution_panel")
+    game.call("_choose_evolution", 0)
+    var ascension_history: Array = game.call("_evolution_picks")
+    if not _check(ascension_history == [0, 1, 2, 0] and float(game.call("_damage")) > endgame_damage, "Level 500 must complete the fourth independent evolution"):
+        quit(96)
+        return
+    game.call("_open_evolution_panel")
+    if not _check((evo_buttons[0] as Button).disabled and (evo_buttons[1] as Button).disabled and (evo_buttons[2] as Button).disabled, "Four ascensions is the maximum; choices cannot be reset"):
+        quit(97)
+        return
+    game.call("_close_evolution_panel")
+    game.call("_save_game")
+    var evolution_save: Variant = JSON.parse_string(FileAccess.get_file_as_string("user://save_v2.json"))
+    if not _check(evolution_save is Dictionary and evolution_save.has("evolutions") and (evolution_save["evolutions"] as Dictionary).has("2"), "All four ascensions must be stored in the existing save file"):
+        quit(98)
+        return
+    _choose_after_simulated_restart(game, 1)
+    if not _check(game.call("_evolution_picks") == [-1, -1, -1, -1], "Ranger must have independent evolution choices"):
+        quit(99)
+        return
+    _choose_after_simulated_restart(game, 2)
+    if not _check(game.call("_evolution_picks") == [0, 1, 2, 0], "Mage evolutions must survive class re-selection after restart"):
+        quit(100)
+        return
+    print("EVOLUTION QA PASS: levels 75/170/250/500, 3 branches, 4 persisted choices, stat effects, session-locked heroes")
+
     # V3 graphical quality is part of the release gate, not a design document.
     var characters: Array = (game.get("hero_overlay") as Control).find_children("*", "SubViewport", true, false)
     if not _check(characters.size() >= 4, "Every selectable class needs a genuine rendered 3D hero preview"):
