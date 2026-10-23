@@ -255,7 +255,7 @@ func _build_world() -> void:
     environment.adjustment_saturation = 0.88
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("677186")
-    environment.ambient_light_energy = 0.48
+    environment.ambient_light_energy = 0.73
     environment.glow_enabled = false
     # Keep saturated spell silhouettes; aggressive glow had clipped the entire combat area white.
     environment.glow_intensity = 0.38
@@ -284,15 +284,15 @@ func _build_world() -> void:
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
     ember.light_color = Color("ff6332")
-    ember.light_energy = 1.35
-    ember.omni_range = 13.0
+    ember.light_energy = 0.94
+    ember.omni_range = 10.5
     var arcane := OmniLight3D.new()
     mystic_light = arcane
     add_child(arcane)
     arcane.position = Vector3(-3.6, 4.0, -2.0)
     arcane.light_color = Color("965eff")
-    arcane.light_energy = 0.68
-    arcane.omni_range = 12
+    arcane.light_energy = 0.56
+    arcane.omni_range = 10
 
     # The old static arena is replaced by interconnected dungeon chambers.
     var dungeon_script: Script = preload("res://scripts/dungeon_builder.gd")
@@ -1153,16 +1153,16 @@ func _apply_biome() -> void:
     var scene: Environment = bg_environment.environment
     scene.background_color = [Color("070a12"), Color("091925"), Color("0b1e12"), Color("130e24"), Color("250b09")][next_biome]
     scene.fog_enabled = true
-    scene.fog_light_color = [Color("59423d"), Color("64879b"), Color("526851"), Color("48305e"), Color("704238")][next_biome]
-    scene.fog_density = [0.009, 0.006, 0.004, 0.010, 0.008][next_biome]
+    scene.fog_light_color = [Color("35445c"), Color("64879b"), Color("526851"), Color("48305e"), Color("704238")][next_biome]
+    scene.fog_density = [0.004, 0.005, 0.004, 0.007, 0.006][next_biome]
     scene.adjustment_brightness = [1.02, 0.97, 0.99, 0.93, 0.99][next_biome]
     scene.adjustment_saturation = [0.92, 0.78, 0.96, 0.90, 0.94][next_biome]
     if key_sun != null:
         key_sun.light_color = [Color("bfd2f2"), Color("c2e7ff"), Color("c3dda1"), Color("bc9aff"), Color("ffd0a6")][next_biome]
         key_sun.light_energy = [1.05, 1.05, 0.99, 0.92, 1.08][next_biome]
-    scene.ambient_light_color = [Color("677186"), Color("88b5c8"), Color("79a27a"), Color("805aa6"), Color("aa634b")][next_biome]
+    scene.ambient_light_color = [Color("8da5c7"), Color("88b5c8"), Color("8eae88"), Color("805aa6"), Color("a17b77")][next_biome]
     if fire_light != null:
-        fire_light.light_color = [Color("ff6332"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
+        fire_light.light_color = [Color("ff9a61"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
     if mystic_light != null:
         mystic_light.light_color = [Color("965eff"), Color("63b4d3"), Color("5b9f66"), Color("743ee0"), Color("ff9b45")][next_biome]
     if center_banner != null:
@@ -2765,9 +2765,9 @@ func _decorate_arena() -> void:
 
 func _scatter_embers() -> void:
     # Tiny drifting emissive ash sparks provide depth without a heavy particle shader.
-    for i in range(44):
+    for i in range(12):
         var spark_mesh := QuadMesh.new()
-        spark_mesh.size = Vector2(rng.randf_range(0.07, 0.17), rng.randf_range(0.07, 0.17))
+        spark_mesh.size = Vector2(rng.randf_range(0.055, 0.10), rng.randf_range(0.055, 0.10))
         var spark := _mesh(self, spark_mesh, Vector3(rng.randf_range(-5.8, 5.8), 0.2, rng.randf_range(-5.8, 5.8)), _fx_material(Color("f27e34") if i % 3 else Color("ffbf5a"), 0.40))
         var phase := rng.randf_range(0.0, TAU)
         ember_motes.append({"node": spark, "x": spark.position.x, "z": spark.position.z, "phase": phase, "rate": rng.randf_range(0.22, 0.53)})
@@ -2823,7 +2823,9 @@ func _burst_particles(at: Vector3, tint: Color, count: int = 28, radius: float =
     sprite.material = _fx_material(tint, 0.69)
     var parts := CPUParticles3D.new()
     parts.mesh = sprite
-    parts.amount = mini(count, 120)
+    # A restrained cap prevents dozens of overlapping burst emitters from
+    # causing a large frame-time spike during chain lightning and boss kills.
+    parts.amount = mini(count, 52)
     parts.lifetime = duration
     parts.one_shot = true
     parts.explosiveness = 1.0
