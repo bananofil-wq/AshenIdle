@@ -665,19 +665,62 @@ func _build_ui() -> void:
 
 
 func _create_hero_preview(class_id: int) -> PanelContainer:
-    # Class identity is visual even when a nested 3D viewport fails to paint
-    # on mobile GL. The dungeon still uses the full 3D hero models in play.
+    # Actual armored 3D hero preview. The emblem remains a fully rendered
+    # fallback when third-party GLBs are not yet downloaded into the editor.
     var accent: Color = [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]
     var frame := PanelContainer.new()
     frame.custom_minimum_size = Vector2(108, 149)
     frame.add_theme_stylebox_override("panel", _skin(Color("11141d"), accent))
+    var holder := Control.new()
+    holder.custom_minimum_size = Vector2(108, 149)
+    holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    frame.add_child(holder)
+    var portraits: Array = ["ashen_armored_knight", "ashen_ranger", "ashen_mage", "ashen_shadow_knight"]
+    var packed: PackedScene = _get_asset_scene(str(portraits[class_id]))
+    if packed != null:
+        var viewport_holder := SubViewportContainer.new()
+        viewport_holder.position = Vector2(0, 0)
+        viewport_holder.size = Vector2(108, 149)
+        viewport_holder.stretch = true
+        viewport_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        holder.add_child(viewport_holder)
+        var preview_viewport := SubViewport.new()
+        preview_viewport.size = Vector2i(216, 298)
+        preview_viewport.transparent_bg = true
+        preview_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+        viewport_holder.add_child(preview_viewport)
+        var preview_model: Node3D = packed.instantiate() as Node3D
+        if preview_model != null:
+            preview_viewport.add_child(preview_model)
+            _fit_visual_model(preview_model, 2.6)
+            preview_model.rotation.y = -0.38
+            var camera := Camera3D.new()
+            camera.position = Vector3(2.65, 2.18, 4.65)
+            camera.fov = 37.0
+            preview_viewport.add_child(camera)
+            camera.look_at(Vector3(0, 1.35, 0), Vector3.UP)
+            camera.current = true
+            var key := DirectionalLight3D.new()
+            key.rotation_degrees = Vector3(-45, -31, 0)
+            key.light_color = accent.lightened(0.58)
+            key.light_energy = 2.0
+            preview_viewport.add_child(key)
+            var fill := DirectionalLight3D.new()
+            fill.rotation_degrees = Vector3(-29, 125, 0)
+            fill.light_color = Color("a3b8dd")
+            fill.light_energy = 0.8
+            preview_viewport.add_child(fill)
     var emblem_script: Script = preload("res://scripts/class_emblem.gd")
     var emblem: Control = emblem_script.new() as Control
     emblem.set("class_id", class_id)
     emblem.set("accent", accent)
-    emblem.custom_minimum_size = Vector2(108, 149)
+    if packed != null:
+        emblem.position = Vector2(71, 1)
+        emblem.size = Vector2(33, 42)
+    else:
+        emblem.size = Vector2(108, 149)
     emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    frame.add_child(emblem)
+    holder.add_child(emblem)
     return frame
 
 
