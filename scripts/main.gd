@@ -60,6 +60,7 @@ const CLASS_SKILL_DESCRIPTIONS = [
 const SKILL_UNLOCK_LEVELS = [1, 5, 10]
 const SKILL_MAX_RANK := 12
 const SAVE_FILE = "user://save_v2.json"
+const BIOME_PROFILES = preload("res://scripts/biome_profiles.gd")
 const EVO = preload("res://scripts/evolution_rules.gd")
 const DIRECTOR = preload("res://scripts/encounter_director.gd")
 const CINEMATIC_SKILLS = preload("res://scripts/cinematic_skills.gd")
@@ -1535,6 +1536,7 @@ func _update_boss_cast(delta: float) -> void:
 
 func _apply_biome() -> void:
     var next_biome: int = posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), BIOME_NAMES.size())
+    var biome_profile: Dictionary = BIOME_PROFILES.profile_for_stage(stage)
     if biome_index == next_biome or bg_environment == null:
         return
     biome_index = next_biome
@@ -1543,9 +1545,7 @@ func _apply_biome() -> void:
         Color("111b24"), Color("231311"), Color("151d23"), Color("392a1a"),
         Color("192635"), Color("1c1728"), Color("101e35")][next_biome]
     scene.fog_enabled = true
-    scene.fog_light_color = [Color("343b43"), Color("4f7953"), Color("596342"),
-        Color("64879b"), Color("704238"), Color("556c69"), Color("a38865"),
-        Color("536c84"), Color("625775"), Color("4b83aa")][next_biome]
+    scene.fog_light_color = biome_profile["fog"] as Color
     scene.fog_density = [0.0020, 0.0026, 0.0042, 0.0030, 0.0030,
         0.0038, 0.0028, 0.0045, 0.0023, 0.0028][next_biome]
     scene.adjustment_brightness = [1.075, 1.075, 1.025, 1.04, 1.045,
