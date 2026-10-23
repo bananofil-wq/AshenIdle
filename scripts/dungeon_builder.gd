@@ -322,7 +322,7 @@ func _place_prefab(parent: Node3D, at: Vector3, prefab: String, desired_width: f
     if fixture == null:
         return
     var holder := Node3D.new()
-    holder.name = "Authentic_%s" % prefab
+    holder.name = "Authentic_%s" % prefab.replace("/", "_")
     parent.add_child(holder)
     holder.position = at
     holder.add_child(fixture)
