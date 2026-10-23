@@ -111,9 +111,9 @@ func _render_test() -> void:
         if not await _save_capture("skills-chain-lightning.png"):
             quit(28)
             return
-        # Capture the five different biome families from the actual Godot renderer.
+        # Capture each of the ten fantasy biomes from the actual Godot renderer.
         # Each floor creates a new traversable path, not a recolored static arena.
-        for biome_floor in [11, 21, 31, 41]:
+        for biome_floor in [11, 21, 31, 41, 51, 61, 71, 81, 91]:
             game.set("stage", biome_floor)
             game.call("_spawn_enemy")
             game.call("_refresh")
@@ -121,9 +121,9 @@ func _render_test() -> void:
             if not await _save_capture("biome-%d.png" % biome_floor):
                 quit(14)
                 return
-        # Dedicated visual QA of the boss arena for all five visual themes.
+        # Dedicated visual QA of the boss arena for all ten visual themes.
         # Each tenth floor includes the unique biome-specific boss sanctuary.
-        for milestone in [10, 20, 30, 40, 50]:
+        for milestone in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
             game.set("stage", milestone)
             game.set("highest", milestone)
             game.call("_spawn_enemy")
