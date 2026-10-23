@@ -13,7 +13,7 @@ const CLASS_SKILL_COSTS = [[10.0, 20.0, 45.0], [14.0, 22.0, 48.0], [25.0, 36.0, 
 const CLASS_SPELLS = [
     ["FLAME", "SHIELD", "INFERNO"],
     ["VOLLEY", "TRAP", "ARROWFALL"],
-    ["FIRE", "FROST", "ARCANE"],
+    ["FIRE", "CHAIN LIGHTNING", "ARCANE"],
     ["REAP", "VOID", "NIGHTFALL"]
 ]
 const SLOTS = ["Weapon", "Armor", "Helm", "Ring"]
@@ -32,9 +32,11 @@ const CLASS_DESCRIPTIONS = [
 const CLASS_SKILL_DESCRIPTIONS = [
     ["Fire-infused melee", "Restores your health", "Massive fire damage"],
     ["Hits several foes", "Controls groups of enemies", "Storm of arrows"],
-    ["Explosive fire magic", "Frost shockwave", "Devastating arcane burst"],
+    ["Explosive fire magic", "Lightning jumps between more enemies as it levels", "Devastating arcane burst"],
     ["Steals life on hit", "Dark energy blast", "Powerful shadow attack"]
 ]
+const SKILL_UNLOCK_LEVELS = [1, 5, 10]
+const SKILL_MAX_RANK := 12
 const SAVE_FILE = "user://save_v2.json"
 
 var hero_class = 0
@@ -55,6 +57,7 @@ var equipped: Dictionary = {}
 var skill_points = 0
 var skills: Array = [0, 0, 0]
 var class_talents: Dictionary = {}
+var class_skill_ranks: Dictionary = {}
 var tick = 0.0
 var save_timer = 0.0
 var combat_note = "THE ASHEN ROAD AWAITS"
@@ -107,6 +110,7 @@ var hero_overlay: PanelContainer
 var hero_return_button: Button
 var startup_selection := true
 var skill_choice_buttons: Array = []
+var skill_upgrade_buttons: Array = []
 var skill_count_label: Label
 var grind_mode := false
 var grind_cycles := 0
@@ -150,6 +154,7 @@ var shared_animation_cache: Dictionary = {}
 var screen_flash: ColorRect
 var screen_flash_fade := 0.0
 var fx_sounds: Array = []
+var sound_bank: Node
 var audio_enabled := true
 var sfx_toggle_button: Button
 var last_hit_sound_msec := 0
@@ -254,10 +259,10 @@ func _build_world() -> void:
     add_child(world)
 
     camera_ref = Camera3D.new()
-    camera_ref.position = Vector3(0.0, 14.1, 16.0)
+    camera_ref.position = Vector3(0.0, 19.5, 21.8)
     add_child(camera_ref)
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
-    camera_ref.fov = 40.0
+    camera_ref.fov = 49.0
     camera_ref.current = true
     camera_focus = Vector3.ZERO
     var sun := DirectionalLight3D.new()
@@ -528,14 +533,14 @@ func _build_ui() -> void:
     popup_buttons.add_child(_ornate_button("KEEP", _hide_legendary, Vector2(230, 58)))
 
     skill_overlay = PanelContainer.new()
-    skill_overlay.position = Vector2(92, (overlay.size.y - 540.0) * 0.5)
-    skill_overlay.size = Vector2(536, 540)
+    skill_overlay.position = Vector2(92, (overlay.size.y - 815.0) * 0.5)
+    skill_overlay.size = Vector2(536, 815)
     skill_overlay.visible = false
     skill_overlay.z_index = 41
     skill_overlay.add_theme_stylebox_override("panel", _skin(Color("0e1019"), Color("9c79bc")))
     overlay.add_child(skill_overlay)
     var talents := VBoxContainer.new()
-    talents.add_theme_constant_override("separation", 10)
+    talents.add_theme_constant_override("separation", 7)
     skill_overlay.add_child(talents)
     var talent_title := _label("ASHEN TALENT TREE", 27, Color("edc99a"))
     talent_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -549,12 +554,18 @@ func _build_ui() -> void:
         "WARDING  REDUCES INCOMING DAMAGE"
     ]
     for i in range(3):
-        var button := _ornate_button(descriptions[i], _invest_talent.bind(i), Vector2(485, 75))
+        var button := _ornate_button(descriptions[i], _invest_talent.bind(i), Vector2(485, 57))
         button.add_theme_font_size_override("font_size", 17)
         skill_choice_buttons.append(button)
         talents.add_child(button)
-    talents.add_child(_label("Choose a branch. Talents strengthen all four classes.", 16, Color("ac9ca8")))
-    talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 60)))
+    talents.add_child(_label("ACTIVE SKILLS — UNLOCK & UPGRADE", 18, Color("edc99a")))
+    for ability_index in range(3):
+        var upgrade_button := _ornate_button("UPGRADE SKILL", _upgrade_class_skill.bind(ability_index), Vector2(485, 65))
+        upgrade_button.add_theme_font_size_override("font_size", 15)
+        skill_upgrade_buttons.append(upgrade_button)
+        talents.add_child(upgrade_button)
+    talents.add_child(_label("Ranks improve damage, cooldown and chain targets.", 15, Color("ac9ca8")))
+    talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 52)))
 
     hero_overlay = PanelContainer.new()
     hero_overlay.position = Vector2(80, (overlay.size.y - 820.0) * 0.5)
@@ -715,7 +726,7 @@ func _spawn_enemy() -> void:
         hero.position = dungeon_points[0]
     if camera_ref != null and hero != null:
         camera_focus = hero.position
-        camera_ref.position = hero.position + Vector3(0.0, 13.8, 14.9)
+        camera_ref.position = hero.position + Vector3(0.0, 20.8, 22.2)
         camera_ref.look_at(hero.position + Vector3(0, 0.8, -2.3), Vector3.UP)
     _spawn_horde()
     _update_wave_health()
@@ -732,9 +743,14 @@ func _process(delta: float) -> void:
     for i in range(skill_buttons.size()):
         var skill_button: Button = skill_buttons[i]
         var cost: float = float(CLASS_SKILL_COSTS[hero_class][i])
-        skill_button.disabled = float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
+        var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
+        var unlocked: bool = level >= unlock_level
+        skill_button.disabled = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
         var skill_caption: String = str(CLASS_SPELLS[hero_class][i])
-        skill_button.text = (skill_caption + "\n%.0f MP" % cost if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
+        if not unlocked:
+            skill_button.text = "LOCKED\nLVL %d" % unlock_level
+        else:
+            skill_button.text = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
     tick += delta
     save_timer += delta
     if hero != null:
@@ -791,7 +807,7 @@ func _fight() -> void:
         camera_shake = maxf(camera_shake, 0.11)
     attack_flash = 1.0
     if rng.randf() < 0.23 and not arena_mobs.is_empty():
-        _use_skill(rng.randi_range(0, 2))
+        _use_skill(rng.randi_range(0, 0 if level < 5 else 1 if level < 10 else 2))
     if arena_mobs.is_empty():
         _complete_wave()
         return
@@ -825,47 +841,15 @@ func _toggle_sound() -> void:
     _save_game()
 
 func _prepare_audio() -> void:
-    # Royalty-free procedural sounds synthesized in memory. No external audio assets.
-    for effect_kind in range(5):
-        var duration: float = [0.13, 0.27, 0.45, 0.37, 0.58][effect_kind]
-        var frequency: float = [140.0, 610.0, 510.0, 290.0, 95.0][effect_kind]
-        var rate := 16000
-        var samples: int = int(float(rate) * duration)
-        var pcm := PackedByteArray()
-        pcm.resize(samples * 2)
-        for i in range(samples):
-            var t: float = float(i) / float(rate)
-            var progress: float = t / duration
-            var decay: float = pow(1.0 - progress, 2.6 if effect_kind == 0 else 1.65)
-            var frequency_at_t: float = frequency * (1.5 - progress * 0.85) if effect_kind == 0 else frequency * (1.0 + progress * 0.45)
-            var carrier: float = sin(TAU * frequency_at_t * t)
-            var overtone: float = sin(TAU * frequency_at_t * t * 1.98) * 0.36
-            var noise: float = sin(float(i) * 16.774) * sin(float(i) * 7.238) * (0.48 if effect_kind == 0 else 0.10)
-            var sample: float = (carrier * 0.64 + overtone + noise) * decay
-            if effect_kind == 2:
-                sample += sin(TAU * (760.0 + 420.0 * progress) * t) * decay * 0.28
-            pcm.encode_s16(i * 2, clampi(int(sample * 12000.0), -32000, 32000))
-        var clip := AudioStreamWAV.new()
-        clip.format = AudioStreamWAV.FORMAT_16_BITS
-        clip.mix_rate = rate
-        clip.stereo = false
-        clip.data = pcm
-        fx_sounds.append(clip)
+    # Dedicated original SFX bank: attacks, pickups, class spells and boss cues.
+    var bank_script: Script = preload("res://scripts/audio_bank.gd")
+    sound_bank = bank_script.new() as Node
+    add_child(sound_bank)
 
 func _play_audio(effect_kind: int) -> void:
-    if not audio_enabled or effect_kind < 0 or effect_kind >= fx_sounds.size():
-        return
-    if effect_kind == 0:
-        var now: int = Time.get_ticks_msec()
-        if now - last_hit_sound_msec < 170:
-            return
-        last_hit_sound_msec = now
-    var output := AudioStreamPlayer.new()
-    output.stream = fx_sounds[effect_kind]
-    output.volume_db = -17.5 if effect_kind == 0 else -11.5
-    add_child(output)
-    output.finished.connect(output.queue_free)
-    output.play()
+    if audio_enabled and sound_bank != null:
+        sound_bank.call("play_effect", effect_kind, hero_class)
+
 
 func _choose_target() -> Node3D:
     if arena_mobs.is_empty():
@@ -1094,17 +1078,17 @@ func _update_camera(delta: float) -> void:
     camera_time += delta
     # Portrait-isometric tracking down a long world, not an orbit of one arena.
     # Lead the hero by several metres so the next room is in view.
-    var focus: Vector3 = hero.global_position + Vector3(0, 0.70, -2.2)
+    var focus: Vector3 = hero.global_position + Vector3(0, 0.70, -3.3)
     var target: Node3D = _choose_target()
     if target != null and hero.position.distance_to(target.position) < 7.5:
         focus = focus.lerp(target.global_position + Vector3(0, 0.8, 0), 0.17)
     camera_focus = camera_focus.lerp(focus, clampf(delta * 3.1, 0, 1))
     var boss_fight: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
     var random_shake := Vector3(sin(camera_time * 83.0) * camera_shake, cos(camera_time * 69.0) * camera_shake * 0.5, sin(camera_time * 51.0) * camera_shake * 0.5)
-    var destination: Vector3 = camera_focus + Vector3(0, 14.6 if boss_fight else 13.7, 14.9) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
+    var destination: Vector3 = camera_focus + Vector3(0, 21.5 if boss_fight else 20.4, 22.6) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
     camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.2, 0, 1))
     camera_ref.look_at(camera_focus, Vector3.UP)
-    camera_ref.fov = lerpf(camera_ref.fov, 42.0 if boss_fight else 41.0, clampf(delta * 1.5, 0, 1))
+    camera_ref.fov = lerpf(camera_ref.fov, 48.5 if boss_fight else 49.0, clampf(delta * 1.5, 0, 1))
     if fire_light != null:
         fire_light.position = hero.position + Vector3(2.8, 3.7, -1.4)
     if mystic_light != null:
@@ -1296,7 +1280,7 @@ func _select_class(next_class: int) -> void:
     class_talents[str(hero_class)] = skills.duplicate()
     if hero != null:
         hero.queue_free()
-    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
+    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], dungeon_points[0] if not dungeon_points.is_empty() else Vector3.ZERO, false)
     hp = _max_hp()
     mp = _max_mp()
     combat_note = "NEW CLASS: " + CLASSES[hero_class]
@@ -1536,7 +1520,7 @@ func _save_game() -> void:
     var data = {
         "class": hero_class, "level": level, "xp": xp, "gold": gold,
         "stage": stage, "highest": highest, "kills": kills, "hp": hp, "mp": mp,
-        "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents,
+        "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents, "class_skill_ranks": class_skill_ranks,
         "skill_points": skill_points, "auto_equip": auto_equip,
         "boss_history": earned_bosses, "statistics": battle_statistics, "sound": audio_enabled,
         "saved_at": Time.get_unix_time_from_system()
@@ -1575,6 +1559,7 @@ func _load_game() -> void:
     if skills.size() != 3:
         skills = [0, 0, 0]
     class_talents = data.get("class_talents", {})
+    class_skill_ranks = data.get("class_skill_ranks", {})
     if class_talents.has(str(hero_class)):
         skills = class_talents[str(hero_class)].duplicate()
     else:
@@ -1767,18 +1752,75 @@ func _show_legendary(item: Dictionary) -> void:
     popup_shade.visible = true
     legendary_overlay.visible = true
 
+func _skill_rank(index: int) -> int:
+    if index < 0 or index > 2 or level < int(SKILL_UNLOCK_LEVELS[index]):
+        return 0
+    var ranks: Array = class_skill_ranks.get(str(hero_class), [1, 1, 1])
+    if ranks.size() != 3:
+        return 1
+    return clampi(int(ranks[index]), 1, SKILL_MAX_RANK)
+
+func _upgrade_class_skill(index: int) -> void:
+    if skill_points <= 0 or index < 0 or index >= 3 or level < int(SKILL_UNLOCK_LEVELS[index]):
+        return
+    var current: int = _skill_rank(index)
+    if current >= SKILL_MAX_RANK:
+        return
+    var ranks: Array = class_skill_ranks.get(str(hero_class), [1, 1, 1]).duplicate()
+    ranks[index] = current + 1
+    class_skill_ranks[str(hero_class)] = ranks
+    skill_points -= 1
+    combat_note = "%s RANK %d" % [CLASS_SPELLS[hero_class][index], int(ranks[index])]
+    _play_audio(6)
+    _update_talent_labels()
+    _save_game()
+    _refresh()
+
+func _cast_chain_lightning(rank: int, damage: float) -> int:
+    if hero == null or arena_mobs.is_empty():
+        return 0
+    var visited: Array = []
+    var start: Vector3 = hero.global_position + Vector3(0, 1.36, 0)
+    var jumps: int = mini(arena_mobs.size(), 2 + rank)
+    for hop in range(jumps):
+        var selected: Node3D = null
+        var nearest: float = INF
+        for candidate in arena_mobs:
+            var mob: Node3D = candidate as Node3D
+            if mob == null or not is_instance_valid(mob) or visited.has(mob):
+                continue
+            var squared_distance: float = start.distance_squared_to(mob.global_position + Vector3(0, 0.95, 0))
+            if squared_distance < nearest and squared_distance < 75.0:
+                selected = mob
+                nearest = squared_distance
+        if selected == null:
+            break
+        visited.append(selected)
+        var finish: Vector3 = selected.global_position + Vector3(0, 1.02, 0)
+        _energy_arc(start, finish, Color("9ceaff"), 0.094 if hop == 0 else 0.058)
+        _burst_particles(finish, Color("badfff"), 7, 1.0, 0.27)
+        _hit_mob(selected, damage * pow(0.84, float(hop)), hop == 0 and rank >= 5)
+        start = finish
+    return visited.size()
+
+
 func _use_skill(index: int) -> void:
     if index < 0 or index >= 3 or popup_shade.visible:
         return
+    if level < int(SKILL_UNLOCK_LEVELS[index]):
+        combat_note = "%s UNLOCKS AT LEVEL %d" % [CLASS_SPELLS[hero_class][index], int(SKILL_UNLOCK_LEVELS[index])]
+        _refresh()
+        return
     if float(skill_cooldowns[index]) > 0.0:
         return
-    var mana_cost: float = float(CLASS_SKILL_COSTS[hero_class][index])
+    var rank: int = _skill_rank(index)
+    var mana_cost: float = float(CLASS_SKILL_COSTS[hero_class][index]) + float(rank - 1)
     if mp < mana_cost:
         combat_note = "%s: NEED %.0f MP" % [CLASS_SPELLS[hero_class][index], mana_cost]
         _refresh()
         return
     mp -= mana_cost
-    skill_cooldowns[index] = [3.2, 5.2, 12.0][index]
+    skill_cooldowns[index] = float([3.2, 5.2, 12.0][index]) * maxf(0.58, 1.0 - 0.035 * float(rank - 1))
     var palettes: Array = [
         [Color("ff6b20"), Color("e2bd68"), Color("ffb23a")],
         [Color("87c866"), Color("95d9db"), Color("fff09a")],
@@ -1790,17 +1832,24 @@ func _use_skill(index: int) -> void:
     _actor_attack(hero, true)
     camera_kick = maxf(camera_kick, 0.9 if index == 2 else 0.4)
     camera_shake = maxf(camera_shake, 0.28 if index == 2 else 0.09)
-    _play_audio(3)
-    var multiplier: float = [1.25, 1.60, 2.80][index]
+    _play_audio(5 if hero_class == 2 and index == 1 else 3)
+    var multiplier: float = float([1.25, 1.60, 2.80][index]) * (1.0 + float(rank - 1) * 0.16)
     if hero_class == 2:
         multiplier *= 1.18
     elif hero_class == 3 and index == 2:
         multiplier *= 1.30
     if hero_class == 0 and index == 1:
         hp = minf(_max_hp(), hp + _max_hp() * 0.11)
+    if hero_class == 2 and index == 1:
+        var num_jumps: int = _cast_chain_lightning(rank, _damage() * multiplier)
+        combat_note = "CHAIN LIGHTNING R%d — %d TARGETS" % [rank, num_jumps]
+        if arena_mobs.is_empty():
+            _complete_wave()
+        _refresh()
+        return
     var targets: Array = arena_mobs.duplicate()
     targets.shuffle()
-    var target_count: int = mini(targets.size(), [3, 5, 10][index] + (2 if hero_class == 1 else 0))
+    var target_count: int = mini(targets.size(), int([3, 5, 10][index]) + (2 if hero_class == 1 else 0) + int((rank - 1) / 3))
     for i in range(target_count):
         var mob: Node3D = targets[i] as Node3D
         if is_instance_valid(mob) and arena_mobs.has(mob):
@@ -1850,7 +1899,8 @@ func _cast_class_visual(index: int, tint: Color) -> void:
                 _energy_arc(origin, target_pos, tint, 0.065)
                 _burst_particles(target_pos, tint, 34, 1.8, 0.42)
             elif index == 1:
-                _spell_burst(tint, 1.5, 4)
+                # Real hop-by-hop arcs are emitted by _cast_chain_lightning.
+                _burst_particles(origin, tint, 13, 0.9, 0.26)
             else:
                 # Arcane beams are drawn for each target in the damage loop.
                 _burst_particles(origin, tint, 19, 1.0, 0.27)
@@ -2640,6 +2690,16 @@ func _update_talent_labels() -> void:
         var paths: Array = CLASS_TALENT_NAMES[hero_class]
         button.text = str(paths[i]) + "  •  RANK " + str(int(skills[i])) + "/20\n" + ["+4 ATTACK / RANK", "+24 MAX HP / RANK", "LESS DAMAGE TAKEN"][i]
         button.disabled = skill_points < 1 or int(skills[i]) >= 20
+    for i in range(skill_upgrade_buttons.size()):
+        var upgrade: Button = skill_upgrade_buttons[i]
+        var requirement: int = int(SKILL_UNLOCK_LEVELS[i])
+        var rank: int = _skill_rank(i)
+        if level < requirement:
+            upgrade.text = "LOCKED   %s — UNLOCK AT LVL %d" % [CLASS_SPELLS[hero_class][i], requirement]
+        else:
+            var ability: String = "  •  +1 CHAIN JUMP EACH RANK" if hero_class == 2 and i == 1 else "  •  +16%% DMG / -3.5%% COOLDOWN"
+            upgrade.text = "%s   RANK %d/%d\n%s" % [CLASS_SPELLS[hero_class][i], rank, SKILL_MAX_RANK, ability]
+        upgrade.disabled = level < requirement or skill_points < 1 or rank >= SKILL_MAX_RANK
 
 func _invest_talent(index: int) -> void:
     if skill_points < 1 or index < 0 or index >= 3:
