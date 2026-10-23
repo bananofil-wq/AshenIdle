@@ -1134,7 +1134,18 @@ func _kill_mob(target: Node3D) -> void:
     var boss: bool = bool(target.get_meta("boss", false))
     var drop_pos: Vector3 = target.global_position
     arena_mobs.erase(target)
-    target.queue_free()
+    # Keep the defeated mesh visible for a short physical fall instead of
+    # popping enemies out of existence on the same frame as a hit.
+    var fall_duration: float = 0.69 if boss else 0.36
+    if target.is_inside_tree():
+        var death_tween := target.create_tween()
+        death_tween.set_parallel(true)
+        death_tween.tween_property(target, "rotation:z", -1.10 if boss else -1.36, fall_duration).set_trans(Tween.TRANS_CUBIC)
+        death_tween.tween_property(target, "position:y", -0.46 if boss else -0.31, fall_duration)
+        death_tween.set_parallel(false)
+        death_tween.tween_callback(target.queue_free)
+    else:
+        target.queue_free()
     wave_kills += 1
     kills += 1
     gold += stage * 2 + (25 if boss else 3)
@@ -1734,7 +1745,7 @@ func _use_skill(index: int) -> void:
         [Color("bf566c"), Color("814de7"), Color("f793cc")]
     ]
     var tint: Color = palettes[hero_class][index]
-    _spell_burst(tint, 2.2 + float(index) * 0.7, 3 + index * 2)
+    _cast_class_visual(index, tint)
     _actor_attack(hero, true)
     camera_kick = maxf(camera_kick, 0.9 if index == 2 else 0.4)
     camera_shake = maxf(camera_shake, 0.28 if index == 2 else 0.09)
@@ -1759,10 +1770,59 @@ func _use_skill(index: int) -> void:
             _hit_mob(mob, _damage() * multiplier, index == 2)
     combat_note = str(CLASS_SPELLS[hero_class][index]) + "!"
     if index == 2:
-        _burst_particles(hero.position + Vector3(0, 1.6, 0), tint, 155, 5.5, 0.85)
+        var final_target: Node3D = _choose_target()
+        var epic_center: Vector3 = final_target.global_position if final_target != null else hero.position
+        _burst_particles(epic_center + Vector3(0, 1.25, 0), tint, 60, 3.3, 0.58)
     if arena_mobs.is_empty():
         _complete_wave()
     _refresh()
+
+func _cast_class_visual(index: int, tint: Color) -> void:
+    # Each hero has its own readable silhouette, not a recolored generic nova.
+    # Especially important for isometric play at small portrait-screen sizes.
+    if hero == null:
+        return
+    var origin: Vector3 = hero.global_position + Vector3(0, 1.4, 0)
+    var focus: Node3D = _choose_target()
+    var target_pos: Vector3 = focus.global_position + Vector3(0, 0.95, 0) if focus != null else origin + Vector3(0, 0, -1.0)
+    match hero_class:
+        0:
+            if index == 0:
+                _slash_trail(target_pos, false)
+                _burst_particles(target_pos, tint, 18, 1.2, 0.31)
+            elif index == 1:
+                # A restrained shield sigil wraps the defender.
+                _spell_burst(tint, 0.92, 2)
+            else:
+                _spell_burst(tint, 2.1, 8)
+        1:
+            # A volley of clear, thin arrows instead of a full-screen fireball.
+            var shafts: int = 3 + index * 2
+            for i in range(shafts):
+                var arc: float = float(i) * TAU / float(shafts)
+                var tip: Vector3 = target_pos + Vector3(cos(arc), 0.0, sin(arc)) * (0.24 if index == 0 else 1.07)
+                var from: Vector3 = origin + Vector3(sin(float(i) * 2.0) * 0.15, 0.14 * float(i % 3), 0.0)
+                _energy_arc(from, tip, tint, 0.03)
+            _burst_particles(target_pos, tint, 19, 1.45 if index < 2 else 2.2, 0.35)
+        2:
+            if index == 0:
+                _energy_arc(origin, target_pos, tint, 0.065)
+                _burst_particles(target_pos, tint, 34, 1.8, 0.42)
+            elif index == 1:
+                _spell_burst(tint, 1.5, 4)
+            else:
+                # Arcane beams are drawn for each target in the damage loop.
+                _burst_particles(origin, tint, 19, 1.0, 0.27)
+        3:
+            if index == 0:
+                _signature_ray(target_pos, origin, tint, 0.46)
+            elif index == 1:
+                _energy_arc(origin, target_pos, tint, 0.09)
+                _burst_particles(target_pos, tint, 29, 2.0, 0.40)
+            else:
+                # Blood-red execution beams appear in the damage loop.
+                _burst_particles(origin, tint, 21, 1.2, 0.30)
+
 
 func _random_spawn() -> Vector3:
     var a := rng.randf_range(0.0, TAU)
