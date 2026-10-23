@@ -261,10 +261,10 @@ func _cave_formation(parent: Node3D, at: Vector3, hanging: bool = false) -> void
         var offset := Vector3(randomizer.randf_range(-0.36, 0.36), 0,
             randomizer.randf_range(-0.35, 0.35))
         var height: float = randomizer.randf_range(0.75, 2.15)
-        var point := _spike(parent, at + offset + Vector3(0, height if hanging else 0, 0),
+        # _spike is a void geometry helper, so the hanging variation uses
+        # a second offset formation instead of trying to rotate its return.
+        _spike(parent, at + offset + Vector3(0, height if hanging else 0, 0),
             height, randomizer.randf_range(0.25, 0.52), rock_material if n != 1 else stone_color)
-        if hanging:
-            point.rotation.z = PI
     if not hanging:
         _stone(parent, at + Vector3(0, -0.08, 0), Vector3(1.15, 0.36, 1.04), rock_material)
 
