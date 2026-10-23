@@ -684,6 +684,15 @@ func _run() -> void:
         if not _check(not creatures.is_empty() and str((creatures[0] as Node3D).get_meta("species", "")) != "", "Each act needs a named biome-specific enemy family"):
             quit(109)
             return
+        if not _check(int(builder.get("authentic_prop_count")) >= 2,
+                "Each biome must place real sculpted CC0 dungeon GLB props, not only procedural cubes"):
+            quit(111)
+            return
+        if floor_id in [1, 11, 21, 41, 91]:
+            if not _check(int(builder.get("atmosphere_feature_count")) >= 2,
+                    "Cave/forest/swamp/lava/rift require distinctive physical set dressing"):
+                quit(112)
+                return
         var original_primitives: int = int(builder.get("unbatched_box_count"))
         var new_batches: int = int(builder.get("box_batch_count"))
         if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
