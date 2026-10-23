@@ -2761,10 +2761,32 @@ func _update_chaos(delta: float) -> void:
         # Keep the next room populated but stationary until the hero approaches.
         # Once engaged, creatures close in, stagger and attack naturally.
         var desired: Vector3 = mob.position
+        var role: String = str(mob.get_meta("ai_role", "raider"))
         if engaged:
+            # Each archetype has its own readable tactic:
+            # guardians occupy the front, hunters push, flankers circle,
+            # and casters maintain range instead of chess-piece marching.
             var angle: float = float(i) * 2.40 + sin(chaos_time * 0.38 + phase) * 0.24
             var radius: float = 1.45 if boss else 1.23 + float(i % 4) * 0.31
+            match role:
+                "flanker":
+                    angle += chaos_time * (0.32 if i % 2 == 0 else -0.32)
+                    radius = 2.0 + float(i % 3) * 0.28
+                "guardian":
+                    radius = 1.6 + float(i % 2) * 0.24
+                "caster":
+                    radius = 4.4 + 0.25 * sin(chaos_time * 0.8 + phase)
+                "raider":
+                    radius = 1.05 + float(i % 3) * 0.24
             desired = hero.position + Vector3(cos(angle) * radius, 0, sin(angle) * radius)
+            if role == "caster":
+                # A caster backs off when the player closes in.
+                var retreat: Vector3 = mob.position - hero.position
+                retreat.y = 0.0
+                if retreat.length_squared() > 0.01 and retreat.length() < 2.0:
+                    desired = hero.position + retreat.normalized() * 4.0
+            desired.x = clampf(desired.x, center.x - 3.35, center.x + 3.35)
+            desired.z = clampf(desired.z, center.z - 4.5, center.z + 4.5)
         var last_position: Vector3 = mob.position
         var stagger: float = maxf(0, float(mob.get_meta("stagger", 0)) - delta)
         mob.set_meta("stagger", stagger)
@@ -2778,6 +2800,7 @@ func _update_chaos(delta: float) -> void:
         var ideal_velocity := Vector3.ZERO
         if engaged and stagger <= 0.0 and chase.length_squared() > 0.0324:
             var pursuit_speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
+            pursuit_speed *= 1.38 if role == "flanker" else 0.78 if role == "guardian" else 0.92 if role == "caster" else 1.14
             ideal_velocity = chase.normalized() * pursuit_speed
         var pursuit_velocity: Vector3 = mob.get_meta("pursuit_velocity", Vector3.ZERO)
         pursuit_velocity = pursuit_velocity.move_toward(ideal_velocity, delta * (7.0 if boss else 9.0))
@@ -2796,7 +2819,30 @@ func _update_chaos(delta: float) -> void:
         if engaged and hero != null:
             var face: Vector3 = hero.position - mob.position
             if face.length_squared() > 0.02:
-                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(face.x, face.z), clampf(delta * 5.0, 0, 1))
+                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(face.x, face.z) + PI, clampf(delta * 5.0, 0, 1))
+            if role == "caster" and not popup_shade.visible:
+                var cast_in: float = float(mob.get_meta("ai_next_cast", 5.0)) - delta
+                if cast_in <= 0.0 and hero.position.distance_squared_to(mob.position) < 36.0:
+                    cast_in = 5.7 + float(i % 3) * 0.7
+                    # Capped damage, clearly signalled by a directional arc.
+                    var spell_hurt: float = minf(_max_hp() * 0.022,
+                        (1.5 + float(stage) * 0.15) * float(current_encounter.get("damage_factor", 1.0)) * (1.0 - _defense_reduction()))
+                    hp -= spell_hurt
+                    _energy_arc(mob.global_position + Vector3(0, 1.3, 0),
+                        hero.global_position + Vector3(0, 1.05, 0), Color("a982e9"), 0.035)
+                    hero_hit_flash = 0.16
+                    if hp <= 0.0:
+                        _adaptive_defeat()
+                        hp = _max_hp()
+                        mp = _max_mp()
+                        grind_mode = true
+                        grind_cycles = 0
+                        stage = maxi(1, highest - 1)
+                        combat_note = "ARCANE AMBUSH - FARMING SAFER FLOOR"
+                        _spawn_enemy()
+                        _refresh()
+                        return
+                mob.set_meta("ai_next_cast", cast_in)
     for i in range(spell_fx.size() - 1, -1, -1):
         var fx: Dictionary = spell_fx[i]
         fx["time"] = float(fx["time"]) - delta
