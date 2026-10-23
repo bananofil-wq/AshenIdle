@@ -2936,21 +2936,25 @@ func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
     return mat
 
 func _loot_beam(pos: Vector3, color: Color, title: String) -> Dictionary:
+    # A grounded magical pickup replaces the gigantic neon loot poles. The
+    # crystal visibly marks the equipment's position until it is collected.
     var pillar := CylinderMesh.new()
-    pillar.top_radius = 0.06
-    pillar.bottom_radius = 0.12
-    pillar.height = 3.9
-    var column := _mesh(self, pillar, pos + Vector3(0, 2.0, 0), _beam_material(color, 0.23))
-    var core := CylinderMesh.new()
-    core.top_radius = 0.017
-    core.bottom_radius = 0.039
-    core.height = 4.2
-    var core_mesh := _mesh(self, core, pos + Vector3(0, 2.10, 0), _beam_material(color.lightened(0.52), 0.84))
-    var pool := CylinderMesh.new()
-    pool.top_radius = 0.26
-    pool.bottom_radius = 0.26
-    pool.height = 0.015
-    var disc := _mesh(self, pool, pos + Vector3(0, 0.07, 0), _beam_material(color, 0.40))
+    pillar.top_radius = 0.075
+    pillar.bottom_radius = 0.28
+    pillar.height = 0.75
+    pillar.radial_segments = 7
+    var column := _mesh(self, pillar, pos + Vector3(0, 0.47, 0), _mat(color.darkened(0.38), 0.34, false))
+    var crystal := CylinderMesh.new()
+    crystal.top_radius = 0.018
+    crystal.bottom_radius = 0.15
+    crystal.height = 0.46
+    crystal.radial_segments = 5
+    var core_mesh := _mesh(self, crystal, pos + Vector3(0, 0.98, 0), _beam_material(color, 0.59))
+    var pool := TorusMesh.new()
+    pool.inner_radius = 0.27
+    pool.outer_radius = 0.31
+    pool.rings = 30
+    var disc := _mesh(self, pool, pos + Vector3(0, 0.08, 0), _mat(color.darkened(0.12), 0.0, true))
     _burst_particles(pos + Vector3(0, 0.75, 0), color, 18, 1.3, 0.66)
     var label := _label(title, 18, color.lightened(0.35))
     label.size = Vector2(260, 32)
@@ -3110,7 +3114,7 @@ func _update_chaos(delta: float) -> void:
         beam["time"] = float(beam["time"]) - delta
         var label: Label = beam["label"]
         if camera_ref != null and is_instance_valid(label):
-            var p := camera_ref.unproject_position(Vector3(beam["pos"]) + Vector3(0, 3.3, 0))
+            var p := camera_ref.unproject_position(Vector3(beam["pos"]) + Vector3(0, 1.55, 0))
             label.visible = p.y > 455.0 and p.y < overlay.size.y - 360.0 and p.x > 160.0 and p.x < overlay.size.x - 150.0
             label.position = p - Vector2(100, 14)
             label.modulate.a = clampf(float(beam["time"]), 0.0, 1.0)
