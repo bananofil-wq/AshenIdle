@@ -552,27 +552,43 @@ func _build_ui() -> void:
     talents.add_child(_ornate_button("RETURN TO BATTLE", _close_talent_panel, Vector2(485, 60)))
 
     hero_overlay = PanelContainer.new()
-    hero_overlay.position = Vector2(86, (overlay.size.y - 676.0) * 0.5)
-    hero_overlay.size = Vector2(548, 676)
+    hero_overlay.position = Vector2(80, (overlay.size.y - 928.0) * 0.5)
+    hero_overlay.size = Vector2(560, 928)
     hero_overlay.z_index = 41
     hero_overlay.visible = false
-    hero_overlay.add_theme_stylebox_override("panel", _skin(Color("0d1019"), Color("b88951")))
+    hero_overlay.add_theme_stylebox_override("panel", _skin(Color("0b0d15f7"), Color("a78053")))
     overlay.add_child(hero_overlay)
     var hero_column := VBoxContainer.new()
-    hero_column.add_theme_constant_override("separation", 14)
+    hero_column.add_theme_constant_override("separation", 9)
     hero_overlay.add_child(hero_column)
-    var hero_title := _label("CHOOSE YOUR HERO", 28, Color("f2cc89"))
+    var hero_title := _label("CHOOSE YOUR HERO", 29, Color("f2cf99"))
     hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hero_column.add_child(hero_title)
-    hero_column.add_child(_label("Each class has its own spells and three talent paths.", 16, Color("b8adad")))
+    var hero_explainer := _label("4 classes  •  Different MP, DEF and skills\nChoose a hero to begin your adventure.", 16, Color("c1b9b3"))
+    hero_explainer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    hero_column.add_child(hero_explainer)
     for class_id in range(CLASSES.size()):
-        var hero_label: String = "%s  %s\n%s" % ["◆" if class_id == hero_class else "◇", CLASSES[class_id].to_upper(), CLASS_DESCRIPTIONS[class_id]]
-        var class_button := _ornate_button(hero_label, _select_class.bind(class_id), Vector2(495, 94))
-        class_button.add_theme_font_size_override("font_size", 16)
+        var costs: Array = CLASS_SKILL_COSTS[class_id]
+        var titles: Array = CLASS_SPELLS[class_id]
+        var descriptions: Array = CLASS_SKILL_DESCRIPTIONS[class_id]
+        var class_text := "%s  %s\nDEF %d%%    MP %d    REGEN %d/sec\n%s\n%s (%d)   •   %s (%d)   •   %s (%d)\n%s  |  %s  |  %s" % [
+            "▶" if class_id == hero_class else "◆",
+            CLASSES[class_id].to_upper(),
+            int(float(CLASS_DEFENSE[class_id]) * 100.0),
+            int(float(CLASS_MP_BASE[class_id])),
+            int(float(CLASS_MP_REGEN[class_id])),
+            CLASS_DESCRIPTIONS[class_id],
+            titles[0], int(costs[0]), titles[1], int(costs[1]), titles[2], int(costs[2]),
+            descriptions[0], descriptions[1], descriptions[2]
+        ]
+        var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(510, 172))
+        class_button.add_theme_font_size_override("font_size", 14)
+        class_button.add_theme_stylebox_override("normal", _skin(Color("1a1e2bf5"), [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]))
         hero_column.add_child(class_button)
-    sfx_toggle_button = _ornate_button("SOUND: ON" if audio_enabled else "SOUND: OFF", _toggle_sound, Vector2(495, 48))
+    sfx_toggle_button = _ornate_button("SOUND: ON" if audio_enabled else "SOUND: OFF", _toggle_sound, Vector2(510, 42))
     hero_column.add_child(sfx_toggle_button)
-    hero_column.add_child(_ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(495, 55)))
+    hero_return_button = _ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(510, 43))
+    hero_column.add_child(hero_return_button)
 
     inventory_overlay = PanelContainer.new()
     inventory_overlay.position = Vector2(63, (overlay.size.y - 780.0) * 0.5)
@@ -1148,13 +1164,18 @@ func _forward() -> void:
     _spawn_enemy()
     _refresh()
 
-func _show_hero_panel() -> void:
+func _show_hero_panel(at_start: bool = false) -> void:
     if legendary_overlay.visible or skill_overlay.visible or inventory_overlay.visible:
         return
+    startup_selection = at_start
     popup_shade.visible = true
     hero_overlay.visible = true
+    if hero_return_button != null:
+        hero_return_button.visible = not at_start
 
 func _close_hero_panel() -> void:
+    if startup_selection:
+        return
     hero_overlay.visible = false
     popup_shade.visible = false
 
@@ -1172,6 +1193,7 @@ func _select_class(next_class: int) -> void:
     mp = _max_mp()
     combat_note = "NEW CLASS: " + CLASSES[hero_class]
     if hero_overlay != null and hero_overlay.visible:
+        startup_selection = false
         _close_hero_panel()
     _sync_equipment_visuals()
     _save_game()
