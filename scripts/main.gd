@@ -90,6 +90,9 @@ var center_banner: Label
 var stage_banner: Label
 var power_label: Label
 var map_dots: Control
+var journey_track: ColorRect
+var journey_caption: Label
+var encounter_banner_time := 0.0
 var legendary_overlay: PanelContainer
 var legendary_name: Label
 var legendary_stats: Label
@@ -375,8 +378,14 @@ func _build_ui() -> void:
     map_dots = Control.new()
     map_dots.custom_minimum_size = Vector2(167, 103)
     map_column.add_child(map_dots)
-    stage_banner = _label("", 17, Color("f0c997"))
+    stage_banner = _label("", 15, Color("f0c997"))
     map_column.add_child(stage_banner)
+    journey_caption = _label("PATH  0%", 12, Color("b7c9c5"))
+    map_column.add_child(journey_caption)
+    journey_track = ColorRect.new()
+    journey_track.color = Color("c88a5e")
+    journey_track.custom_minimum_size = Vector2(160, 3)
+    map_column.add_child(journey_track)
 
     var controls := VBoxContainer.new()
     controls.position = Vector2(14, 209)
@@ -767,6 +776,7 @@ func _process(delta: float) -> void:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
+    _update_journey_hud()
     _update_boss_cast(delta)
     _update_ember_motes()
     minimap_refresh_timer += delta
@@ -920,6 +930,42 @@ func _move_hero(delta: float) -> void:
         hero.scale = Vector3.ONE * (1.02 if int(hero_hit_flash * 14.0) % 2 == 0 else 0.96)
     else:
         hero.scale = Vector3.ONE
+
+func _update_journey_hud() -> void:
+    if journey_track == null or journey_caption == null or hero == null or dungeon_points.size() < 4:
+        return
+    var next_index: int = clampi(dungeon_room_index, 1, 3)
+    var previous: Vector3 = dungeon_points[next_index - 1]
+    var ahead: Vector3 = dungeon_points[next_index]
+    var segment: Vector3 = ahead - previous
+    var travelled: float = 0.0
+    if segment.length_squared() > 0.05:
+        travelled = clampf((hero.position - previous).dot(segment) / segment.length_squared(), 0.0, 1.0)
+    var full_progress: float = (float(next_index - 1) + travelled) / 3.0
+    journey_caption.text = "EXPLORING  %d%%" % int(full_progress * 100.0)
+    journey_track.scale.x = maxf(0.025, full_progress)
+
+func _jagged_lightning(start: Vector3, finish: Vector3, rank: int) -> void:
+    # Segmented forks resemble an electrical discharge rather than a straight rod.
+    # Segments taper and run between actual enemy positions.
+    var direction: Vector3 = finish - start
+    var length: float = direction.length()
+    if length < 0.08:
+        return
+    var side: Vector3 = direction.normalized().cross(Vector3.UP).normalized()
+    if side.length_squared() < 0.01:
+        side = Vector3.RIGHT
+    var previous: Vector3 = start
+    var segments: int = 6
+    for part in range(1, segments + 1):
+        var p: float = float(part) / float(segments)
+        var point: Vector3 = start.lerp(finish, p)
+        if part < segments:
+            var jitter: float = length * (0.032 if rank < 5 else 0.045)
+            point += side * rng.randf_range(-jitter, jitter) + Vector3(0, rng.randf_range(-jitter, jitter), 0)
+        _energy_arc(previous, point, Color("8ad5ff") if part % 2 == 0 else Color("effcff"), 0.065 if part % 2 == 0 else 0.038)
+        previous = point
+    _burst_particles(finish, Color("addcff"), 9, 0.9, 0.24)
 
 func _slash_trail(pos: Vector3, crit: bool) -> void:
     var arc := TorusMesh.new()
@@ -1211,7 +1257,8 @@ func _complete_wave() -> void:
     # Progressing beyond the final encounter generates the following floor.
     if dungeon_room_index < 3:
         dungeon_room_index += 1
-        combat_note = "CHAMBER CLEARED — ADVANCING TO ROOM %d / 3" % dungeon_room_index
+        combat_note = "GATE OPEN — FORWARD TO CHAMBER %d / 3" % dungeon_room_index
+        _play_audio(1)
         hp = minf(_max_hp(), hp + _max_hp() * 0.10)
         _spawn_horde()
         _update_wave_health()
@@ -1229,7 +1276,7 @@ func _complete_wave() -> void:
     else:
         stage += 1
         highest = maxi(highest, stage)
-        combat_note = "BOSS CLEARED — NEXT AREA" if was_boss else "AREA CLEARED"
+        combat_note = "BOSS DEFEATED — A NEW REALM AWAITS" if was_boss else "FLOOR CLEARED — DESCENDING DEEPER"
     hp = _max_hp()
     mp = _max_mp()
     _spawn_enemy()
@@ -1498,7 +1545,7 @@ func _refresh() -> void:
     stage_banner.text = "ACT %d  •  FLOOR %d/10  •  ROOM %d/3%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, dungeon_room_index, " BOSS" if stage % BOSS_INTERVAL == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
-        boss_panel.visible = stage % BOSS_INTERVAL == 0
+        boss_panel.visible = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
         boss_hp_label.text = "%s  •  %.0f / %.0f HP" % [BOSS_NAMES[_boss_variant()], maxf(0.0, boss_health), boss_max]
         boss_hp_bar.color = [Color("d94339"), Color("9e55e8"), Color("dc9c46")][_boss_variant()]
         boss_hp_bar.scale.x = clampf(boss_health / maxf(1.0, boss_max), 0.03, 1.0)
@@ -1807,8 +1854,8 @@ func _cast_chain_lightning(rank: int, damage: float) -> int:
             break
         visited.append(selected)
         var finish: Vector3 = selected.global_position + Vector3(0, 1.02, 0)
-        _energy_arc(start, finish, Color("9ceaff"), 0.094 if hop == 0 else 0.058)
-        _burst_particles(finish, Color("badfff"), 7, 1.0, 0.27)
+        _jagged_lightning(start, finish, rank)
+        _burst_particles(finish, Color("badfff"), 6, 0.85, 0.24)
         _hit_mob(selected, damage * pow(0.84, float(hop)), hop == 0 and rank >= 5)
         start = finish
     return visited.size()
