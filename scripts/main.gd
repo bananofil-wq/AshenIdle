@@ -1199,35 +1199,39 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
     return true
 
 func _pose_fantasy_skeleton(actor: Node3D, speed: float) -> void:
-    # GLB retargeted clips can miss upper-arm tracks and leave T-pose limbs.
-    # This lightweight additive fallback keeps arms down and legs walking on
-    # imported human rigs, regardless of their original animation library.
+    # Cache joint handles once. On phone, scanning the full rig hierarchy for
+    # every enemy at 60 FPS was more expensive than the actual arm animation.
+    var joints: Array = actor.get_meta("pose_joint_cache", [])
+    if not actor.has_meta("pose_joint_cache"):
+        for part in actor.find_children("*", "Skeleton3D", true, false):
+            var skeleton: Skeleton3D = part as Skeleton3D
+            if skeleton == null:
+                continue
+            for bone_id in range(skeleton.get_bone_count()):
+                var name_lower: String = skeleton.get_bone_name(bone_id).to_lower()
+                var left: bool = name_lower.contains("left") or name_lower.ends_with("_l") or name_lower.ends_with(".l")
+                var right: bool = name_lower.contains("right") or name_lower.ends_with("_r") or name_lower.ends_with(".r")
+                if not left and not right:
+                    continue
+                var arm: bool = (name_lower.contains("upperarm") or name_lower.contains("upper_arm") or name_lower.contains("arm_upper") or name_lower.contains("shoulder") or ((name_lower.contains("leftarm") or name_lower.contains("rightarm") or name_lower.contains("arm_l") or name_lower.contains("arm_r")) and not name_lower.contains("forearm")))
+                var leg: bool = name_lower.contains("upperleg") or name_lower.contains("upper_leg") or name_lower.contains("thigh") or name_lower.contains("upleg") or name_lower.contains("up_leg")
+                if arm or leg:
+                    joints.append({"skeleton": skeleton, "index": bone_id, "left": left, "arm": arm})
+        actor.set_meta("pose_joint_cache", joints)
     var effort: float = clampf(speed / 2.4, 0.0, 1.0)
     var cycle: float = sin(chaos_time * 8.8)
-    for part in actor.find_children("*", "Skeleton3D", true, false):
-        var skeleton: Skeleton3D = part as Skeleton3D
-        if skeleton == null:
+    for joint in joints:
+        var skeleton: Skeleton3D = joint["skeleton"] as Skeleton3D
+        if skeleton == null or not is_instance_valid(skeleton):
             continue
-        for bone_id in range(skeleton.get_bone_count()):
-            var bone_name: String = skeleton.get_bone_name(bone_id).to_lower()
-            var left_side: bool = bone_name.contains("left") or bone_name.ends_with("_l") or bone_name.ends_with(".l")
-            var right_side: bool = bone_name.contains("right") or bone_name.ends_with("_r") or bone_name.ends_with(".r")
-            if not left_side and not right_side:
-                continue
-            var is_arm: bool = (bone_name.contains("upperarm") or bone_name.contains("upper_arm") or bone_name.contains("arm_upper") or bone_name.contains("shoulder") or ((bone_name.contains("leftarm") or bone_name.contains("rightarm") or bone_name.contains("arm_l") or bone_name.contains("arm_r")) and not bone_name.contains("forearm")))
-            var is_leg: bool = bone_name.contains("upperleg") or bone_name.contains("upper_leg") or bone_name.contains("thigh") or bone_name.contains("upleg") or bone_name.contains("up_leg")
-            if not is_arm and not is_leg:
-                continue
-            var angle: float = 0.0
-            var axis: Vector3 = Vector3.FORWARD
-            if is_arm:
-                angle = (1.42 if left_side else -1.42) + (cycle * 0.30 * effort * (-1.0 if left_side else 1.0))
-            else:
-                axis = Vector3.RIGHT
-                angle = cycle * 0.36 * effort * (-1.0 if left_side else 1.0)
-            var target_pose: Quaternion = Quaternion(axis, angle)
-            var current_pose: Quaternion = skeleton.get_bone_pose_rotation(bone_id)
-            skeleton.set_bone_pose_rotation(bone_id, current_pose.slerp(target_pose, 0.87))
+        var left_side: bool = bool(joint["left"])
+        var is_arm: bool = bool(joint["arm"])
+        var bone_id: int = int(joint["index"])
+        var axis: Vector3 = Vector3.FORWARD if is_arm else Vector3.RIGHT
+        var angle: float = ((1.42 if left_side else -1.42) + cycle * 0.30 * effort * (-1.0 if left_side else 1.0)) if is_arm else cycle * 0.36 * effort * (-1.0 if left_side else 1.0)
+        var pose: Quaternion = skeleton.get_bone_pose_rotation(bone_id)
+        skeleton.set_bone_pose_rotation(bone_id, pose.slerp(Quaternion(axis, angle), 0.87))
+
 
 func _animate_actor(actor: Node3D, speed: float) -> void:
     if actor == null or not is_instance_valid(actor):
