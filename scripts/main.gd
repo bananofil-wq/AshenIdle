@@ -180,6 +180,9 @@ var dungeon_room_index := 1
 var dungeon_travel_distance := 0.0
 var boss_telegraph: MeshInstance3D
 var boss_cast_timer := 4.5
+var boss_slow_timer := 0.0
+var boss_poison_timer := 0.0
+var boss_poison_dps := 0.0
 var boss_cast_windup := 0.0
 var boss_warning_center := Vector3.ZERO
 var boss_dodges := 0
@@ -1069,6 +1072,8 @@ func _spawn_enemy() -> void:
     # Persistent spells never damage monsters on the next floor.
     active_skill_zones.clear()
     defensive_ward_timer = 0.0
+    boss_slow_timer = 0.0
+    boss_poison_timer = 0.0
     if dungeon_map != null:
         dungeon_points = dungeon_map.call("generate", stage) as PackedVector3Array
     dungeon_room_index = 1
@@ -1123,6 +1128,11 @@ func _process(delta: float) -> void:
                 var ready_label: String = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
                 if skill_button.text != ready_label:
                     skill_button.text = ready_label
+    if not popup_shade.visible:
+        boss_slow_timer = maxf(0.0, boss_slow_timer - delta)
+        if boss_poison_timer > 0.0:
+            boss_poison_timer = maxf(0.0, boss_poison_timer - delta)
+            hp -= boss_poison_dps * delta * (1.0 - _defense_reduction())
     tick += delta
     save_timer += delta
     if hero != null:
@@ -1331,6 +1341,8 @@ func _move_hero(delta: float) -> void:
     var motion: Vector3 = destination - hero.position
     motion.y = 0.0
     var speed: float = 3.75 if not in_encounter else 3.20
+    if boss_slow_timer > 0.0:
+        speed *= 0.67
     # Acceleration, braking and directional blending keep traversal from
     # looking like rigid chess-piece movement on mobile.
     var desired_velocity := motion.normalized() * speed if motion.length_squared() > 0.01 else Vector3.ZERO
@@ -1420,6 +1432,46 @@ func _clear_boss_telegraph() -> void:
     boss_cast_windup = 0.0
     boss_cast_timer = 4.5
 
+func _boss_attack_label() -> String:
+    return ["BONE SHATTER", "ROOT SNARE", "VENOM CLOUD", "FLASH FREEZE",
+        "LAVA BURST", "SOUL DRAIN", "SAND VORTEX", "CHAIN STORM",
+        "LUNAR SILENCE", "ASTRAL COLLAPSE"][_boss_variant()]
+
+
+func _boss_special_impact() -> void:
+    # Each tenth-floor boss has a distinct gameplay consequence beyond
+    # damage. Effects trigger only when the dodge telegraph actually hits.
+    match _boss_variant():
+        0: # Bone shatter: the physical damage is the entire mechanic.
+            camera_shake = maxf(camera_shake, 0.30)
+        1: # Rootmother immobilizes by slowing traversal.
+            boss_slow_timer = maxf(boss_slow_timer, 3.0)
+        2: # Bog Tyrant leaves lingering poison.
+            boss_poison_timer = maxf(boss_poison_timer, 4.0)
+            boss_poison_dps = 2.0 + float(stage) * 0.18
+        3: # Glacier King freezes the ground beneath the hero.
+            boss_slow_timer = maxf(boss_slow_timer, 4.2)
+            mp = maxf(0.0, mp - _max_mp() * 0.08)
+        4: # Cinder Lord ignites the target.
+            boss_poison_timer = maxf(boss_poison_timer, 3.1)
+            boss_poison_dps = 3.4 + float(stage) * 0.22
+        5: # Queen of Sorrow steals mana.
+            mp = maxf(0.0, mp - _max_mp() * 0.22)
+        6: # Dune Colossus stuns with flying sand.
+            boss_slow_timer = maxf(boss_slow_timer, 2.8)
+        7: # Thunder Titan drains mana through chain lightning.
+            mp = maxf(0.0, mp - _max_mp() * 0.18)
+            _jagged_lightning(boss_warning_center + Vector3(0, 2.6, 0),
+                hero.global_position + Vector3(0, 1.0, 0), 6)
+        8: # Eclipse Oracle silences abilities with cooldown penalties.
+            for index in range(skill_cooldowns.size()):
+                skill_cooldowns[index] = maxf(float(skill_cooldowns[index]), 2.4)
+        9: # Rift Sovereign combines astral corruption and mana collapse.
+            mp = maxf(0.0, mp - _max_mp() * 0.27)
+            boss_poison_timer = maxf(boss_poison_timer, 3.0)
+            boss_poison_dps = 2.3 + float(stage) * 0.16
+
+
 func _update_boss_cast(delta: float) -> void:
     if stage % BOSS_INTERVAL != 0 or popup_shade.visible:
         return
@@ -1449,7 +1501,8 @@ func _update_boss_cast(delta: float) -> void:
                 hp -= reduced
                 _damage_popup(int(reduced), hero.position + Vector3(0, 0.15, 0), true)
                 hero_hit_flash = 0.3
-                combat_note = "BOSS POWER ATTACK!"
+                _boss_special_impact()
+                combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] + " - " + _boss_attack_label()
             else:
                 boss_dodges += 1
                 combat_note = "PERFECT DODGE — BOSS ATTACK EVADED"
@@ -1468,13 +1521,13 @@ func _update_boss_cast(delta: float) -> void:
     boss_cast_timer -= delta
     if boss_cast_timer <= 0.0:
         boss_cast_windup = 1.35
-        boss_cast_timer = 6.0
+        boss_cast_timer = 5.6 + float(_boss_variant() % 4) * 0.65
         boss_warning_center = hero.position
         var ring := TorusMesh.new()
         ring.inner_radius = 1.4
         ring.outer_radius = 1.5
         boss_telegraph = _mesh(self, ring, boss_warning_center + Vector3(0, 0.15, 0), _bright(_biome_fx_tint().darkened(0.25)))
-        combat_note = "DANGER — BOSS CHARGING!"
+        combat_note = BOSS_NAMES[_boss_variant()] + " - " + _boss_attack_label() + " INCOMING!"
         _play_audio(4)
         _refresh()
 
