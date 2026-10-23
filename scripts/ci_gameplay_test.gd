@@ -665,14 +665,25 @@ func _run() -> void:
         quit(75)
         return
     var shapes: Dictionary = {}
+    var tested_biomes: Dictionary = {}
     var slowest_ms: int = 0
-    for floor_id in [1, 2, 3, 4, 5, 10, 11, 21, 31, 41]:
+    for floor_id in [1, 2, 3, 4, 5, 10, 11, 21, 31, 41, 51, 61, 71, 81, 91]:
         var started: int = Time.get_ticks_msec()
         game.set("stage", floor_id)
         game.call("_spawn_enemy")
         var millis: int = Time.get_ticks_msec() - started
         slowest_ms = maxi(slowest_ms, millis)
         var builder: Node3D = game.get("dungeon_map")
+        var expected_biome: int = posmod(int((floor_id - 1) / 10), 10)
+        var active_biome: int = int(builder.get("current_theme"))
+        if not _check(active_biome == expected_biome, "Stage %d must select the correct one of ten biomes" % floor_id):
+            quit(108)
+            return
+        tested_biomes[active_biome] = true
+        var creatures: Array = game.get("arena_mobs")
+        if not _check(not creatures.is_empty() and str((creatures[0] as Node3D).get_meta("species", "")) != "", "Each act needs a named biome-specific enemy family"):
+            quit(109)
+            return
         var original_primitives: int = int(builder.get("unbatched_box_count"))
         var new_batches: int = int(builder.get("box_batch_count"))
         if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
@@ -706,6 +717,9 @@ func _run() -> void:
             quit(78)
             return
         await process_frame
+    if not _check(tested_biomes.size() == 10, "All ten distinct environments must generate through floor 91"):
+        quit(110)
+        return
     if not _check(shapes.size() == 5, "Five geometrically distinct chamber profiles must appear across consecutive floors"):
         quit(79)
         return
@@ -713,7 +727,7 @@ func _run() -> void:
         quit(80)
         return
     print("PERFORMANCE QA PASS: dungeon primitives instanced into material batches, %d generated in %d batches. Peak stage generation %dms" % [int(dungeon.get("unbatched_box_count")), int(dungeon.get("box_batch_count")), slowest_ms])
-    print("GRAPHICS V4 QA PASS: %d photographic terrain families, four 3D class previews, 12 skill glyphs, five room silhouettes, all biome boss arenas, layered atmosphere, sculpted terrain and spatial culling. Peak generation %dms" % [material_count, slowest_ms])
+    print("GRAPHICS V5 QA PASS: ten fantasy biomes, ten named bosses, biome-specific enemy families, %d PBR materials, sculpted terrain, mobile GPU batching. Peak generation %dms" % [material_count, slowest_ms])
     print("SKILL/ART/AUDIO QA PASS: level gates, per-class ranks, 4+ chain jumps, zoomed camera, differentiated audio and three-dimensional terrain")
-    print("GAMEPLAY TEST PASS: three moving encounters per floor, distinct deterministic layouts, biome change after 10 floors, end-room bosses, animated hero, loot, skills and equipment")
+    print("GAMEPLAY TEST PASS: ten distinct biome maps across floors 1-100, three moving encounters per stage, tenth-floor bosses, animated enemies, loot, skills and equipment")
     quit(0)
