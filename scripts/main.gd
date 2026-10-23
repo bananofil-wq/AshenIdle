@@ -147,6 +147,7 @@ var hero_hit_flash := 0.0
 var earned_bosses: Dictionary = {}
 var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
 var bg_environment: WorldEnvironment
+var key_sun: DirectionalLight3D
 var fire_light: OmniLight3D
 var mystic_light: OmniLight3D
 var spark_texture: ImageTexture
@@ -270,6 +271,7 @@ func _build_world() -> void:
     camera_ref.current = true
     camera_focus = Vector3.ZERO
     var sun := DirectionalLight3D.new()
+    key_sun = sun
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
     sun.light_color = Color("f5b990")
@@ -460,15 +462,27 @@ func _build_ui() -> void:
     col.add_child(offline)
 
     var skill_bar := HBoxContainer.new()
-    skill_bar.position = Vector2(419, overlay.size.y - 285)
+    skill_bar.position = Vector2(380, overlay.size.y - 285)
     skill_bar.add_theme_constant_override("separation", 7)
     overlay.add_child(skill_bar)
     for spell_name in CLASS_SPELLS[hero_class]:
-        var b := _ornate_button(str(spell_name), _use_skill.bind(skill_buttons.size()), Vector2(80, 76))
+        var slot_index: int = skill_buttons.size()
+        var b := _ornate_button(str(spell_name), _use_skill.bind(slot_index), Vector2(100, 76))
         b.add_theme_font_size_override("font_size", 12)
-        b.add_theme_stylebox_override("normal", _skin(Color("1a1624e8"), Color("a7775c")))
+        b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+        b.add_theme_stylebox_override("normal", _skin(Color("121724ed"), Color("a7775c")))
+        b.add_theme_stylebox_override("hover", _skin(Color("273044f7"), Color("deb879")))
         skill_buttons.append(b)
         skill_bar.add_child(b)
+        var glyph_script: Script = preload("res://scripts/ability_icon.gd")
+        var glyph: Control = glyph_script.new() as Control
+        glyph.name = "AbilityGlyph"
+        glyph.set("class_id", hero_class)
+        glyph.set("ability_id", slot_index)
+        glyph.position = Vector2(6, 5)
+        glyph.size = Vector2(34, 34)
+        glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        b.add_child(glyph)
 
 
     popup_shade = ColorRect.new()
@@ -756,6 +770,10 @@ func _process(delta: float) -> void:
         var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
         var unlocked: bool = level >= unlock_level
         skill_button.disabled = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
+        var icon: Control = skill_button.get_node_or_null("AbilityGlyph") as Control
+        if icon != null:
+            icon.set("class_id", hero_class)
+            icon.set("locked", not unlocked)
         var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
         if not unlocked:
             skill_button.text = "LOCKED\nLVL %d" % unlock_level
@@ -1045,6 +1063,14 @@ func _apply_biome() -> void:
     biome_index = next_biome
     var scene: Environment = bg_environment.environment
     scene.background_color = [Color("070a12"), Color("091925"), Color("0b1e12"), Color("130e24"), Color("250b09")][next_biome]
+    scene.fog_enabled = true
+    scene.fog_light_color = [Color("59423d"), Color("64879b"), Color("526851"), Color("48305e"), Color("704238")][next_biome]
+    scene.fog_density = [0.009, 0.006, 0.004, 0.010, 0.008][next_biome]
+    scene.adjustment_brightness = [0.83, 0.96, 0.87, 0.77, 0.86][next_biome]
+    scene.adjustment_saturation = [0.79, 0.78, 0.96, 0.78, 0.99][next_biome]
+    if key_sun != null:
+        key_sun.light_color = [Color("ffbd88"), Color("c2e7ff"), Color("c3dda1"), Color("bc9aff"), Color("ffa16b")][next_biome]
+        key_sun.light_energy = [1.05, 1.13, 1.06, 0.88, 1.10][next_biome]
     scene.ambient_light_color = [Color("677186"), Color("88b5c8"), Color("79a27a"), Color("805aa6"), Color("aa634b")][next_biome]
     if fire_light != null:
         fire_light.light_color = [Color("ff6332"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
@@ -1187,6 +1213,9 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
         target.set_meta("stagger", 0.18 if crit else 0.08)
     last_target_pos = target.global_position
     _impact(last_target_pos + Vector3(0.0, 0.75, 0.0), Color("ffc769") if crit else Color("b477ff"))
+    if crit:
+        var flare_tone: Color = [Color("ffc17a"), Color("bbf2ff"), Color("d1ee9c"), Color("dbacff"), Color("ff9458")][biome_index if biome_index >= 0 else 0]
+        _burst_particles(last_target_pos + Vector3(0, 0.9, 0), flare_tone, 24, 1.6, 0.24)
     _damage_popup(int(damage), last_target_pos + Vector3(0.0, 1.45, 0.0), crit)
     if crit and is_instance_valid(target):
         var pulse := TorusMesh.new()
@@ -1204,6 +1233,10 @@ func _kill_mob(target: Node3D) -> void:
     var boss: bool = bool(target.get_meta("boss", false))
     var drop_pos: Vector3 = target.global_position
     arena_mobs.erase(target)
+    # Elemental death breakup is distinct in each biome; the animated model
+    # still visibly tumbles before disappearing.
+    var death_tint: Color = [Color("df7e54"), Color("b6ebff"), Color("8ba965"), Color("b07cff"), Color("ff853c")][clampi(biome_index, 0, 4)]
+    _burst_particles(drop_pos + Vector3(0, 1.1, 0), death_tint, 80 if boss else 20, 3.9 if boss else 1.25, 0.76 if boss else 0.42)
     # Keep the defeated mesh visible for a short physical fall instead of
     # popping enemies out of existence on the same frame as a hit.
     var fall_duration: float = 0.69 if boss else 0.36
