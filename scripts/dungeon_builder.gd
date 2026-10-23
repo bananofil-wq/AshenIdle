@@ -29,6 +29,9 @@ var _unit_foliage: CylinderMesh = CylinderMesh.new()
 var _unit_boulder: Mesh
 var _unit_columns: Dictionary = {}
 var _material_cache: Dictionary = {}
+var _prefab_cache: Dictionary = {}
+var authentic_prop_count := 0
+var atmosphere_feature_count := 0
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
     var key: String = color.to_html(true) + (":glow" if emissive else ":mat")
@@ -299,6 +302,148 @@ func _forest_understory(parent: Node3D, at: Vector3) -> void:
         var fallen := _block(parent, at + Vector3(0, 0.11, 0),
             Vector3(1.35, 0.22, 0.24), _solid(Color("4b3729")))
         fallen.rotation.y = randomizer.randf_range(-PI, PI)
+
+
+func _place_prefab(parent: Node3D, at: Vector3, prefab: String, desired_width: float) -> void:
+    # The build already ships six CC0 KayKit Dungeon Remastered models.
+    # They were downloaded but NEVER instantiated in the world; using real
+    # sculpted stone/torch props avoids relying on more procedural cubes.
+    var scene: PackedScene
+    if _prefab_cache.has(prefab):
+        scene = _prefab_cache[prefab] as PackedScene
+    else:
+        var path: String = "res://assets/models/%s.glb" % prefab
+        if ResourceLoader.exists(path):
+            scene = load(path) as PackedScene
+        _prefab_cache[prefab] = scene
+    if scene == null:
+        return
+    var fixture := scene.instantiate() as Node3D
+    if fixture == null:
+        return
+    var holder := Node3D.new()
+    holder.name = "Authentic_%s" % prefab
+    parent.add_child(holder)
+    holder.position = at
+    holder.add_child(fixture)
+    var bounds := AABB()
+    var has_bounds := false
+    for found in fixture.find_children("*", "MeshInstance3D", true, false):
+        var part: MeshInstance3D = found as MeshInstance3D
+        if part == null or part.mesh == null:
+            continue
+        var local: Transform3D = fixture.global_transform.affine_inverse() * part.global_transform
+        var shape: AABB = local * part.get_aabb()
+        if not has_bounds:
+            bounds = shape
+            has_bounds = true
+        else:
+            bounds = bounds.merge(shape)
+    if has_bounds and bounds.size.x > 0.05:
+        var factor: float = clampf(desired_width / bounds.size.x, 0.2, 4.0)
+        fixture.scale = Vector3.ONE * factor
+        fixture.position.y = -bounds.position.y * factor
+    holder.rotation.y = randomizer.randf_range(-0.18, 0.18)
+    authentic_prop_count += 1
+
+
+func _water_feature(parent: Node3D, at: Vector3, size: Vector2, lava: bool = false) -> void:
+    # Low, asymmetric pools outside the central route. A dark outer bank and
+    # glossy inner oval are much more legible than a flat tinted floor slab.
+    var mud := _solid(Color("304331") if current_theme == 1 else Color("464533")
+        if current_theme == 2 else Color("2d2024"))
+    _stone(parent, at + Vector3(0, -0.17, 0), Vector3(size.x * 1.18, 0.18,
+        size.y * 1.15), mud)
+    var surface := CylinderMesh.new()
+    surface.top_radius = 1.0
+    surface.bottom_radius = 1.0
+    surface.height = 0.025
+    surface.radial_segments = 24
+    var pool := MeshInstance3D.new()
+    pool.name = "LavaPool" if lava else "ForestWater"
+    pool.mesh = surface
+    pool.scale = Vector3(size.x, 1.0, size.y)
+    pool.position = at + Vector3(0, -0.03, 0)
+    var tint := StandardMaterial3D.new()
+    tint.albedo_color = Color("fc7838") if lava else Color("568c80") if current_theme == 1 else Color("5e7657")
+    tint.roughness = 0.23 if lava else 0.16
+    tint.metallic = 0.10
+    if lava:
+        tint.emission_enabled = true
+        tint.emission = Color("ec552b")
+        tint.emission_energy_multiplier = 0.70
+    pool.material_override = tint
+    pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    parent.add_child(pool)
+    for rock_index in range(5):
+        var angle: float = TAU * float(rock_index) / 5.0
+        _stone(parent, at + Vector3(cos(angle) * size.x * 1.02, -0.06,
+            sin(angle) * size.y * 1.02), Vector3(0.48, 0.28, 0.62), rock_material)
+    atmosphere_feature_count += 1
+
+
+func _fungus_patch(parent: Node3D, at: Vector3) -> void:
+    var cap := _solid(Color("b58ac3") if current_theme == 1 else Color("9b7952"))
+    var stalk := _solid(Color("d5c3a0"))
+    for n in range(4):
+        var p := at + Vector3(randomizer.randf_range(-0.9, 0.9), 0,
+            randomizer.randf_range(-0.75, 0.75))
+        var height: float = randomizer.randf_range(0.36, 0.91)
+        _column(parent, p, height, 0.09, stalk, 6)
+        _stone(parent, p + Vector3(0, height, 0),
+            Vector3(0.40, 0.19, 0.42), cap)
+    atmosphere_feature_count += 1
+
+
+func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
+    # A handful of memorable structures per room, behind the battle lane.
+    # These are what make the biomes more than ten palette swaps.
+    var sign: float = -1.0 if room_id % 2 == 0 else 1.0
+    var edge: Vector3 = center + Vector3(sign * 5.85, 0, -1.4)
+    match current_theme:
+        0: # Crumbling dungeon masonry, actual 3D torch and fallen stones
+            _place_prefab(parent, edge, "wall_broken", 3.4)
+            _place_prefab(parent, edge + Vector3(sign * 0.6, 0, 2.0),
+                "torch_lit", 0.75)
+            _place_prefab(parent, edge + Vector3(-sign * 0.3, 0, -2.5),
+                "floor_tile_large_rocks", 2.1)
+        1: # Fantastical sylvan spring and giant glowing mushrooms
+            _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0.8),
+                Vector2(2.5, 2.3))
+            _fungus_patch(parent, edge + Vector3(-sign * 0.6, 0, -2.0))
+        2: # Marsh pools with fungal decay and reed-choked banks
+            _water_feature(parent, edge + Vector3(sign * 0.65, 0, 0.6),
+                Vector2(2.7, 2.0))
+            _fungus_patch(parent, edge + Vector3(-sign * 0.3, 0, -2.0))
+        3: # Larger snow shelves and fractured ancient masonry
+            _mountain(parent, edge + Vector3(sign * 1.7, -0.38, 0), 4.2, 2.5)
+            _place_prefab(parent, edge + Vector3(0, 0, -2.0), "pillar_decorated", 1.35)
+        4: # Real lava pockets among charred ramparts
+            _water_feature(parent, edge + Vector3(sign * 0.9, 0, 0),
+                Vector2(2.25, 3.0), true)
+            _place_prefab(parent, edge + Vector3(-sign * 0.2, 0, 2.4), "wall_broken", 2.4)
+        5: # Mausoleum remnants, torch-lit ruined cemetery
+            _place_prefab(parent, edge, "wall_broken", 3.2)
+            _place_prefab(parent, edge + Vector3(-sign * 0.65, 0, -2.2),
+                "pillar_decorated", 1.3)
+        6: # Desert temple blocks and slumped sandstone
+            _place_prefab(parent, edge, "pillar_decorated", 1.7)
+            _place_prefab(parent, edge + Vector3(sign * 0.9, 0, 2.5),
+                "wall_broken", 2.7)
+        7: # Windworn summit outcrops and broken shrines
+            _mountain(parent, edge + Vector3(sign * 1.2, -0.2, 0), 5.9, 2.6)
+            _place_prefab(parent, edge + Vector3(0, 0, -2.7), "pillar_decorated", 1.3)
+        8: # Moon observatory ruins and sacred paving
+            _place_prefab(parent, edge, "pillar_decorated", 1.7)
+            _place_prefab(parent, edge + Vector3(-sign * 0.35, 0, 2.2),
+                "floor_tile_small_broken_A", 1.8)
+        9: # Rift altar with floating irregular shards
+            _place_prefab(parent, edge, "pillar_decorated", 1.7)
+            for shard in range(3):
+                _stone(parent, edge + Vector3(sign * float(shard) * 0.8,
+                    2.3 + float(shard) * 0.75, -1.35 + float(shard) * 0.9),
+                    Vector3(0.70, 1.12, 0.64), accent_material)
+            atmosphere_feature_count += 1
 
 
 func _ground_details(parent: Node3D, center: Vector3) -> void:
@@ -888,6 +1033,8 @@ func generate(floor_number: int) -> PackedVector3Array:
     box_batch_count = 0
     unbatched_box_count = 0
     _material_cache.clear()
+    authentic_prop_count = 0
+    atmosphere_feature_count = 0
     if _unit_boulder == null:
         _unit_boulder = _build_boulder_mesh()
     _unit_spike.bottom_radius = 1.0
@@ -971,6 +1118,7 @@ func generate(floor_number: int) -> PackedVector3Array:
                         Vector3(0.86, 0.42, 0.82), rock_material)
         _decorate(room, p, i + (current_stage % 10))
         _ground_details(room, p)
+        _biome_dressing(room, p, i)
         if i > 0:
             _landmark(room, p, i)
         if i > 0:
