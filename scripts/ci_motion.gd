@@ -23,11 +23,16 @@ func _capture() -> void:
     game.call("_spawn_enemy")
     game.call("_refresh")
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/motion"))
-    for frame in range(54):
+    for frame in range(90):
         # Camera and skeletal animation run naturally in _process every frame.
         if frame == 8 or frame == 28:
             game.set("skill_cooldowns", [0.0, 0.0, 0.0])
             game.call("_use_skill", 0 if frame == 8 else 2)
+        # Drive the normal AI/animation path deterministically for a travel preview.
+        # This is a real in-engine simulation, not a slideshow of posed models.
+        game.call("_move_hero", 0.08)
+        game.call("_update_chaos", 0.08)
+        game.call("_update_camera", 0.08)
         await RenderingServer.frame_post_draw
         var image: Image = root.get_texture().get_image()
         if image.is_empty():
@@ -39,5 +44,5 @@ func _capture() -> void:
             push_error("Could not save animation frame " + filename)
             quit(4)
             return
-    print("MOTION QA PASS: 54 Godot-rendered frames with actual character and camera movement")
+    print("MOTION QA PASS: 90 Godot-rendered frames of actual moving dungeon traversal")
     quit(0)
