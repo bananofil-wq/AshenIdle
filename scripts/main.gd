@@ -570,16 +570,16 @@ func _build_ui() -> void:
     for class_id in range(CLASSES.size()):
         var costs: Array = CLASS_SKILL_COSTS[class_id]
         var titles: Array = CLASS_SPELLS[class_id]
-        var descriptions: Array = CLASS_SKILL_DESCRIPTIONS[class_id]
+        var spell_help: Array = CLASS_SKILL_DESCRIPTIONS[class_id]
         var class_text := "%s  %s\nDEF %d%%    MP %d    REGEN %d/sec\n%s\n%s (%d MP): %s\n%s (%d MP): %s\n%s (%d MP): %s" % [
             "▶" if class_id == hero_class else "◆", CLASSES[class_id].to_upper(),
             int(float(CLASS_DEFENSE[class_id]) * 100.0),
             int(float(CLASS_MP_BASE[class_id])),
             int(float(CLASS_MP_REGEN[class_id])),
             CLASS_DESCRIPTIONS[class_id],
-            titles[0], int(costs[0]), descriptions[0],
-            titles[1], int(costs[1]), descriptions[1],
-            titles[2], int(costs[2]), descriptions[2]
+            titles[0], int(costs[0]), spell_help[0],
+            titles[1], int(costs[1]), spell_help[1],
+            titles[2], int(costs[2]), spell_help[2]
         ]
         var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(510, 149))
         class_button.add_theme_font_size_override("font_size", 14)
