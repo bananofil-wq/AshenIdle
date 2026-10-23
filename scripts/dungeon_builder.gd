@@ -398,7 +398,7 @@ func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> voi
     var weather := CPUParticles3D.new()
     weather.name = "Atmosphere_%d" % area_index
     weather.position = center + Vector3(0, 5.2, 0)
-    weather.amount = 22
+    weather.amount = 12
     weather.lifetime = 5.0
     weather.preprocess = 2.0
     weather.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
@@ -410,7 +410,7 @@ func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> voi
     weather.initial_velocity_max = 0.58
     weather.scale_amount_min = 0.02
     weather.scale_amount_max = 0.05
-    weather.color = [Color("ba8c76", 0.6), Color("d6f1ff", 0.83), Color("9cb272", 0.75), Color("c28cf6", 0.7), Color("ffa15e", 0.7)][current_theme]
+    weather.color = [Color("ba8c76", 0.35), Color("d6f1ff", 0.48), Color("9cb272", 0.38), Color("c28cf6", 0.35), Color("ffa15e", 0.35)][current_theme]
     var sparkle := SphereMesh.new()
     sparkle.radius = 0.06
     sparkle.height = 0.13
@@ -424,6 +424,9 @@ func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
     # in identical fluorescent rings and matchstick-like luminous shards.
     var grout := _solid(Color("27282a") if current_theme == 3 else Color("33343a"))
     var chipped := _solid(Color("58534d") if current_theme == 3 else Color("4c4947"))
+    var paving := _solid(Color("66605b") if current_theme == 3 else Color("5e5550"))
+    # Irregular broad paving slabs break up the flat road. Colors are
+    # deliberately hand-painted rather than realistic photo-sourced grey.
     for i in range(12):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.2, 5.1),
@@ -437,6 +440,14 @@ func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
                 0.014, randomizer.randf_range(0.035, 0.075)),
                 chipped if i % 3 == 0 else grout)
             crack.rotation.y = randomizer.randf_range(-PI, PI)
+    for slab in range(7):
+        var px: float = randomizer.randf_range(-2.75, 2.75)
+        var pz: float = randomizer.randf_range(-4.5, 4.5)
+        var piece := _stone(parent, center + Vector3(px, -0.07, pz),
+            Vector3(randomizer.randf_range(0.48, 1.08), 0.15,
+                randomizer.randf_range(0.55, 1.25)),
+            paving if slab % 3 == 0 else floor_material)
+        piece.rotation.y = randomizer.randf_range(-0.22, 0.22)
     if room_id == 3 and current_stage % 10 == 0:
         var rim := TorusMesh.new()
         rim.inner_radius = 2.65
@@ -620,7 +631,10 @@ func _set_materials() -> void:
     if ResourceLoader.exists(rough_path):
         floor_material.roughness_texture = load(rough_path)
     floor_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-    floor_material.roughness = 0.82 if current_theme == 1 else 0.88
+    # Painterly stone: broad matte surfaces, distinct color planes and
+    # normal-mapped details instead of photorealistic shiny rocks.
+    floor_material.roughness = 0.94
+    floor_material.metallic = 0.0
     rock_material = _solid(Color(ROCKS[current_theme]))
     rock_material.uv1_scale = Vector3(2.7, 2.7, 1.0)
     var cliff_key: String = "rock_face_03" if current_theme != 4 else "volcanic_rock_tiles"
@@ -633,7 +647,7 @@ func _set_materials() -> void:
             rock_material.normal_enabled = true
             rock_material.normal_texture = load(cliff_normal)
     # Nonemissive stone and muted inlaid metal replace neon purple rubble.
-    accent_material = _solid(Color(ACCENTS[current_theme]), current_theme != 3)
+    accent_material = _solid(Color(ACCENTS[current_theme]), false)
     if current_theme == 3:
         accent_material.roughness = 0.69
         accent_material.metallic = 0.24
