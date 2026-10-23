@@ -22,7 +22,7 @@ var box_batch_count := 0
 var unbatched_box_count := 0
 var _unit_box: BoxMesh = BoxMesh.new()
 var _unit_spike: CylinderMesh = CylinderMesh.new()
-var _unit_foliage: SphereMesh = SphereMesh.new()
+var _unit_foliage: CylinderMesh = CylinderMesh.new()
 var _unit_boulder: Mesh
 var _unit_columns: Dictionary = {}
 var _material_cache: Dictionary = {}
@@ -279,15 +279,19 @@ func _tree(parent: Node3D, at: Vector3) -> void:
         var branch := _block(parent, at + Vector3(cos(angle) * length * 0.35, trunk_height * 0.75, sin(angle) * length * 0.35), Vector3(0.16, 0.16, length), bark)
         branch.rotation.y = angle
         branch.rotation.x = randomizer.randf_range(-0.27, 0.27)
-    var foliage_color := _solid(Color("284630") if current_theme == 2 else Color("547582"))
+    var foliage_color := _solid(Color("23402a") if current_theme == 2 else Color("41586a"))
+    # Staggered conifer-like crowns replace the former oversized green spheres,
+    # which gave the forest a toy-model appearance even with PBR soil.
     for cluster in range(6):
-        var angle: float = TAU * float(cluster) / 6.0
+        var tier: int = int(cluster / 3)
+        var angle: float = TAU * float(cluster % 3) / 3.0 + float(tier) * 0.60
         var leaf := MeshInstance3D.new()
-        var foliage_radius: float = randomizer.randf_range(0.63, 0.93)
+        var foliage_radius: float = randomizer.randf_range(0.60, 0.90) * (1.0 - 0.18 * float(tier))
         leaf.mesh = _unit_foliage
         leaf.material_override = foliage_color
-        leaf.position = at + Vector3(cos(angle) * 0.73, trunk_height + randomizer.randf_range(0.2, 1.0), sin(angle) * 0.73)
-        leaf.scale = Vector3(foliage_radius, randomizer.randf_range(0.58, 1.07), foliage_radius)
+        leaf.position = at + Vector3(cos(angle) * 0.46, trunk_height - 0.46 + float(tier) * 0.66, sin(angle) * 0.46)
+        leaf.scale = Vector3(foliage_radius, randomizer.randf_range(1.55, 2.18), foliage_radius)
+        leaf.rotation.y = angle
         parent.add_child(leaf)
 
 func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
@@ -676,10 +680,11 @@ func generate(floor_number: int) -> PackedVector3Array:
     _unit_spike.top_radius = 0.04
     _unit_spike.height = 1.0
     _unit_spike.radial_segments = 5
-    _unit_foliage.radius = 1.0
-    _unit_foliage.height = 2.0
-    _unit_foliage.radial_segments = 8
-    _unit_foliage.rings = 4
+    _unit_foliage.bottom_radius = 0.95
+    _unit_foliage.top_radius = 0.08
+    _unit_foliage.height = 1.0
+    _unit_foliage.radial_segments = 11
+    _unit_foliage.rings = 2
     landmark_count = 0
     route_style = (current_stage - 1) % 5
     current_theme = posmod(int((current_stage - 1) / 10), THEMES.size())
