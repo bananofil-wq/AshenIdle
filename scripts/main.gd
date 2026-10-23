@@ -2126,18 +2126,26 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                _fit_visual_model(instance, [2.35, 2.46, 2.58][_boss_variant()] if elite else 1.43)
+                _fit_visual_model(instance, [3.10, 3.24, 3.48][_boss_variant()] if elite else 1.43)
                 _darken_character_materials(instance, elite)
                 if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
                 _bind_motion_driver(root)
                 _play_actor_clip(root, "Idle", 0.0, 1.0)
+                _pose_fantasy_skeleton(root, 0.0)
         if elite:
             var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
             var halo := TorusMesh.new()
             halo.inner_radius = 1.07
             halo.outer_radius = 1.12
             _mesh(root, halo, Vector3(0, 0.11, 0), _mat(aura_tint.darkened(0.40), 0.0, true))
+            # The boss silhouette must be recognizable from a zoomed-out phone
+            # camera, not only a scaled-up player GLB.
+            for sign in [-1.0, 1.0]:
+                var horn := _cone(root, 0.22, 0.01, 1.17, Vector3(sign * 0.61, 2.78, 0.1), aura_tint.darkened(0.42))
+                horn.rotation.z = sign * -0.30
+            var crown_glow := _sphere_part(root, 0.21, Vector3(0, 3.19, 0.0), aura_tint.lightened(0.25))
+            crown_glow.material_override = _bright(aura_tint)
             for rune_i in range(5 + _boss_variant()):
                 var angle := TAU * float(rune_i) / float(5 + _boss_variant())
                 var shard_height := 0.30 + float(rune_i % 3) * 0.19
