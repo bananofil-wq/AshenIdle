@@ -688,8 +688,18 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
         preview_viewport.size = Vector2i(216, 298)
         preview_viewport.own_world_3d = true
         preview_viewport.transparent_bg = true
-        preview_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+        preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
         viewport_holder.add_child(preview_viewport)
+        var portrait_environment := WorldEnvironment.new()
+        var portrait_scene := Environment.new()
+        portrait_scene.background_mode = Environment.BG_COLOR
+        portrait_scene.background_color = Color("24222c")
+        portrait_scene.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+        portrait_scene.ambient_light_color = Color("dfd2b9")
+        portrait_scene.ambient_light_energy = 0.8
+        portrait_scene.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+        portrait_environment.environment = portrait_scene
+        preview_viewport.add_child(portrait_environment)
         var preview_model: Node3D = packed.instantiate() as Node3D
         if preview_model != null:
             preview_viewport.add_child(preview_model)
@@ -725,9 +735,11 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
     emblem.set("class_id", class_id)
     emblem.set("accent", accent)
     if packed != null:
-        emblem.position = Vector2(66, 2)
+        # Full-size fallback prevents an empty black hero card in renderers
+        # which cannot show secondary 3D viewports (some mobile GL drivers).
+        emblem.position = Vector2.ZERO
         emblem.size = Vector2(108, 149)
-        emblem.scale = Vector2(0.34, 0.34)
+        emblem.modulate.a = 0.60
     else:
         emblem.size = Vector2(108, 149)
     emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1200,13 +1212,13 @@ func _pose_fantasy_skeleton(actor: Node3D, speed: float) -> void:
             var angle: float = 0.0
             var axis: Vector3 = Vector3.FORWARD
             if is_arm:
-                angle = (0.72 if left_side else -0.72) + (cycle * 0.23 * effort * (-1.0 if left_side else 1.0))
+                angle = (1.42 if left_side else -1.42) + (cycle * 0.30 * effort * (-1.0 if left_side else 1.0))
             else:
                 axis = Vector3.RIGHT
                 angle = cycle * 0.36 * effort * (-1.0 if left_side else 1.0)
             var target_pose: Quaternion = Quaternion(axis, angle)
             var current_pose: Quaternion = skeleton.get_bone_pose_rotation(bone_id)
-            skeleton.set_bone_pose_rotation(bone_id, current_pose.slerp(target_pose, 0.48))
+            skeleton.set_bone_pose_rotation(bone_id, current_pose.slerp(target_pose, 0.87))
 
 func _animate_actor(actor: Node3D, speed: float) -> void:
     if actor == null or not is_instance_valid(actor):
