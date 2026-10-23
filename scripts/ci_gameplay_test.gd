@@ -567,7 +567,7 @@ func _run() -> void:
         return
     var camera_now: Camera3D = game.get("camera_ref")
     game.call("_update_camera", 0.85)
-    if not _check(camera_now.fov >= 47.0, "Isometric camera must have a wider zoomed-out field of view"):
+    if not _check(camera_now.fov >= 44.0 and camera_now.fov <= 49.0, "Portrait isometric camera must remain readable without shrinking hero to a dot"):
         quit(68)
         return
     game.set("stage", 11)
