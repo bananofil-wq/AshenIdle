@@ -712,9 +712,18 @@ func _build_ui() -> void:
     evolution_overlay.z_index = 42
     evolution_overlay.add_theme_stylebox_override("panel", _skin(Color("0c1019f7"), Color("c99a62")))
     overlay.add_child(evolution_overlay)
+    # Keep the ascension panel compact even when button text reflows;
+    # long translated tooltips stay inside a scrollable 735px viewport.
+    var evolution_scroll := ScrollContainer.new()
+    evolution_scroll.name = "EvolutionChoiceScroll"
+    evolution_scroll.custom_minimum_size = Vector2(520, 735)
+    evolution_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    evolution_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    evolution_overlay.add_child(evolution_scroll)
     var evolution_column := VBoxContainer.new()
+    evolution_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     evolution_column.add_theme_constant_override("separation", 12)
-    evolution_overlay.add_child(evolution_column)
+    evolution_scroll.add_child(evolution_column)
     evolution_title = _label("THE ASCENSION PATH", 27, Color("ffd69a"))
     evolution_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     evolution_column.add_child(evolution_title)
