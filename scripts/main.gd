@@ -2892,16 +2892,29 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
     var shade: Color = tint.darkened(0.44)
     match kind:
         "arachnid":
-            _sphere_part(visual, 0.58, Vector3(0, 0.75, -0.25), shade)
-            _sphere_part(visual, 0.43, Vector3(0, 0.77, 0.39), tint)
+            # Dark segmented chitin, pincers and clustered tiny eyes instead
+            # of the previous orange spherical smiley with thick toy legs.
+            var chitin: Color = Color("343039") if current_theme == 0 or current_theme == 5 else tint.darkened(0.71)
+            var shell: Color = chitin.lightened(0.12)
+            _sphere_part(visual, 0.60, Vector3(0, 0.72, -0.34), chitin)
+            _sphere_part(visual, 0.37, Vector3(0, 0.73, 0.39), shell)
+            _sphere_part(visual, 0.27, Vector3(0, 0.91, -0.40), shell.darkened(0.24))
             for leg in range(4):
                 for sign in [-1.0, 1.0]:
-                    var limb := _cone(visual, 0.15, 0.055, 1.22,
-                        Vector3(sign * (0.68 + float(leg % 2) * 0.19), 0.67,
-                            -0.53 + float(leg) * 0.35), shade)
-                    limb.rotation.z = sign * 0.86
-            for eye in [-1.0, 1.0]:
-                _sphere_part(visual, 0.10, Vector3(eye * 0.19, 0.88, 0.78), tint.lightened(0.5))
+                    var limb := _cone(visual, 0.086, 0.022, 1.20,
+                        Vector3(sign * (0.66 + float(leg % 2) * 0.20), 0.61,
+                            -0.58 + float(leg) * 0.34), chitin)
+                    limb.rotation.z = sign * (0.89 + 0.10 * float(leg % 2))
+                    limb.rotation.x = 0.18 * float(leg - 2)
+            for side in [-1.0, 1.0]:
+                var fang := _cone(visual, 0.10, 0.012, 0.48,
+                    Vector3(side * 0.19, 0.37, 0.68), shell.darkened(0.22))
+                fang.rotation.z = side * 0.29
+                for eye_index in range(3):
+                    _sphere_part(visual, 0.040 if eye_index > 0 else 0.053,
+                        Vector3(side * (0.10 + float(eye_index) * 0.10),
+                            0.88 - float(eye_index % 2) * 0.10, 0.65),
+                        Color("f2a36d") if current_theme == 4 else Color("c67a48"))
         "winged":
             _capsule(visual, 0.30, 0.98, Vector3(0, 1.17, 0), tint)
             for sign in [-1.0, 1.0]:
