@@ -369,7 +369,7 @@ func _set_materials() -> void:
     var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
     if ResourceLoader.exists(diffuse_path):
         floor_material.albedo_texture = load(diffuse_path)
-        floor_material.albedo_color = [Color("b3aaa6"), Color("b5c9df"), Color("8a9d79"), Color("b0a1b4"), Color("887b77")][current_theme]
+        floor_material.albedo_color = [Color("847d7e"), Color("738da1"), Color("76886e"), Color("948298"), Color("665959")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
         floor_material.albedo_color = Color("c0c5c5")
@@ -389,7 +389,7 @@ func _set_materials() -> void:
     var cliff_path: String = "res://assets/pbr/%s_diff_1k.jpg" % cliff_key
     if ResourceLoader.exists(cliff_path):
         rock_material.albedo_texture = load(cliff_path)
-        rock_material.albedo_color = [Color("73707a"), Color("a6b5c4"), Color("5d735c"), Color("6f6088"), Color("55494b")][current_theme]
+        rock_material.albedo_color = [Color("62606b"), Color("6e8599"), Color("506450"), Color("655477"), Color("4c4041")][current_theme]
         var cliff_normal: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % cliff_key
         if ResourceLoader.exists(cliff_normal):
             rock_material.normal_enabled = true
