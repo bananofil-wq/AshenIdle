@@ -38,6 +38,7 @@ const CLASS_SKILL_DESCRIPTIONS = [
 const SKILL_UNLOCK_LEVELS = [1, 5, 10]
 const SKILL_MAX_RANK := 12
 const SAVE_FILE = "user://save_v2.json"
+const EVO = preload("res://scripts/evolution_rules.gd")
 
 var hero_class = 0
 var level = 1
@@ -115,6 +116,15 @@ var skill_overlay: PanelContainer
 var hero_overlay: PanelContainer
 var hero_return_button: Button
 var startup_selection := true
+var class_selection_locked := false # Reset only by restarting the game.
+var hero_choice_buttons: Array = []
+var evolution_choices: Dictionary = {} # Per-class tiers: four irreversible branch choices.
+var evolution_overlay: PanelContainer
+var evolution_title: Label
+var evolution_summary: Label
+var evolution_buttons: Array = []
+var evolution_close_button: Button
+var evolution_action_button: Button
 var skill_choice_buttons: Array = []
 var skill_upgrade_buttons: Array = []
 var skill_count_label: Label
@@ -408,7 +418,8 @@ func _build_ui() -> void:
     controls.add_theme_constant_override("separation", 7)
     overlay.add_child(controls)
     controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(105, 43)))
-    controls.add_child(_ornate_button("HERO", _show_hero_panel, Vector2(105, 43)))
+    evolution_action_button = _ornate_button("EVOLVE", _open_evolution_panel, Vector2(105, 43))
+    controls.add_child(evolution_action_button)
     controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(105, 43)))
     auto_gear_button = _ornate_button("AUTO GEAR", _toggle_auto_gear, Vector2(105, 43))
     controls.add_child(auto_gear_button)
@@ -618,7 +629,7 @@ func _build_ui() -> void:
     var hero_title := _label("CHOOSE YOUR HERO", 29, Color("f2cf99"))
     hero_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hero_column.add_child(hero_title)
-    var hero_explainer := _label("4 classes  •  Different MP, DEF and skills\nChoose a hero to begin your adventure.", 16, Color("c1b9b3"))
+    var hero_explainer := _label("4 classes  •  Different MP, DEF and skills\nYour choice is locked until the game restarts.", 16, Color("c1b9b3"))
     hero_explainer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     hero_column.add_child(hero_explainer)
     for class_id in range(CLASSES.size()):
@@ -640,6 +651,7 @@ func _build_ui() -> void:
         hero_column.add_child(hero_row)
         hero_row.add_child(_create_hero_preview(class_id))
         var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(394, 149))
+        hero_choice_buttons.append(class_button)
         class_button.add_theme_font_size_override("font_size", 13)
         class_button.add_theme_stylebox_override("normal", _skin(Color("1a1e2bf5"), [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]))
         hero_row.add_child(class_button)
@@ -647,6 +659,35 @@ func _build_ui() -> void:
     hero_column.add_child(sfx_toggle_button)
     hero_return_button = _ornate_button("RETURN TO BATTLE", _close_hero_panel, Vector2(510, 43))
     hero_column.add_child(hero_return_button)
+
+    # Evolution is a separate, portrait-friendly upgrade choice, NOT a character switch.
+    evolution_overlay = PanelContainer.new()
+    evolution_overlay.position = Vector2(82, (overlay.size.y - 775.0) * 0.5)
+    evolution_overlay.size = Vector2(556, 775)
+    evolution_overlay.visible = false
+    evolution_overlay.z_index = 42
+    evolution_overlay.add_theme_stylebox_override("panel", _skin(Color("0c1019f7"), Color("c99a62")))
+    overlay.add_child(evolution_overlay)
+    var evolution_column := VBoxContainer.new()
+    evolution_column.add_theme_constant_override("separation", 12)
+    evolution_overlay.add_child(evolution_column)
+    evolution_title = _label("THE ASCENSION PATH", 27, Color("ffd69a"))
+    evolution_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    evolution_column.add_child(evolution_title)
+    evolution_summary = _label("", 16, Color("d1c2b1"))
+    evolution_summary.custom_minimum_size = Vector2(515, 115)
+    evolution_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    evolution_column.add_child(evolution_summary)
+    var evolution_divider := HSeparator.new()
+    evolution_column.add_child(evolution_divider)
+    for branch in range(3):
+        var choose_button := _ornate_button("EVOLUTION", _choose_evolution.bind(branch), Vector2(510, 148))
+        choose_button.add_theme_font_size_override("font_size", 15)
+        choose_button.add_theme_stylebox_override("normal", _skin(Color("1b202c"), [Color("be6f44"), Color("6d9ab0"), Color("9677cf")][branch]))
+        evolution_buttons.append(choose_button)
+        evolution_column.add_child(choose_button)
+    evolution_close_button = _ornate_button("RETURN TO BATTLE", _close_evolution_panel, Vector2(510, 54))
+    evolution_column.add_child(evolution_close_button)
 
     inventory_overlay = PanelContainer.new()
     inventory_overlay.position = Vector2(63, (overlay.size.y - 780.0) * 0.5)
@@ -1504,22 +1545,26 @@ func _forward() -> void:
     _refresh()
 
 func _show_hero_panel(at_start: bool = false) -> void:
-    if legendary_overlay.visible or skill_overlay.visible or inventory_overlay.visible:
+    if legendary_overlay.visible or skill_overlay.visible or inventory_overlay.visible or (evolution_overlay != null and evolution_overlay.visible):
         return
-    startup_selection = at_start
+    # Opening a portrait again does NOT unlock the class. Only a real restart does.
+    startup_selection = at_start and not class_selection_locked
     popup_shade.visible = true
     hero_overlay.visible = true
     if hero_return_button != null:
-        hero_return_button.visible = not at_start
+        hero_return_button.visible = not startup_selection
+    for button in hero_choice_buttons:
+        (button as Button).disabled = class_selection_locked
 
 func _close_hero_panel() -> void:
     if startup_selection:
         return
     hero_overlay.visible = false
     popup_shade.visible = false
+    call_deferred("_offer_evolution")
 
 func _select_class(next_class: int) -> void:
-    if next_class < 0 or next_class >= CLASSES.size():
+    if class_selection_locked or not startup_selection or next_class < 0 or next_class >= CLASSES.size():
         return
     class_talents[str(hero_class)] = skills.duplicate()
     hero_class = next_class
@@ -1534,15 +1579,21 @@ func _select_class(next_class: int) -> void:
     hp = _max_hp()
     mp = _max_mp()
     combat_note = "NEW CLASS: " + CLASSES[hero_class]
+    class_selection_locked = true
     if hero_overlay != null and hero_overlay.visible:
         startup_selection = false
         _close_hero_panel()
+    for button in hero_choice_buttons:
+        (button as Button).disabled = true
     _sync_equipment_visuals()
     _save_game()
     _refresh()
+    call_deferred("_offer_evolution")
 
 func _switch_class() -> void:
-    _select_class((hero_class + 1) % CLASSES.size())
+    # The old shortcut must never bypass the startup-only selection.
+    combat_note = "RESTART TO CHOOSE A DIFFERENT HERO"
+    _refresh()
 
 func _upgrade_skill() -> void:
     if skill_points < 1:
