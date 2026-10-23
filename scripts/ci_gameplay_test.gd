@@ -18,6 +18,11 @@ func _choose_after_simulated_restart(game: Node, class_id: int) -> void:
     game.set("startup_selection", false)
 
 func _run() -> void:
+    # CI must not inherit a prior run's chosen evolution paths, offline levels
+    # or class lock. The smoke/render checks use their own fresh sessions too.
+    var save_path: String = ProjectSettings.globalize_path("user://save_v2.json")
+    if FileAccess.file_exists(save_path):
+        DirAccess.remove_absolute(save_path)
     var packed: PackedScene = load("res://scenes/main.tscn")
     if packed == null:
         quit(10)
