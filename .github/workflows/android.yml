@@ -166,6 +166,14 @@ jobs:
           test "$(find assets/sfx -name '*.ogg' | wc -l)" -ge 25
           ls -lh assets/sfx | tail -5
 
+      - name: Fetch five realistic CC0 biome PBR material sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fetch_pbr.py
+          echo "Photographic material files:"
+          find assets/pbr -type f -name '*.jpg' | sort
+
       - name: Import and validate game scripts
         shell: bash
         run: |
