@@ -146,7 +146,7 @@ jobs:
           PY
           python3 -m venv "$RUNNER_TEMP/gltf-tools"
           "$RUNNER_TEMP/gltf-tools/bin/pip" install --quiet pillow
-          "$RUNNER_TEMP/gltf-tools/bin/python" scripts/normalize_gltf_for_godot.py assets/models/ashen_*.glb
+          "$RUNNER_TEMP/gltf-tools/bin/python" scripts/normalize_gltf_for_godot.py assets/models/ashen_*.glb assets/models/*_dark.glb
           ls -lh assets/models/*_dark.glb assets/models/ashen_* assets/pbr/* 2>/dev/null || true
 
       - name: Download open-licensed fantasy heading font
