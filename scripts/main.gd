@@ -1501,9 +1501,12 @@ func _select_class(next_class: int) -> void:
     hero_class = next_class
     skills = class_talents.get(str(hero_class), [0, 0, 0]).duplicate()
     class_talents[str(hero_class)] = skills.duplicate()
-    if hero != null:
+    # Swapping class during a dungeon must not teleport the player back to its entrance.
+    var current_position: Vector3 = dungeon_points[0] if not dungeon_points.is_empty() else Vector3.ZERO
+    if hero != null and is_instance_valid(hero):
+        current_position = hero.position
         hero.queue_free()
-    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], dungeon_points[0] if not dungeon_points.is_empty() else Vector3.ZERO, false)
+    hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], current_position, false)
     hp = _max_hp()
     mp = _max_mp()
     combat_note = "NEW CLASS: " + CLASSES[hero_class]
