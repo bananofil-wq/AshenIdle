@@ -77,8 +77,14 @@ func _render_test() -> void:
             game.call("_spawn_enemy")
             game.call("_complete_wave")
             game.call("_complete_wave")
+            # Render the real boss sanctum, not the distant starting portal:
+            # moving the hero here is screenshot QA only, not shipped gameplay.
+            var boss_points: PackedVector3Array = game.get("dungeon_points")
+            (game.get("hero") as Node3D).position = boss_points[3] + Vector3(0, 0, 2.3)
+            game.set("camera_focus", boss_points[3])
+            (game.get("camera_ref") as Camera3D).position = boss_points[3] + Vector3(0, 21.3, 22.6)
             game.call("_refresh")
-            await create_timer(0.12).timeout
+            await create_timer(0.18).timeout
             if not await _save_capture("boss-biome-%d.png" % milestone):
                 quit(15)
                 return
