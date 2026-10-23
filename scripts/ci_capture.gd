@@ -81,6 +81,9 @@ func _render_test() -> void:
         game.set("highest", 10)
         game.set("hp", game.call("_max_hp"))
         game.call("_spawn_enemy")
+        # The boss guards the last room, not the entrance.
+        game.call("_complete_wave")
+        game.call("_complete_wave")
         game.call("_refresh")
         await create_timer(0.20).timeout
         game.call("_hide_legendary")
