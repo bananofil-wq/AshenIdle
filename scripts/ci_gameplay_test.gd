@@ -139,8 +139,16 @@ func _run() -> void:
         return
     var prior: int = int(game.get("stage"))
     game.call("_complete_wave")
-    if not _check(int(game.get("stage")) == prior + 1, "Wave completion advances stage"):
+    if not _check(int(game.get("stage")) == prior and int(game.get("dungeon_room_index")) == 2, "First encounter opens the second dungeon room"):
         quit(14)
+        return
+    game.call("_complete_wave")
+    if not _check(int(game.get("dungeon_room_index")) == 3, "Second encounter opens third room"):
+        quit(55)
+        return
+    game.call("_complete_wave")
+    if not _check(int(game.get("stage")) == prior + 1, "Finishing all three rooms advances to next floor"):
+        quit(56)
         return
 
     game.call("_try_boss")
@@ -151,6 +159,11 @@ func _run() -> void:
     game.call("_try_boss")
     if not _check(int(game.get("stage")) == 10, "First boss must unlock on floor 10"):
         quit(15)
+        return
+    game.call("_complete_wave")
+    game.call("_complete_wave")
+    if not _check(int(game.get("dungeon_room_index")) == 3, "Boss must guard final room after two regular encounters"):
+        quit(57)
         return
     var has_boss := false
     for mob in (game.get("arena_mobs") as Array):
@@ -197,7 +210,9 @@ func _run() -> void:
         return
     game.set("stage", 20)
     game.call("_spawn_enemy")
-    if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must be on floor 20 with distinct identity"):
+    game.call("_complete_wave")
+    game.call("_complete_wave")
+    if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must be at end of floor 20 with distinct identity"):
         quit(25)
         return
     # Verify the three collectible sets really give different 2-piece effects.
@@ -230,6 +245,8 @@ func _run() -> void:
     # Bosses telegraph a real charged attack.
     game.set("stage", 10)
     game.call("_spawn_enemy")
+    game.call("_complete_wave")
+    game.call("_complete_wave")
     game.call("_update_boss_cast", 5.0)
     if not _check(float(game.get("boss_cast_windup")) > 0.0, "Boss cast must warn before impact"):
         quit(30)
@@ -238,6 +255,32 @@ func _run() -> void:
     if not _check(float(game.get("boss_cast_windup")) <= 0.0, "Boss cast should resolve"):
         quit(31)
         return
+    # Biome and dungeon path QA: each room has a unique physical location,
+    # each floor changes the route, and boss floors change the landscape AFTER floor 10.
+    game.set("stage", 1)
+    game.call("_spawn_enemy")
+    var first_dungeon: PackedVector3Array = game.get("dungeon_points")
+    if not _check(first_dungeon.size() == 4 and first_dungeon[0].distance_to(first_dungeon[3]) > 32.0, "A floor must physically traverse three separate chambers"):
+        quit(58)
+        return
+    var biome_a: int = int((game.get("dungeon_map") as Node).get("current_theme"))
+    game.set("stage", 2)
+    game.call("_spawn_enemy")
+    var second_dungeon: PackedVector3Array = game.get("dungeon_points")
+    if not _check(second_dungeon[2].distance_to(first_dungeon[2]) > 0.1, "Adjacent levels must not duplicate exact room layout"):
+        quit(59)
+        return
+    game.set("stage", 10)
+    game.call("_spawn_enemy")
+    if not _check(int((game.get("dungeon_map") as Node).get("current_theme")) == biome_a, "All first 10 floors share a coherent biome"):
+        quit(60)
+        return
+    game.set("stage", 11)
+    game.call("_spawn_enemy")
+    if not _check(int((game.get("dungeon_map") as Node).get("current_theme")) != biome_a, "The landscape must change immediately after floor 10 boss"):
+        quit(61)
+        return
+
     # Classes have independent talent allocations that survive class changes.
     game.call("_select_class", 2)
     game.set("skill_points", 2)
@@ -280,5 +323,5 @@ func _run() -> void:
     if not _check(float(cds[0]) > 0.0, "Using spell activates cooldown"):
         quit(21)
         return
-    print("GAMEPLAY TEST PASS: first-launch hero selection, class mana and defense, MP spell casting, 10-floor bosses, walking animation, boss mechanics, progression, loot, talents and equipment")
+    print("GAMEPLAY TEST PASS: three moving encounters per floor, distinct deterministic layouts, biome change after 10 floors, end-room bosses, animated hero, loot, skills and equipment")
     quit(0)
