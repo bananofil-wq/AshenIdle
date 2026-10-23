@@ -130,6 +130,8 @@ var biome_index := -1
 var boss_telegraph: MeshInstance3D
 var boss_cast_timer := 4.5
 var boss_cast_windup := 0.0
+var boss_warning_center := Vector3.ZERO
+var boss_dodges := 0
 var hero_hit_flash := 0.0
 var earned_bosses: Dictionary = {}
 var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
@@ -760,7 +762,15 @@ func _fight() -> void:
     var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075) * (1.0 - _defense_reduction())
     if stage % BOSS_INTERVAL == 0:
         incoming *= [1.28, 1.10, 1.48][_boss_variant()]
-    hp -= incoming
+    var attacker: Node3D = _choose_target()
+    if attacker != null and is_instance_valid(attacker):
+        var distance_to_attacker: float = hero.global_position.distance_to(attacker.global_position)
+        if distance_to_attacker <= (3.4 if bool(attacker.get_meta("boss", false)) else 2.55):
+            _actor_attack(attacker)
+            # Enemies now have to get close to land the regular attacks.
+            hp -= incoming
+        else:
+            hp -= incoming * 0.16
     if hp <= 0.0:
         hp = _max_hp()
         mp = _max_mp()
@@ -855,6 +865,18 @@ func _move_hero(delta: float) -> void:
         var look_dir: Vector3 = target.position - hero.position
         if look_dir.length_squared() > 0.1:
             hero.rotation.y = lerp_angle(hero.rotation.y, atan2(look_dir.x, look_dir.z), clampf(delta * 6.0, 0.0, 1.0))
+    # Bosses target a ground position when charging. The auto-fighter must
+    # react and dodge rather than standing in an unavoidable area attack.
+    if boss_cast_windup > 0.0 and boss_telegraph != null and is_instance_valid(boss_telegraph):
+        var away: Vector3 = hero.position - boss_warning_center
+        away.y = 0.0
+        if away.length_squared() < 0.02:
+            away = hero.position - target.position if target != null else Vector3.RIGHT
+        if away.length_squared() < 0.02:
+            away = Vector3.RIGHT
+        destination = boss_warning_center + away.normalized() * 2.75
+        destination.x = clampf(destination.x, -4.5, 4.5)
+        destination.z = clampf(destination.z, -4.5, 4.5)
     var movement: Vector3 = destination - hero.position
     movement.y = 0.0
     var desired_speed: float = minf(3.6, movement.length() * 2.8)
@@ -904,13 +926,18 @@ func _update_boss_cast(delta: float) -> void:
         if boss_cast_windup <= 0.0:
             var impact_damage: float = (10.0 + float(stage) * 0.9) * [1.1, 0.9, 1.4][_boss_variant()]
             var reduced: float = impact_damage * (1.0 - _defense_reduction())
-            hp -= reduced
-            _spell_burst([Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()], 2.0, 7)
-            camera_shake = maxf(camera_shake, 0.34)
-            camera_kick = maxf(camera_kick, 1.0)
-            _damage_popup(int(reduced), hero.position + Vector3(0, 0.15, 0), true)
-            hero_hit_flash = 0.3
-            combat_note = "BOSS POWER ATTACK!"
+            var warning_color: Color = [Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()]
+            _burst_particles(boss_warning_center + Vector3(0, 0.22, 0), warning_color, 43, 2.0, 0.42)
+            camera_shake = maxf(camera_shake, 0.18)
+            camera_kick = maxf(camera_kick, 0.46)
+            if hero.position.distance_to(boss_warning_center) <= 1.65:
+                hp -= reduced
+                _damage_popup(int(reduced), hero.position + Vector3(0, 0.15, 0), true)
+                hero_hit_flash = 0.3
+                combat_note = "BOSS POWER ATTACK!"
+            else:
+                boss_dodges += 1
+                combat_note = "PERFECT DODGE — BOSS ATTACK EVADED"
             if hp <= 0.0:
                 hp = _max_hp()
                 mp = _max_mp()
@@ -926,10 +953,11 @@ func _update_boss_cast(delta: float) -> void:
     if boss_cast_timer <= 0.0:
         boss_cast_windup = 1.35
         boss_cast_timer = 6.0
+        boss_warning_center = hero.position
         var ring := TorusMesh.new()
         ring.inner_radius = 1.4
         ring.outer_radius = 1.5
-        boss_telegraph = _mesh(self, ring, hero.position + Vector3(0, 0.15, 0), _bright([Color("b92c23"), Color("7140d3"), Color("db8537")][_boss_variant()]))
+        boss_telegraph = _mesh(self, ring, boss_warning_center + Vector3(0, 0.15, 0), _bright([Color("b92c23"), Color("7140d3"), Color("db8537")][_boss_variant()]))
         combat_note = "DANGER — BOSS CHARGING!"
         _refresh()
 
@@ -997,8 +1025,16 @@ func _animate_actor(actor: Node3D, speed: float) -> void:
     if now < int(actor.get_meta("action_until", 0)):
         return
     var wanted: String = "Jog_Fwd" if speed > 1.55 else "Walk" if speed > 0.22 else "Idle"
-    if not _play_actor_clip(actor, wanted, 0.16, 1.04 if speed > 0.22 else 1.0):
+    var has_motion: bool = _play_actor_clip(actor, wanted, 0.16, 1.04 if speed > 0.22 else 1.0)
+    if not has_motion and speed > 0.22:
+        has_motion = _play_actor_clip(actor, "Run", 0.14, 1.0)
+    if not has_motion:
         _play_actor_clip(actor, "Idle", 0.16)
+        # Mild procedural fallback on rigs that lack locomotion clips.
+        var model: Node3D = actor.get_child(0) as Node3D if actor.get_child_count() > 0 else null
+        if model != null:
+            var effort: float = clampf(speed / 2.6, 0.0, 1.0)
+            model.rotation.z = lerpf(model.rotation.z, sin(chaos_time * 10.0 + float(actor.get_instance_id() % 11)) * 0.047 * effort, clampf(get_process_delta_time() * 8.0, 0.0, 1.0))
 
 func _actor_attack(actor: Node3D, magic: bool = false) -> void:
     if actor == null or not is_instance_valid(actor):
@@ -1008,6 +1044,9 @@ func _actor_attack(actor: Node3D, magic: bool = false) -> void:
     var clip := "Spell_Simple_Shoot" if magic else "Sword_Regular_A"
     if _play_actor_clip(actor, clip, 0.10, 1.65):
         actor.set_meta("action_until", Time.get_ticks_msec() + 390)
+    else:
+        _trigger_combat_animation(actor)
+        actor.set_meta("action_until", Time.get_ticks_msec() + 240)
 
 func _update_camera(delta: float) -> void:
     if camera_ref == null or hero == null or not is_instance_valid(hero):
@@ -1067,6 +1106,14 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
         return
     var health: float = float(target.get_meta("hp", 1.0)) - damage
     target.set_meta("hp", health)
+    # Physical readability: every hit interrupts forward motion briefly,
+    # with stronger knockback on a critical strike.
+    if hero != null and is_instance_valid(hero):
+        var push_direction: Vector3 = target.position - hero.position
+        push_direction.y = 0.0
+        if push_direction.length_squared() > 0.02:
+            target.set_meta("knockback", push_direction.normalized() * (2.4 if crit else 0.95))
+        target.set_meta("stagger", 0.18 if crit else 0.08)
     last_target_pos = target.global_position
     _impact(last_target_pos + Vector3(0.0, 0.75, 0.0), Color("ffc769") if crit else Color("b477ff"))
     _damage_popup(int(damage), last_target_pos + Vector3(0.0, 1.45, 0.0), crit)
@@ -1945,19 +1992,27 @@ func _update_chaos(delta: float) -> void:
         var mob: Node3D = arena_mobs[i] as Node3D
         if not is_instance_valid(mob):
             continue
-        var a: float = float(i) * 2.39996 + chaos_time * (0.27 if i % 2 == 0 else -0.19)
-        var radius: float = 1.6 if bool(mob.get_meta("boss", false)) else 2.1 + float(i % 7) * 0.3
-        var boss: bool = bool(mob.get_meta("boss", false))
-        var orbit_center: Vector3 = hero.position if hero != null else Vector3.ZERO
-        var desired: Vector3 = Vector3(1.05 + sin(chaos_time * 0.9) * 0.28, 0, -0.42 + cos(chaos_time * 0.6) * 0.24) if boss else orbit_center + Vector3(cos(a) * radius, 0, sin(a) * radius)
-        desired.x = clampf(desired.x, -5.1, 5.1)
-        desired.z = clampf(desired.z, -5.1, 5.1)
-        var speed: float = 0.45 + float(mob.get_meta("speed", 0.25)) * 1.6
+        var is_boss: bool = bool(mob.get_meta("boss", false))
+        var phase: float = float(mob.get_meta("phase", 0.0))
+        var hero_anchor: Vector3 = hero.position if hero != null else Vector3.ZERO
+        # Enemy packs advance, pause to engage, and circle by small offsets.
+        # The previous perpetual large orbit looked like chess pieces gliding.
+        var a: float = float(i) * 2.39996 + sin(chaos_time * 0.57 + phase) * 0.31
+        var radius: float = 1.65 if is_boss else 1.35 + float(i % 5) * 0.34
+        var desired: Vector3 = hero_anchor + Vector3(cos(a) * radius, 0.0, sin(a) * radius)
+        desired.x = clampf(desired.x, -4.9, 4.9)
+        desired.z = clampf(desired.z, -4.9, 4.9)
         var last_position: Vector3 = mob.position
+        var stagger: float = maxf(0.0, float(mob.get_meta("stagger", 0.0)) - delta)
+        mob.set_meta("stagger", stagger)
+        var knockback: Vector3 = mob.get_meta("knockback", Vector3.ZERO)
+        mob.position += knockback * delta
+        mob.set_meta("knockback", knockback.move_toward(Vector3.ZERO, delta * 7.0))
         var chase: Vector3 = desired - mob.position
         chase.y = 0.0
-        if chase.length() > 0.12:
-            var travel: float = minf(chase.length(), (1.0 + speed * 1.7) * delta)
+        if stagger <= 0.0 and chase.length() > 0.16:
+            var movement_speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.45
+            var travel: float = minf(chase.length(), movement_speed * delta)
             mob.position += chase.normalized() * travel
         var mob_velocity: float = Vector2(mob.position.x - last_position.x, mob.position.z - last_position.z).length() / maxf(0.001, delta)
         _animate_actor(mob, mob_velocity)
@@ -1965,7 +2020,7 @@ func _update_chaos(delta: float) -> void:
         if hero != null:
             var towards_hero: Vector3 = hero.position - mob.position
             if towards_hero.length_squared() > 0.01:
-                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(towards_hero.x, towards_hero.z), clampf(delta * 3.5, 0.0, 1.0))
+                mob.rotation.y = lerp_angle(mob.rotation.y, atan2(towards_hero.x, towards_hero.z), clampf(delta * (3.4 if is_boss else 5.1), 0.0, 1.0))
     for i in range(spell_fx.size() - 1, -1, -1):
         var fx: Dictionary = spell_fx[i]
         fx["time"] = float(fx["time"]) - delta
