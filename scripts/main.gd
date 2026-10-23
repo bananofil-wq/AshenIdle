@@ -1135,7 +1135,7 @@ func _fight() -> void:
         hp = minf(_max_hp(), hp + damage * 0.035)
     # The earlier long neon lines were stationary VFX. Rangers and casters
     # now launch a real traveling projectile from the weapon to the target.
-    if cinematic_skills != null and (hero_class != 0 or hero.global_position.distance_to(target.global_position) > 2.2):
+    if cinematic_skills != null:
         cinematic_skills.call("shoot_basic", hero_class,
             hero.global_position + Vector3(0.0, 1.25, 0.0),
             target.global_position + Vector3(0.0, 0.90, 0.0), crit)
