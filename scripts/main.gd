@@ -739,6 +739,9 @@ func _fight() -> void:
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     if hero_class == 3:
         hp = minf(_max_hp(), hp + damage * 0.035)
+    if hero_class == 2 or hero_class == 3:
+        # Directional caster bolts: a visible link from the moving hero to the target.
+        _energy_arc(hero.global_position + Vector3(0.0, 1.45, 0.0), target.global_position + Vector3(0.0, 0.95, 0.0), Color("a86aff") if hero_class == 2 else Color("ed4058"), 0.075 if crit else 0.046)
     _hit_mob(target, damage, crit)
     _slash_trail(target.global_position, crit)
     _play_audio(0)
@@ -1701,6 +1704,10 @@ func _use_skill(index: int) -> void:
     for i in range(target_count):
         var mob: Node3D = targets[i] as Node3D
         if is_instance_valid(mob) and arena_mobs.has(mob):
+            # NIGHTFALL and ARCANE get focused layered beams instead of just a generic area burst.
+            if index == 2 and (hero_class == 2 or hero_class == 3) and i < 2:
+                var ray_color: Color = Color("e82745") if hero_class == 3 else Color("a86bff")
+                _signature_ray(hero.global_position + Vector3(0.0, 1.45, 0.0), mob.global_position + Vector3(0.0, 1.03, 0.0), ray_color, 1.20 if i == 0 else 0.76)
             _hit_mob(mob, _damage() * multiplier, index == 2)
     combat_note = str(CLASS_SPELLS[hero_class][index]) + "!"
     if index == 2:
@@ -1840,6 +1847,30 @@ func _energy_arc(from: Vector3, to: Vector3, tint: Color, thickness: float) -> v
     shaft.quaternion = Quaternion(Vector3.UP, heading.normalized())
     spell_fx.append({"node": shaft, "time": 0.28, "total": 0.28, "type": "hit"})
 
+func _signature_ray(start: Vector3, finish: Vector3, tint: Color, width: float = 1.0) -> void:
+    # Reference-inspired crimson energy lance: three concentric beams, hot core,
+    # drifting outer glow and an impact burst. Lightweight enough for Android GL.
+    var heading: Vector3 = finish - start
+    var distance: float = heading.length()
+    if distance < 0.10:
+        return
+    var center: Vector3 = (start + finish) * 0.5
+    for layer in range(3):
+        var shaft := CylinderMesh.new()
+        var thickness: float = float([0.155, 0.075, 0.028][layer]) * width
+        shaft.top_radius = thickness
+        shaft.bottom_radius = thickness
+        shaft.height = distance + 0.12
+        var ray_color: Color = tint if layer == 0 else tint.lightened(0.20 if layer == 1 else 0.82)
+        var opacity: float = float([0.24, 0.66, 0.98][layer])
+        var visual := _mesh(self, shaft, center, _beam_material(ray_color, opacity))
+        visual.quaternion = Quaternion(Vector3.UP, heading.normalized())
+        visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        spell_fx.append({"node": visual, "time": 0.32, "total": 0.32, "type": "ray"})
+    _burst_particles(finish, tint, 22, 1.9, 0.35)
+    _burst_particles(finish, Color("fff2d5"), 8, 0.95, 0.20)
+
+
 func _bright(color: Color) -> Material:
     var m := _mat(color.darkened(0.16))
     m.emission_enabled = true
@@ -1941,7 +1972,15 @@ func _update_chaos(delta: float) -> void:
         var m: MeshInstance3D = fx["node"]
         if is_instance_valid(m):
             var p := 1.0 - float(fx["time"]) / float(fx["total"])
-            m.scale = Vector3.ONE * (0.65 + p * (0.58 if fx["type"] == "spell" else 1.1))
+            if fx["type"] == "ray":
+                # Do not stretch directional beams: fade the beam material in place.
+                var ray_material: StandardMaterial3D = m.material_override as StandardMaterial3D
+                if ray_material != null:
+                    var ray_color: Color = ray_material.albedo_color
+                    ray_color.a = clampf(1.0 - p, 0.0, 1.0)
+                    ray_material.albedo_color = ray_color
+            else:
+                m.scale = Vector3.ONE * (0.65 + p * (0.58 if fx["type"] == "spell" else 1.1))
         if float(fx["time"]) <= 0.0:
             if is_instance_valid(m):
                 m.queue_free()
