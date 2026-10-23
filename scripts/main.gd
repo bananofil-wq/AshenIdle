@@ -92,6 +92,8 @@ var power_label: Label
 var map_dots: Control
 var journey_track: ColorRect
 var journey_caption: Label
+var fps_label: Label
+var fps_sample_timer := 0.0
 var encounter_banner_time := 0.0
 var legendary_overlay: PanelContainer
 var legendary_name: Label
@@ -391,6 +393,13 @@ func _build_ui() -> void:
     journey_track.color = Color("c88a5e")
     journey_track.custom_minimum_size = Vector2(160, 3)
     map_column.add_child(journey_track)
+    # Actual on-device frame counter, refreshed once per second rather than
+    # changing a label 60 times per second. Useful for confirming mobile lag.
+    fps_label = _label("FPS --", 14, Color("a4cbb7"))
+    fps_label.position = Vector2(617, 204)
+    fps_label.size = Vector2(88, 26)
+    fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    overlay.add_child(fps_label)
 
     # Horizontal action strip: the previous left-side menu covered nearly
     # 200px of the actual dungeon, leaving little combat space in portrait.
@@ -840,6 +849,12 @@ func _spawn_enemy() -> void:
 
 func _process(delta: float) -> void:
     chaos_time += delta
+    fps_sample_timer += delta
+    if fps_label != null and fps_sample_timer >= 1.0:
+        fps_sample_timer = 0.0
+        var live_fps: int = int(Engine.get_frames_per_second())
+        fps_label.text = "%d FPS" % live_fps
+        fps_label.add_theme_color_override("font_color", Color("93e4ad") if live_fps >= 50 else Color("f4bd73") if live_fps >= 30 else Color("ff7e74"))
     if not popup_shade.visible:
         mp = minf(_max_mp(), mp + _mana_regeneration() * delta)
     if legendary_item_display != null and legendary_overlay.visible:
