@@ -360,46 +360,73 @@ func _tree(parent: Node3D, at: Vector3) -> void:
         parent.add_child(leaf)
 
 func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
-    var h: float = randomizer.randf_range(1.0, 2.7)
+    # Off-path props communicate biome instantly at portrait-phone scale.
+    # Every family has its own shape language; accents are small details.
+    var h: float = randomizer.randf_range(1.2, 3.0)
     match current_theme:
-        0:
-            # Natural stalagmites frame the cave floor; ancient tomb fragments
-            # appear only occasionally, not as identical stone pillars.
-            if variant % 3 != 0:
-                _cave_formation(parent, at)
+        0: # Cave crypt: natural drapery and shattered tomb masonry
+            if variant % 3 == 0:
+                _column(parent, at, h, 0.32, rock_material)
+                _stone(parent, at + Vector3(0.3, 0.04, 0), Vector3(1.2, 0.45, 0.9), rock_material)
             else:
-                _column(parent, at, h, 0.34, rock_material)
-            _stone(parent, at + Vector3(0.45, 0.04, 0.35), Vector3(0.85, 0.48, 0.80), rock_material)
-            if variant % 3 == 0:
-                _block(parent, at + Vector3(0.50, 0.42, 0), Vector3(0.56, 0.82, 0.19), floor_material)
-        1:
-            # Tall jagged walls behind sharp ice formations.
-            if variant % 3 == 0:
-                _mountain(parent, at, h * 1.75, 1.65)
-            for i in range(3):
-                _spike(parent, at + Vector3(float(i-1) * 0.4, 0, float(i % 2) * 0.24), h * (1.0 if i == 1 else 0.64), 0.32, accent_material if i == 1 else rock_material)
-        2:
-            # Forest floor, ancient roots, trees, boulders.
-            if variant % 2 == 0:
+                _cave_formation(parent, at)
+        1: # Enchanted forest: giant trees and mossy rocks
+            if variant % 3 != 1:
                 _tree(parent, at)
             else:
-                _stone(parent, at, Vector3(1.5, 0.8, 1.1), rock_material)
-        3:
-            # Fallen masonry and fractured steles instead of glowing cuboids.
-            var obelisk := _column(parent, at, h * 1.15, 0.46, rock_material, 7)
-            obelisk.rotation.z = randomizer.randf_range(-0.22, 0.22)
-            _stone(parent, at + Vector3(0.45, 0.09, -0.2),
-                Vector3(1.32, 0.70, 1.15), rock_material)
-            if variant % 4 == 0:
-                var tablet := _block(parent, at + Vector3(0.18, h * 0.68, 0.32),
-                    Vector3(0.41, 0.32, 0.10), accent_material)
-                tablet.rotation.z = -0.15
-        4:
-            # Lava cliffs, black rock ridges and volcanic spires.
+                _stone(parent, at, Vector3(1.7, 0.92, 1.5), rock_material)
+                _forest_understory(parent, at + Vector3(0.7, 0, 0.6))
+        2: # Swamp: dead timber, bent stalks, fungal bulbs and reeds
+            if variant % 3 == 0:
+                _tree(parent, at)
+            _forest_understory(parent, at)
+            for reed in range(3):
+                var stalk := _column(parent, at + Vector3(float(reed - 1) * 0.35, 0,
+                    float(reed % 2) * 0.3), h * 0.45, 0.08, _solid(Color("687b44")), 5)
+                stalk.rotation.z = randomizer.randf_range(-0.32, 0.32)
             if variant % 2 == 0:
-                _mountain(parent, at, h * 2.2, 1.5)
-            _spike(parent, at, h * 1.2, 0.48, rock_material)
-            _block(parent, at + Vector3(float(side) * 0.36, 0.02, 0.44), Vector3(0.82, 0.035, 1.05), accent_material)
+                _stone(parent, at + Vector3(0.55, 0.20, 0), Vector3(0.65, 0.56, 0.64), _solid(Color("9ca474")))
+        3: # Frozen cavern: clusters of translucent-looking angular ice
+            _mountain(parent, at, h * 1.35, 1.45)
+            for shard in range(3):
+                _spike(parent, at + Vector3(float(shard - 1) * 0.43, 0,
+                    float(shard % 2) * 0.22), h * (1.18 if shard == 1 else 0.72),
+                    0.31, accent_material if shard == 1 else rock_material)
+        4: # Infernal: jagged basalt and glowing lava fissures
+            if variant % 2 == 0:
+                _mountain(parent, at, h * 2.1, 1.9)
+            _spike(parent, at, h * 1.1, 0.52, rock_material)
+            _block(parent, at + Vector3(float(side) * 0.36, 0.03, 0.4),
+                Vector3(0.85, 0.055, 1.30), accent_material)
+        5: # Haunted grave kingdom: crooked headstones and bare trees
+            if variant % 4 == 0:
+                _tree(parent, at)
+            else:
+                var tomb := _block(parent, at + Vector3(0, h * 0.35, 0),
+                    Vector3(0.67, h * 0.7, 0.23), rock_material)
+                tomb.rotation.z = randomizer.randf_range(-0.21, 0.21)
+                _stone(parent, at + Vector3(0, 0, 0.1), Vector3(0.92, 0.28, 0.68), floor_material)
+        6: # Sunscar desert: sandstone monoliths and drifting rock piles
+            var pillar := _column(parent, at, h * 1.25, 0.39, rock_material, 5)
+            pillar.rotation.z = randomizer.randf_range(-0.15, 0.15)
+            _stone(parent, at + Vector3(0.65, 0.1, 0.1), Vector3(1.3, 0.38, 1.14), floor_material)
+            if variant % 3 == 0:
+                _spike(parent, at + Vector3(-0.65, 0, 0), 0.9, 0.23, accent_material)
+        7: # Storm peaks: high toothlike spires and split cliff boulders
+            _mountain(parent, at, h * 2.5, 1.55)
+            if variant % 2 == 0:
+                _spike(parent, at + Vector3(0.57, 0, 0.4), h * 1.7, 0.29, accent_material)
+        8: # Moon temple: sacred steles and violet crystal fragments
+            var column := _column(parent, at, h * 1.4, 0.40, rock_material, 6)
+            column.rotation.z = randomizer.randf_range(-0.21, 0.21)
+            _stone(parent, at + Vector3(0.48, 0.2, 0.15), Vector3(0.95, 0.62, 0.82), rock_material)
+            _spike(parent, at + Vector3(0.08, h * 1.2, 0.1), 0.75, 0.24, accent_material)
+        9: # Celestial rift: floating monolith silhouettes and astral shards
+            var plinth := _column(parent, at, h * 0.84, 0.66, rock_material, 6)
+            plinth.rotation.y = randomizer.randf_range(-PI, PI)
+            _spike(parent, at + Vector3(0, h * 0.76, 0), h * 0.95, 0.45, accent_material)
+            _stone(parent, at + Vector3(0.9, h * 0.85, 0), Vector3(0.75, 0.67, 0.70), rock_material)
+
 
 func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
     # Uneven 22-segment silhouette eliminates identical square arena footprints.
@@ -584,6 +611,21 @@ func _boss_sanctum(parent: Node3D, center: Vector3) -> void:
             4:
                 _mountain(boss_stage, anchor, 3.7, 1.1)
                 _spike(boss_stage, anchor + Vector3(0, 2.3, 0), 2.2, 0.25, accent_material)
+            5:
+                _column(boss_stage, anchor, 2.5, 0.43, rock_material)
+                _tree(boss_stage, anchor + Vector3(0.7, 0, 0.2))
+            6:
+                _column(boss_stage, anchor, 4.2, 0.62, rock_material, 5)
+                _stone(boss_stage, anchor + Vector3(0, 3.7, 0), Vector3(1.0, 0.5, 1.0), floor_material)
+            7:
+                _mountain(boss_stage, anchor, 5.0, 1.0)
+                _spike(boss_stage, anchor + Vector3(0, 3.4, 0), 2.4, 0.30, accent_material)
+            8:
+                _column(boss_stage, anchor, 4.0, 0.45, rock_material, 7)
+                _spike(boss_stage, anchor + Vector3(0, 3.6, 0), 1.8, 0.32, accent_material)
+            9:
+                _stone(boss_stage, anchor + Vector3(0, 2.0, 0), Vector3(1.9, 1.9, 1.9), rock_material)
+                _spike(boss_stage, anchor, 2.8, 0.62, accent_material)
     var beacon := OmniLight3D.new()
     beacon.name = "BossArenaGlow"
     beacon.position = center + Vector3(0, 3.7, -0.8)
@@ -761,8 +803,8 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
             _block(parent, at + Vector3(side * 5.0, -0.02, 0), Vector3(1.0, 0.10, 8.7), accent_material)
 
 func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
-    # Different focal structures on each floor create silhouettes that remain
-    # distinguishable at phone scale, without placing walls in the walk lane.
+    # Three signature silhouettes per stage, intentionally placed outside
+    # the route so large features do not obscure auto-navigation.
     var side: float = -1.0 if index % 2 == 0 else 1.0
     var at: Vector3 = room + Vector3(side * 5.95, 0.0, -1.55)
     var structure := Node3D.new()
@@ -770,47 +812,63 @@ func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
     parent.add_child(structure)
     landmark_count += 1
     match current_theme:
-        0: # Collapsed crypt chapel, arch and burnt pedestal.
-            for column in range(3):
-                var p := at + Vector3(0, 0, float(column - 1) * 1.45)
-                _column(structure, p, randomizer.randf_range(2.0, 3.8), 0.32, rock_material)
-                _block(structure, p + Vector3(0.0, 2.5, 0.0), Vector3(0.88, 0.30, 0.87), floor_material)
-            _block(structure, at + Vector3(0.42 * side, 0.35, 2.05), Vector3(2.15, 0.7, 0.90), rock_material)
-            _spike(structure, at + Vector3(0, 0, 2.05), 1.20, 0.20, accent_material)
-        1: # Uneven glacial outcrop with cut faces and tall crystal spires.
-            _mountain(structure, at + Vector3(side * 1.2, -0.05, 0), 7.0 + float(index), 3.15)
-            for shard in range(6):
-                var offset := at + Vector3(randomizer.randf_range(-2.1, 2.2), 0.0, randomizer.randf_range(-1.4, 1.5))
-                _spike(structure, offset, randomizer.randf_range(1.8, 4.8), randomizer.randf_range(0.24, 0.49), accent_material if shard % 3 == 0 else rock_material)
-        2: # Interwoven grove and fallen trunk at the woodland edge.
-            for tree_index in range(3):
-                _tree(structure, at + Vector3(side * float(tree_index) * 1.4, 0.0, float(tree_index - 1) * 2.0))
-            var fallen := _block(structure, at + Vector3(0.0, 0.21, 1.5), Vector3(3.5, 0.36, 0.38), rock_material)
-            fallen.rotation.y = 0.44
-            for root_index in range(4):
-                var root := _block(structure, at + Vector3(float(root_index - 2) * 0.63, 0.04, 2.50), Vector3(0.14, 0.14, 1.1), rock_material)
-                root.rotation.y = float(root_index) * 0.4
-        3: # Ruined fortified shrine with toppled capitals and rocky bases.
-            _column(structure, at, 1.35, 1.47, rock_material, 10)
-            _stone(structure, at + Vector3(0, 1.2, 0), Vector3(2.5, 0.65, 2.1), rock_material)
-            for obelisk in range(5):
-                var angle: float = float(obelisk) * TAU / 5.0
-                var point := at + Vector3(cos(angle) * 2.1, 0, sin(angle) * 1.8)
-                var tower := _column(structure, point, 2.2 + float(obelisk % 3) * 0.95, 0.42, rock_material, 7)
-                tower.rotation.z = 0.14 * sin(angle)
-                _stone(structure, point + Vector3(0.42, 0.05, 0),
-                    Vector3(1.25, 0.50, 1.08), rock_material)
-                if obelisk % 2 == 0:
-                    _block(structure, point + Vector3(0, 1.96, 0.25),
-                        Vector3(0.43, 0.18, 0.16), accent_material)
-            _spike(structure, at + Vector3(0, 1.47, 0), 2.4, 0.55, rock_material)
-        4: # Volcanic cliff shelf, magma seams, stacked dark basalt columns.
-            _mountain(structure, at + Vector3(side, -0.10, 0), 6.5, 3.6)
-            for spike_i in range(5):
-                var p := at + Vector3(float(spike_i - 2) * 0.78, 0, randomizer.randf_range(-1.3, 1.3))
-                _column(structure, p, randomizer.randf_range(1.6, 4.5), 0.45, rock_material, 6)
-                if spike_i % 2 == 0:
-                    _block(structure, p + Vector3(0.3, 0.12, 0.0), Vector3(0.16, 0.08, 1.8), accent_material)
+        0: # Stone crypt chapel and collapsed pillars
+            for n in range(3):
+                var p := at + Vector3(0, 0, float(n - 1) * 1.3)
+                _column(structure, p, 2.7 + float(n % 2), 0.38, rock_material)
+                _stone(structure, p + Vector3(0.24, 0, 0), Vector3(1.1, 0.5, 0.92), rock_material)
+            _cave_wall_mass(structure, at + Vector3(side * 1.1, 0, -0.4), side)
+        1: # Ancient grove with towering trunks and canopy
+            for n in range(3):
+                _tree(structure, at + Vector3(float(n) * side * 1.8, 0, float(n - 1) * 2.25))
+            _forest_understory(structure, at + Vector3(0, 0, 1.5))
+        2: # Rotting roots around a swamp cairn
+            for n in range(3):
+                _tree(structure, at + Vector3(float(n - 1) * 1.4, 0, float(n % 2) * 1.2))
+            _stone(structure, at, Vector3(2.35, 1.05, 1.86), rock_material)
+            _forest_understory(structure, at + Vector3(1.2, 0, 0))
+        3: # Glacial ridge and sharp icicle cluster
+            _mountain(structure, at + Vector3(side, 0, 0), 7.7, 3.2)
+            for n in range(6):
+                _spike(structure, at + Vector3(float(n - 3) * 0.72, 0,
+                    float(n % 3) * 0.42), 2.4 + float(n % 3) * 0.78,
+                    0.34, accent_material if n % 3 == 0 else rock_material)
+        4: # Volcanic ridge and black basalt towers
+            _mountain(structure, at + Vector3(side, -0.1, 0), 7.3, 3.7)
+            for n in range(5):
+                _column(structure, at + Vector3(float(n - 2) * 0.84, 0, 0),
+                    1.9 + float(n % 3) * 1.2, 0.48, rock_material, 6)
+        5: # Graveyard gate, leaning stele and dead trees
+            _arch(structure, at, rock_material)
+            _tree(structure, at + Vector3(side * 2.4, 0, -1.8))
+            _tree(structure, at + Vector3(side * 2.8, 0, 2.2))
+        6: # Sunken desert temple facade
+            for n in range(4):
+                _column(structure, at + Vector3(float(n - 2) * 0.92, 0, 0),
+                    3.6 - float(n % 2) * 0.65, 0.48, rock_material, 5)
+            _block(structure, at + Vector3(0, 3.6, 0), Vector3(4.6, 0.5, 1.0), floor_material)
+            _stone(structure, at + Vector3(side * 2.3, 0.08, 0), Vector3(2.1, 0.55, 1.6), floor_material)
+        7: # Ridge altar raised above plunging peaks
+            _mountain(structure, at, 8.4, 3.3)
+            for n in range(4):
+                _spike(structure, at + Vector3(float(n - 2) * 1.0, 0, 0),
+                    3.2 + float(n % 2) * 2.0, 0.55, rock_material)
+        8: # Fallen moon observatory
+            _column(structure, at, 2.1, 1.36, rock_material, 10)
+            for n in range(5):
+                var angle: float = TAU * float(n) / 5.0
+                _column(structure, at + Vector3(cos(angle) * 1.9, 0,
+                    sin(angle) * 1.9), 3.9, 0.32, rock_material, 7)
+            _spike(structure, at + Vector3(0, 2.0, 0), 1.7, 0.50, accent_material)
+        9: # Celestial suspended shard field
+            _column(structure, at, 1.8, 1.55, rock_material, 9)
+            for n in range(7):
+                var angle: float = TAU * float(n) / 7.0
+                _stone(structure, at + Vector3(cos(angle) * 2.0,
+                    2.6 + float(n % 3) * 0.4, sin(angle) * 1.6),
+                    Vector3(1.0, 1.2, 0.85), rock_material)
+                _spike(structure, at + Vector3(cos(angle) * 2.0, 1.4,
+                    sin(angle) * 1.6), 1.15, 0.26, accent_material)
 
 
 func generate(floor_number: int) -> PackedVector3Array:
