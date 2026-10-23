@@ -92,6 +92,17 @@ jobs:
           for asset in floor_tile_large floor_tile_large_rocks floor_tile_small_broken_A pillar_decorated wall_broken torch_lit; do
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_DUNGEON/$asset.gltf.glb" -o "assets/models/$asset.glb"
           done
+          # CC0 KayKit Halloween Bits: sculpted fantasy crypt architecture and grave props.
+          HALLOWEEN="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0/main/addons/kaykit_halloween_bits/Assets/gltf"
+          mkdir -p assets/models/halloween
+          curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$HALLOWEEN/halloweenbits_texture.png" -o assets/models/halloween/halloweenbits_texture.png
+          for asset in arch arch_gate bone_A bone_B coffin coffin_decorated crypt fence_broken grave_A grave_B gravemarker_A gravemarker_B gravestone lantern_standing plaque_candles post_lantern post_skull ribcage shrine_candles skull tree_dead_large tree_dead_medium; do
+            for ext in gltf bin; do
+              curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$HALLOWEEN/$asset.$ext" -o "assets/models/halloween/$asset.$ext"
+            done
+          done
+          test -s assets/models/halloween/crypt.bin
+          test -s assets/models/halloween/halloweenbits_texture.png
           mkdir -p assets/weapons
           BASE_WEAPON="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Assets/gltf"
           for asset in sword_2handed staff dagger; do
