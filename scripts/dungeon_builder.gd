@@ -253,6 +253,22 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
     model.position = at
     parent.add_child(model)
 
+func _cave_formation(parent: Node3D, at: Vector3, hanging: bool = false) -> void:
+    # A cluster of natural mineral columns with fractured facets; staggered
+    # silhouettes read as a cavern rather than rectangular dungeon walls.
+    var stone_color := _solid(Color("544b43"))
+    for n in range(3):
+        var offset := Vector3(randomizer.randf_range(-0.36, 0.36), 0,
+            randomizer.randf_range(-0.35, 0.35))
+        var height: float = randomizer.randf_range(0.75, 2.15)
+        var point := _spike(parent, at + offset + Vector3(0, height if hanging else 0, 0),
+            height, randomizer.randf_range(0.25, 0.52), rock_material if n != 1 else stone_color)
+        if hanging:
+            point.rotation.z = PI
+    if not hanging:
+        _stone(parent, at + Vector3(0, -0.08, 0), Vector3(1.15, 0.36, 1.04), rock_material)
+
+
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
     var earth := _solid(Color("463c39") if current_theme == 2 else Color("343438") if current_theme == 3 else Color("51505a"))
@@ -268,6 +284,8 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
             _spike(parent, p, randomizer.randf_range(0.3, 1.1), 0.18, accent_material if i % 3 == 0 else rock_material)
         elif current_theme == 4:
             _mountain(parent, p, randomizer.randf_range(0.55, 1.5), randomizer.randf_range(0.35, 0.8))
+        elif current_theme == 0 and i % 5 == 0:
+            _cave_formation(parent, p)
         else:
             _stone(parent, p + Vector3(0, 0.06, 0), Vector3(randomizer.randf_range(0.34, 0.90), randomizer.randf_range(0.22, 0.60), randomizer.randf_range(0.44, 1.2)), rock_material)
 
@@ -302,8 +320,12 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
     var h: float = randomizer.randf_range(1.0, 2.7)
     match current_theme:
         0:
-            # Broken tombstones half-buried among irregular rock rubble.
-            _column(parent, at, h, 0.34, rock_material)
+            # Natural stalagmites frame the cave floor; ancient tomb fragments
+            # appear only occasionally, not as identical stone pillars.
+            if variant % 3 != 0:
+                _cave_formation(parent, at)
+            else:
+                _column(parent, at, h, 0.34, rock_material)
             _stone(parent, at + Vector3(0.45, 0.04, 0.35), Vector3(0.85, 0.48, 0.80), rock_material)
             if variant % 3 == 0:
                 _block(parent, at + Vector3(0.50, 0.42, 0), Vector3(0.56, 0.82, 0.19), floor_material)
