@@ -151,6 +151,10 @@ func _render_test() -> void:
             quit(9)
             return
         game.call("_spawn_enemy")
+        # The ultimate is level-gated. QA must actually unlock and cast it,
+        # otherwise a screenshot of "LOCKED" silently passes as spell art.
+        game.set("level", 10)
+        game.set("mp", game.call("_max_mp"))
         game.set("skill_cooldowns", [0.0, 0.0, 0.0])
         game.call("_use_skill", 2)
         await create_timer(0.11).timeout
