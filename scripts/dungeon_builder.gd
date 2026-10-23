@@ -133,7 +133,7 @@ func _arch(parent: Node3D, center: Vector3, stone: Material) -> void:
 func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void:
     # A real faceted mountain mesh with layered slopes and a broken summit.
     # Unlike placing boxes, its silhouette and cliff faces read at camera distance.
-    var stone := _solid(Color("a5a9ad") if current_theme == 1 else Color("736277") if current_theme == 3 else Color("6c5b55"))
+    var stone := _solid(Color("a5b5cd") if current_theme == 1 else Color("6d6084") if current_theme == 3 else Color("657183") if current_theme == 0 else Color("655857"))
     stone.vertex_color_use_as_albedo = true
     var builder := SurfaceTool.new()
     builder.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -422,7 +422,7 @@ func _set_materials() -> void:
     var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
     if ResourceLoader.exists(diffuse_path):
         floor_material.albedo_texture = load(diffuse_path)
-        floor_material.albedo_color = [Color("847d7e"), Color("738da1"), Color("76886e"), Color("948298"), Color("665959")][current_theme]
+        floor_material.albedo_color = [Color("b5c1d1"), Color("8faabe"), Color("8da47f"), Color("a092ba"), Color("92818a")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
         floor_material.albedo_color = Color("c0c5c5")
@@ -442,7 +442,7 @@ func _set_materials() -> void:
     var cliff_path: String = "res://assets/pbr/%s_diff_1k.jpg" % cliff_key
     if ResourceLoader.exists(cliff_path):
         rock_material.albedo_texture = load(cliff_path)
-        rock_material.albedo_color = [Color("62606b"), Color("6e8599"), Color("506450"), Color("655477"), Color("4c4041")][current_theme]
+        rock_material.albedo_color = [Color("596477"), Color("748ea3"), Color("536d55"), Color("74668b"), Color("544b52")][current_theme]
         var cliff_normal: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % cliff_key
         if ResourceLoader.exists(cliff_normal):
             rock_material.normal_enabled = true
@@ -546,10 +546,10 @@ func generate(floor_number: int) -> PackedVector3Array:
     _set_materials()
     # Surround the playable route with biome-specific terrain, not an empty
     # black skybox. Landscapes need to occupy the whole portrait view.
-    var terrain_colors := ["221e25", "273d4b", "152b1b", "1a142a", "2d1110"]
+    var terrain_colors := ["26303c", "273d4b", "152b1b", "1a142a", "2d1110"]
     var terrain := _solid(Color(terrain_colors[current_theme]))
     terrain.albedo_texture = floor_material.albedo_texture
-    terrain.albedo_color = Color("84828c") if current_theme == 0 else Color("b4bdba")
+    terrain.albedo_color = [Color("454f5a"), Color("7d91a9"), Color("485c49"), Color("4d435f"), Color("534348")][current_theme]
     terrain.uv1_scale = Vector3(11, 11, 1)
     terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
