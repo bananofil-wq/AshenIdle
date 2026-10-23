@@ -158,6 +158,14 @@ jobs:
           curl --fail --location --retry 3 --silent --show-error "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/OFL.txt" -o assets/fonts/OFL.txt
           test "$(stat -c %s assets/fonts/Cinzel.ttf)" -gt 80000
 
+      - name: Fetch real CC0 RPG and impact audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fetch_audio.py
+          test "$(find assets/sfx -name '*.ogg' | wc -l)" -ge 25
+          ls -lh assets/sfx | tail -5
+
       - name: Import and validate game scripts
         shell: bash
         run: |
