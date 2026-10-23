@@ -449,6 +449,27 @@ func _run() -> void:
         return
     game.set("mp", game.call("_max_mp"))
     var spell_visuals: Node3D = game.get("cinematic_skills") as Node3D
+    var shot_origin: Vector3 = (game.get("hero") as Node3D).global_position + Vector3(0, 1.2, 0)
+    var shot_target: Vector3 = shot_origin + Vector3(3.5, -0.1, -2.0)
+    spell_visuals.call("shoot_basic", 1, shot_origin, shot_target, true)
+    var active_shot: Dictionary = {}
+    for candidate in (spell_visuals.get("effects") as Array):
+        if str(candidate.get("kind", "")) == "travel":
+            active_shot = candidate
+            break
+    if not _check(not active_shot.is_empty() and active_shot.has("to"),
+        "Ranged hero attacks must spawn actual moving projectile entities"):
+        quit(118)
+        return
+    var moving_projectile: MeshInstance3D = active_shot["node"] as MeshInstance3D
+    spell_visuals.call("_process", 0.13)
+    if not _check(is_instance_valid(moving_projectile) and moving_projectile.position.distance_to(shot_origin) > 0.5,
+        "Projectile must physically cross the world, not instantly appear on enemy"):
+        quit(119)
+        return
+    for archer_class in [2, 3]:
+        spell_visuals.call("shoot_basic", archer_class, shot_origin, shot_target, false)
+    print("PROJECTILE QA PASS: arrows, magic and shadow bolts traverse world space")
     if not _check(spell_visuals != null and spell_visuals.get("haze_texture") != null, "Cinematic procedural smoke/textures must be initialized"):
         quit(108)
         return
