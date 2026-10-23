@@ -107,6 +107,7 @@ var screen_note: Label
 var popup_shade: ColorRect
 var last_inventory_signature := ""
 var minimap_refresh_timer := 10.0
+var action_ui_timer := 0.0
 var last_map_stage := -1
 var skill_overlay: PanelContainer
 var hero_overlay: PanelContainer
@@ -845,29 +846,33 @@ func _process(delta: float) -> void:
         legendary_item_display.rotation.y += delta * 0.64
     for i in range(skill_cooldowns.size()):
         skill_cooldowns[i] = maxf(0.0, float(skill_cooldowns[i]) - delta)
-    for i in range(skill_buttons.size()):
-        var skill_button: Button = skill_buttons[i]
-        var cost: float = float(CLASS_SKILL_COSTS[hero_class][i])
-        var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
-        var unlocked: bool = level >= unlock_level
-        var should_disable: bool = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
-        if skill_button.disabled != should_disable:
-            skill_button.disabled = should_disable
-        var icon: Control = skill_button.get_node_or_null("AbilityGlyph") as Control
-        if icon != null:
-            if int(icon.get("class_id")) != hero_class:
-                icon.set("class_id", hero_class)
-            if bool(icon.get("locked")) == unlocked:
-                icon.set("locked", not unlocked)
-        var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
-        if not unlocked:
-            var locked_label: String = "LOCKED\nLVL %d" % unlock_level
-            if skill_button.text != locked_label:
-                skill_button.text = locked_label
-        else:
-            var ready_label: String = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
-            if skill_button.text != ready_label:
-                skill_button.text = ready_label
+    # UI labels do not need 60 updates a second; 8 Hz saves mobile CPU and layout passes.
+    action_ui_timer += delta
+    if action_ui_timer >= 0.12:
+        action_ui_timer = 0.0
+        for i in range(skill_buttons.size()):
+            var skill_button: Button = skill_buttons[i]
+            var cost: float = float(CLASS_SKILL_COSTS[hero_class][i])
+            var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
+            var unlocked: bool = level >= unlock_level
+            var should_disable: bool = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
+            if skill_button.disabled != should_disable:
+                skill_button.disabled = should_disable
+            var icon: Control = skill_button.get_node_or_null("AbilityGlyph") as Control
+            if icon != null:
+                if int(icon.get("class_id")) != hero_class:
+                    icon.set("class_id", hero_class)
+                if bool(icon.get("locked")) == unlocked:
+                    icon.set("locked", not unlocked)
+            var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
+            if not unlocked:
+                var locked_label: String = "LOCKED\nLVL %d" % unlock_level
+                if skill_button.text != locked_label:
+                    skill_button.text = locked_label
+            else:
+                var ready_label: String = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
+                if skill_button.text != ready_label:
+                    skill_button.text = ready_label
     tick += delta
     save_timer += delta
     if hero != null:
@@ -878,11 +883,11 @@ func _process(delta: float) -> void:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
-    _update_camera(delta)
     if screen_flash != null and screen_flash_fade > 0.0:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
+    _update_camera(delta)
     _update_journey_hud()
     _update_boss_cast(delta)
     _update_ember_motes()
@@ -1049,7 +1054,9 @@ func _update_journey_hud() -> void:
     if segment.length_squared() > 0.05:
         travelled = clampf((hero.position - previous).dot(segment) / segment.length_squared(), 0.0, 1.0)
     var full_progress: float = (float(next_index - 1) + travelled) / 3.0
-    journey_caption.text = "EXPLORING  %d%%" % int(full_progress * 100.0)
+    var caption_text := "EXPLORING  %d%%" % int(full_progress * 100.0)
+    if journey_caption.text != caption_text:
+        journey_caption.text = caption_text
     journey_track.scale.x = maxf(0.025, full_progress)
 
 func _jagged_lightning(start: Vector3, finish: Vector3, rank: int) -> void:
@@ -2396,7 +2403,10 @@ func _update_chaos(delta: float) -> void:
             var speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
             mob.position += chase.normalized() * minf(chase.length(), speed * delta)
         var velocity: float = mob.position.distance_to(last_position) / maxf(0.001, delta)
-        _animate_actor(mob, velocity)
+        # Faraway unengaged enemies already have an Idle animation playing.
+        # Avoid repeatedly traversing and posing their full skeletons off camera.
+        if engaged or (hero != null and mob.position.distance_squared_to(hero.position) < 196.0):
+            _animate_actor(mob, velocity)
         mob.position.y = 0
         if engaged and hero != null:
             var face: Vector3 = hero.position - mob.position
