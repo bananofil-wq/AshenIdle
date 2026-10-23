@@ -231,6 +231,8 @@ jobs:
             build/startup-hero-selection.png
             build/hero-detail-preview.png
             build/spell-effects-preview.png
+            build/skills-ultimate-shadow.png
+            build/skills-chain-lightning.png
             build/legendary-preview.png
             build/talent-preview.png
             build/inventory-preview.png
