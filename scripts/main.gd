@@ -1011,7 +1011,9 @@ func _biome_fx_tint() -> Color:
 
 
 func _boss_variant() -> int:
-    return posmod(floori(float(stage) / float(BOSS_INTERVAL)) - 1, BOSS_NAMES.size())
+    # Floor 1-10 is biome zero, 11-20 biome one, and so forth.
+    # Using stage / 10 - 1 made floors 1-9 select the LAST monster pool.
+    return posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), BOSS_NAMES.size())
 
 func _encounter_victory() -> void:
     if current_encounter.is_empty() or encounter_director == null:
