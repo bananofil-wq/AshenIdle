@@ -10,7 +10,7 @@ var footsteps: Dictionary = {}
 var recorded_count := 0
 var recent_sound_ms: Dictionary = {}
 var active_voices: Array[AudioStreamPlayer] = []
-const MAX_VOICES := 7
+const MAX_VOICES := 5
 
 func _ready() -> void:
     randomizer.randomize()
@@ -55,7 +55,7 @@ func play_step(theme_id: int) -> void:
     if choices.is_empty():
         return
     var stream: AudioStream = choices[randomizer.randi_range(0, choices.size() - 1)]
-    _play_voice(stream, -26.0, randomizer.randf_range(0.96, 1.04))
+    _play_voice(stream, -32.0, randomizer.randf_range(0.98, 1.02))
 
 
 func _play_voice(stream: AudioStream, volume: float, pitch: float) -> void:
@@ -164,7 +164,7 @@ func play_effect(kind: int, hero_class: int = 0) -> void:
     var now: int = Time.get_ticks_msec()
     # Continuous idle combat needs restrained foley, not an impact every
     # few frames; reward, boss and skill cues must remain foreground sounds.
-    var minimum_gap: int = [440, 125, 300, 220, 450, 280, 180][clampi(kind, 0, 6)]
+    var minimum_gap: int = [620, 220, 540, 450, 960, 660, 330][clampi(kind, 0, 6)]
     if now - int(recent_sound_ms.get(kind, -10000)) < minimum_gap:
         return
     recent_sound_ms[kind] = now
@@ -172,5 +172,8 @@ func play_effect(kind: int, hero_class: int = 0) -> void:
     if candidates.is_empty():
         return
     var clip: AudioStream = candidates[randomizer.randi_range(0, candidates.size() - 1)]
-    var gain: float = [-20.0, -13.0, -10.5, -14.0, -9.5, -14.0, -12.0][clampi(kind, 0, 6)]
-    _play_voice(clip, gain + randomizer.randf_range(-2.0, 0.0), randomizer.randf_range(0.975, 1.035))
+    # Game sound, not a collection of random video-game bleeps. Push
+    # attacks and synthetic resonances back; only strong impact/loot cues
+    # should sit near foreground. This also helps small phone speakers.
+    var gain: float = [-27.0, -21.0, -19.0, -21.5, -16.0, -22.0, -19.0][clampi(kind, 0, 6)]
+    _play_voice(clip, gain + randomizer.randf_range(-1.4, 0.0), randomizer.randf_range(0.99, 1.01))
