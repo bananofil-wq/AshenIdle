@@ -703,23 +703,16 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
         var preview_model: Node3D = packed.instantiate() as Node3D
         if preview_model != null:
             preview_viewport.add_child(preview_model)
-            _fit_visual_model(preview_model, 2.6)
+            # The selection card is not in the scene tree until _build_ui()
+            # finishes. Transform3D and look_at before that point return
+            # default transforms and silently produce blank 3D previews.
             preview_model.rotation.y = -0.38
-            _attach_hero_clips(preview_model)
-            _pose_fantasy_skeleton(preview_model, 0.0)
-            for clip_node in preview_model.find_children("*", "AnimationPlayer", true, false):
-                var animation_player: AnimationPlayer = clip_node as AnimationPlayer
-                if animation_player != null:
-                    for clip in animation_player.get_animation_list():
-                        if str(clip).to_lower().contains("idle"):
-                            animation_player.play(str(clip))
-                            break
             var camera := Camera3D.new()
             camera.position = Vector3(2.65, 2.18, 4.65)
             camera.fov = 37.0
             preview_viewport.add_child(camera)
-            camera.look_at(Vector3(0, 1.35, 0), Vector3.UP)
             camera.current = true
+            call_deferred("_finish_hero_preview", preview_model, camera)
             var key := DirectionalLight3D.new()
             key.rotation_degrees = Vector3(-45, -31, 0)
             key.light_color = accent.lightened(0.58)
@@ -745,6 +738,22 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
     emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
     holder.add_child(emblem)
     return frame
+
+
+func _finish_hero_preview(model: Node3D, camera: Camera3D) -> void:
+    if not is_instance_valid(model) or not model.is_inside_tree() or not is_instance_valid(camera) or not camera.is_inside_tree():
+        return
+    _fit_visual_model(model, 2.6)
+    _attach_hero_clips(model)
+    _pose_fantasy_skeleton(model, 0.0)
+    for clip_node in model.find_children("*", "AnimationPlayer", true, false):
+        var player: AnimationPlayer = clip_node as AnimationPlayer
+        if player != null:
+            for clip_name in player.get_animation_list():
+                if str(clip_name).to_lower().contains("idle"):
+                    player.play(str(clip_name))
+                    break
+    camera.look_at(Vector3(0, 1.35, 0), Vector3.UP)
 
 
 func _max_mp() -> float:
