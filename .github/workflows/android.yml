@@ -111,6 +111,15 @@ jobs:
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$CITYTREE/$tree.glb" -o "assets/models/citytree/$tree.glb"
           done
           test "$(stat -c %s assets/models/citytree/tree1.glb)" -gt 100000
+          # Quaternius animated monster meshes, converted to ordinary glTF/GLB
+          # by the CC0 asset-manifested Warptracker open-source project.
+          # No paid models or external model APIs required.
+          MONSTER_BASE="https://raw.githubusercontent.com/ilrein/warptracker/main/public/models"
+          mkdir -p assets/models/monsters
+          for monster in bat ghost demon; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$MONSTER_BASE/$monster.glb" -o "assets/models/monsters/$monster.glb"
+          done
+          test "$(stat -c %s assets/models/monsters/bat.glb)" -gt 100000
           mkdir -p assets/weapons
           BASE_WEAPON="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Assets/gltf"
           for asset in sword_2handed staff dagger; do
