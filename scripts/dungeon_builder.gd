@@ -467,7 +467,15 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
         elif current_theme == 3:
             _spike(parent, p, randomizer.randf_range(0.3, 1.1), 0.18, accent_material if i % 3 == 0 else rock_material)
         elif current_theme == 4 or current_theme == 7:
-            _mountain(parent, p, randomizer.randf_range(0.55, 1.5), randomizer.randf_range(0.35, 0.8))
+            # Unique cliff meshes on every pebble caused excessive mobile draw
+            # calls. Reserve mountains for one in four; batch other stonework.
+            if i % 4 == 0:
+                _mountain(parent, p, randomizer.randf_range(0.85, 1.65),
+                    randomizer.randf_range(0.48, 0.9))
+            else:
+                _stone(parent, p + Vector3(0, 0.16, 0),
+                    Vector3(randomizer.randf_range(0.42, 0.84), 0.44,
+                        randomizer.randf_range(0.55, 1.03)), rock_material)
         elif current_theme == 6 and i % 4 == 0:
             _spike(parent, p, randomizer.randf_range(0.30, 0.70), 0.16, _solid(Color("a58a59")))
         elif current_theme == 5 and i % 3 == 0:
@@ -574,8 +582,12 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             _stone(parent, at + Vector3(0.65, 0.1, 0.1), Vector3(1.3, 0.38, 1.14), floor_material)
             if variant % 3 == 0:
                 _spike(parent, at + Vector3(-0.65, 0, 0), 0.9, 0.23, accent_material)
-        7: # Storm peaks: high toothlike spires and split cliff boulders
-            _mountain(parent, at, h * 2.5, 1.55)
+        7: # Storm peaks: dramatic spires without unique mountains everywhere
+            if variant % 3 == 0:
+                _mountain(parent, at, h * 2.5, 1.55)
+            else:
+                _stone(parent, at + Vector3(0, h * 0.38, 0),
+                    Vector3(1.25, h * 1.12, 1.38), rock_material)
             if variant % 2 == 0:
                 _spike(parent, at + Vector3(0.57, 0, 0.4), h * 1.7, 0.29, accent_material)
         8: # Moon temple: sacred steles and violet crystal fragments
@@ -1012,14 +1024,22 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
                         Vector3(1.0, 0.36, 1.0), rock_material)
     elif current_theme == 3:
         for side in [-1.0, 1.0]:
-            _block(parent, at + Vector3(side * 4.45, -0.1, 0), Vector3(0.9, 0.23, 7.8), rock_material)
+            _stone(parent, at + Vector3(side * 4.60, 0.08, -1.7),
+                Vector3(1.2, 0.46, 2.2), rock_material)
+            _stone(parent, at + Vector3(side * 4.87, 0.14, 2.4),
+                Vector3(0.96, 0.58, 1.8), rock_material)
     elif current_theme == 1 or current_theme == 2:
         for side in [-1.0, 1.0]:
             var stump := at + Vector3(side * 4.6, 0, -2.0)
             _tree(parent, stump)
     elif current_theme == 4:
+        # Remove the long solid-orange lava rectangles that dominated the
+        # screenshot. Luminous pools now provide the volcanic highlights.
         for side in [-1.0, 1.0]:
-            _block(parent, at + Vector3(side * 5.0, -0.02, 0), Vector3(1.0, 0.10, 8.7), accent_material)
+            _stone(parent, at + Vector3(side * 5.12, 0.14, -2.0),
+                Vector3(1.34, 0.56, 2.2), rock_material)
+            _stone(parent, at + Vector3(side * 5.4, 0.09, 2.15),
+                Vector3(1.46, 0.48, 1.8), rock_material)
 
 func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
     # Three signature silhouettes per stage, intentionally placed outside
