@@ -395,11 +395,33 @@ func _run() -> void:
         quit(53)
         return
     game.set("mp", game.call("_max_mp"))
+    var spell_visuals: Node3D = game.get("cinematic_skills") as Node3D
+    if not _check(spell_visuals != null and spell_visuals.get("haze_texture") != null, "Cinematic procedural smoke/textures must be initialized"):
+        quit(108)
+        return
+    var casts_before: int = int(spell_visuals.get("total_casts"))
     var mana_before: float = float(game.get("mp"))
     game.call("_use_skill", 0)
     if not _check(float(game.get("mp")) < mana_before, "Casting must consume class-specific MP"):
         quit(54)
         return
+    if not _check(int(spell_visuals.get("total_casts")) > casts_before
+        and (spell_visuals.get("effects") as Array).size() >= 2,
+        "Basic skills must spawn layered directional VFX, not a static sprite"):
+        quit(109)
+        return
+    var visual_target: Node3D = (game.get("arena_mobs") as Array)[0] as Node3D
+    for class_id in range(4):
+        for slot in range(3):
+            spell_visuals.call("cast", class_id, slot, 5,
+                (game.get("hero") as Node3D).global_position,
+                visual_target.global_position, [visual_target.global_position])
+    if not _check(int(spell_visuals.get("total_casts")) >= casts_before + 13
+        and (spell_visuals.get("effects") as Array).size() <= 125,
+        "Twelve cinematic spell families must render within Android effect budget"):
+        quit(110)
+        return
+    print("CINEMATIC SKILLS QA PASS: all four classes, basic/core/ultimate, procedural layers, bounded VFX")
     var cds: Array = game.get("skill_cooldowns")
     if not _check(float(cds[0]) > 0.0, "Using spell activates cooldown"):
         quit(21)
