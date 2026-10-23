@@ -10,6 +10,11 @@ func _save_capture(filename: String) -> bool:
     if frame.is_empty():
         push_error("Cannot capture render: " + filename)
         return false
+    # Software-rendered CI is not a proxy for phone FPS, but draw-call and
+    # node counters expose regressions and confirm actual MultiMesh use.
+    var draws: int = int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+    var nodes: int = int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
+    print("RENDER QA ", filename, ": draw_calls=", draws, " scene_nodes=", nodes)
     var err: Error = frame.save_png("res://build/" + filename)
     if err != OK:
         push_error("Failed to save " + filename + ": " + str(err))
