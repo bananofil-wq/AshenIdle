@@ -410,12 +410,12 @@ func _run() -> void:
         "Basic skills must spawn layered directional VFX, not a static sprite"):
         quit(109)
         return
-    var visual_target: Node3D = (game.get("arena_mobs") as Array)[0] as Node3D
+    var hero_position: Vector3 = (game.get("hero") as Node3D).global_position
+    var visual_destination: Vector3 = hero_position + Vector3(2.0, 0.0, -2.0)
     for class_id in range(4):
         for slot in range(3):
             spell_visuals.call("cast", class_id, slot, 5,
-                (game.get("hero") as Node3D).global_position,
-                visual_target.global_position, [visual_target.global_position])
+                hero_position, visual_destination, [visual_destination])
     if not _check(int(spell_visuals.get("total_casts")) >= casts_before + 13
         and (spell_visuals.get("effects") as Array).size() <= 125,
         "Twelve cinematic spell families must render within Android effect budget"):
