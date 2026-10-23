@@ -121,14 +121,54 @@ func _spike(parent: Node3D, at: Vector3, height: float, radius: float, mat: Mate
     parent.add_child(instance)
 
 func _connect(parent: Node3D, a: Vector3, b: Vector3, width: float, mat: Material) -> void:
-    var difference := b - a
-    var slab := _block(parent, (a + b) * 0.5 + Vector3(0, -0.12, 0), Vector3(width, 0.22, difference.length() + 1.8), mat)
-    slab.rotation.y = atan2(difference.x, difference.z)
+    # A rough-hewn passage built from a real curved polygon strip. The previous
+    # full-width rectangular box read as a pale floating tabletop on the game.
+    var direction: Vector3 = b - a
+    direction.y = 0.0
+    if direction.length_squared() < 0.01:
+        return
+    var forward: Vector3 = direction.normalized()
+    var lateral := Vector3(direction.z, 0, -direction.x).normalized()
+    var length: float = direction.length()
+    var n: int = 10
+    var points_left := PackedVector3Array()
+    var points_right := PackedVector3Array()
+    for i in range(n + 1):
+        var t: float = float(i) / float(n)
+        var taper: float = lerpf(0.85, 1.0, sin(PI * t))
+        var jagged: float = 0.94 + 0.05 * sin(float(i) * 1.8 + float(current_stage))
+        var half_width: float = width * 0.5 * taper * jagged
+        var p: Vector3 = a + forward * length * t + Vector3(0, -0.17, 0)
+        points_left.append(p + lateral * half_width)
+        points_right.append(p - lateral * half_width)
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for i in range(n):
+        for v in [points_left[i], points_right[i], points_left[i + 1], points_right[i], points_right[i + 1], points_left[i + 1]]:
+            surface.set_uv(Vector2(v.x * 0.28, v.z * 0.28))
+            surface.add_vertex(v)
+    surface.generate_normals()
+    var walkway := MeshInstance3D.new()
+    walkway.name = "CarvedStonePassage"
+    walkway.mesh = surface.commit()
+    walkway.material_override = mat
+    parent.add_child(walkway)
+    # Edges are irregular, not continuous raised beams in the camera view.
+    for i in range(1, n, 3):
+        var p: Vector3 = a.lerp(b, float(i) / float(n))
+        for side in [-1.0, 1.0]:
+            if (i + int(side) + current_stage) % 3 == 0:
+                var pebble := _block(parent, p + lateral * side * (width * 0.56), Vector3(0.38, 0.15, 0.49), rock_material)
+                pebble.rotation.y = randomizer.randf_range(0, TAU)
 
 func _arch(parent: Node3D, center: Vector3, stone: Material) -> void:
+    # Two broken pillars and interrupted lintels frame the gate, without a
+    # horizontal beam across the hero at portrait camera height.
     for sign in [-1.0, 1.0]:
-        _block(parent, center + Vector3(sign * 3.90, 1.10, 0), Vector3(0.65, 2.2, 0.75), stone)
-    _block(parent, center + Vector3(0, 2.36, 0), Vector3(8.45, 0.60, 0.90), stone)
+        var footing := center + Vector3(sign * 3.95, 0, 0)
+        _column(parent, footing, 2.70, 0.46, stone)
+        var broken_lintel := _block(parent, footing + Vector3(-sign * 0.38, 2.6, 0), Vector3(1.15, 0.33, 0.72), stone)
+        broken_lintel.rotation.z = sign * randomizer.randf_range(0.05, 0.18)
 
 func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void:
     # A real faceted mountain mesh with layered slopes and a broken summit.
@@ -422,7 +462,7 @@ func _set_materials() -> void:
     var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
     if ResourceLoader.exists(diffuse_path):
         floor_material.albedo_texture = load(diffuse_path)
-        floor_material.albedo_color = [Color("b5c1d1"), Color("8faabe"), Color("8da47f"), Color("a092ba"), Color("92818a")][current_theme]
+        floor_material.albedo_color = [Color("919eaf"), Color("8da5b8"), Color("84997b"), Color("9b8eb0"), Color("857981")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
         floor_material.albedo_color = Color("c0c5c5")
@@ -588,7 +628,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         if i > 0:
             _landmark(room, p, i)
         if i > 0:
-            _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), 5.9, floor_material)
+            _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), 4.75, floor_material)
         if i == 3 and current_stage % 10 == 0:
             _boss_sanctum(room, p)
             var altar := _column(room, p + Vector3(0, -0.03, -2.8), 0.35, 2.7, rock_material, 12)
