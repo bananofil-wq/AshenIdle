@@ -250,13 +250,13 @@ func _build_world() -> void:
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color("070a12")
     environment.adjustment_enabled = true
-    environment.adjustment_brightness = 0.78
-    environment.adjustment_contrast = 1.20
-    environment.adjustment_saturation = 0.77
+    environment.adjustment_brightness = 1.02
+    environment.adjustment_contrast = 1.08
+    environment.adjustment_saturation = 0.88
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     environment.ambient_light_color = Color("677186")
     environment.ambient_light_energy = 0.48
-    environment.glow_enabled = true
+    environment.glow_enabled = false
     # Keep saturated spell silhouettes; aggressive glow had clipped the entire combat area white.
     environment.glow_intensity = 0.38
     environment.glow_strength = 0.76
@@ -264,10 +264,10 @@ func _build_world() -> void:
     add_child(world)
 
     camera_ref = Camera3D.new()
-    camera_ref.position = Vector3(0.0, 19.5, 21.8)
+    camera_ref.position = Vector3(0.0, 17.2, 19.2)
     add_child(camera_ref)
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
-    camera_ref.fov = 49.0
+    camera_ref.fov = 47.0
     camera_ref.current = true
     camera_focus = Vector3.ZERO
     var sun := DirectionalLight3D.new()
@@ -276,7 +276,9 @@ func _build_world() -> void:
     sun.rotation_degrees = Vector3(-58, -31, 0)
     sun.light_color = Color("f5b990")
     sun.light_energy = 1.05
-    sun.shadow_enabled = true
+    # Fake contact shadows remain beneath characters; full-scene shadows
+    # over thousands of dungeon props were too expensive for mobile GLES3.
+    sun.shadow_enabled = false
     var ember := OmniLight3D.new()
     fire_light = ember
     add_child(ember)
@@ -380,7 +382,7 @@ func _build_ui() -> void:
     map_dots = Control.new()
     map_dots.custom_minimum_size = Vector2(167, 103)
     map_column.add_child(map_dots)
-    stage_banner = _label("", 15, Color("f0c997"))
+    stage_banner = _label("", 13, Color("f0c997"))
     map_column.add_child(stage_banner)
     journey_caption = _label("PATH  0%", 12, Color("b7c9c5"))
     map_column.add_child(journey_caption)
@@ -389,8 +391,10 @@ func _build_ui() -> void:
     journey_track.custom_minimum_size = Vector2(160, 3)
     map_column.add_child(journey_track)
 
-    var controls := VBoxContainer.new()
-    controls.position = Vector2(14, 209)
+    # Horizontal action strip: the previous left-side menu covered nearly
+    # 200px of the actual dungeon, leaving little combat space in portrait.
+    var controls := HBoxContainer.new()
+    controls.position = Vector2(14, 205)
     controls.add_theme_constant_override("separation", 7)
     overlay.add_child(controls)
     controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(105, 43)))
@@ -400,20 +404,20 @@ func _build_ui() -> void:
     controls.add_child(auto_gear_button)
 
     var banner := PanelContainer.new()
-    banner.position = Vector2(175, 202)
-    banner.size = Vector2(367, 62)
+    banner.position = Vector2(168, 260)
+    banner.size = Vector2(384, 52)
     banner.add_theme_stylebox_override("panel", _skin(Color("090a10ba"), Color("5e4e4b")))
     overlay.add_child(banner)
     var banner_column := VBoxContainer.new()
     banner.add_child(banner_column)
-    center_banner = _label("THE ASHEN HUNT", 22, Color("ffd08c"))
+    center_banner = _label("THE ASHEN HUNT", 19, Color("ffd08c"))
     center_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(center_banner)
     combat = _label("", 15, Color("ded4ce"))
     combat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(combat)
     var boss_panel := PanelContainer.new()
-    boss_panel.position = Vector2(189, 273)
+    boss_panel.position = Vector2(189, 322)
     boss_panel.size = Vector2(342, 52)
     boss_panel.add_theme_stylebox_override("panel", _skin(Color("100a12c9"), Color("aa5143")))
     overlay.add_child(boss_panel)
@@ -430,8 +434,8 @@ func _build_ui() -> void:
 
 
     var bottom := PanelContainer.new()
-    bottom.position = Vector2(16, overlay.size.y - 190)
-    bottom.size = Vector2(688, 177)
+    bottom.position = Vector2(16, overlay.size.y - 156)
+    bottom.size = Vector2(688, 142)
     bottom.add_theme_stylebox_override("panel", _skin(Color("090b11ea"), Color("68615c")))
     overlay.add_child(bottom)
     var col := VBoxContainer.new()
@@ -452,7 +456,7 @@ func _build_ui() -> void:
     action_line.add_child(_ornate_button("FORGE", _forge_weakest, Vector2(106, 46)))
     action_line.add_child(_ornate_button("SKILL+", _open_talent_panel, Vector2(106, 46)))
     var scroll := ScrollContainer.new()
-    scroll.custom_minimum_size = Vector2(630, 50)
+    scroll.custom_minimum_size = Vector2(630, 27)
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     col.add_child(scroll)
     inventory = VBoxContainer.new()
@@ -462,7 +466,7 @@ func _build_ui() -> void:
     col.add_child(offline)
 
     var skill_bar := HBoxContainer.new()
-    skill_bar.position = Vector2(380, overlay.size.y - 285)
+    skill_bar.position = Vector2(380, overlay.size.y - 248)
     skill_bar.add_theme_constant_override("separation", 7)
     overlay.add_child(skill_bar)
     for spell_name in CLASS_SPELLS[hero_class]:
@@ -688,7 +692,9 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
         preview_viewport.size = Vector2i(216, 298)
         preview_viewport.own_world_3d = true
         preview_viewport.transparent_bg = true
-        preview_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+        # Hidden hero chooser no longer renders four additional 3D worlds on
+        # every gameplay frame; it redraws only while actually visible.
+        preview_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
         viewport_holder.add_child(preview_viewport)
         var portrait_environment := WorldEnvironment.new()
         var portrait_scene := Environment.new()
@@ -825,7 +831,7 @@ func _spawn_enemy() -> void:
         hero.position = dungeon_points[0]
     if camera_ref != null and hero != null:
         camera_focus = hero.position
-        camera_ref.position = hero.position + Vector3(0.0, 20.8, 22.2)
+        camera_ref.position = hero.position + Vector3(0.0, 18.0, 20.0)
         camera_ref.look_at(hero.position + Vector3(0, 0.8, -2.3), Vector3.UP)
     _spawn_horde()
     _update_wave_health()
@@ -844,7 +850,9 @@ func _process(delta: float) -> void:
         var cost: float = float(CLASS_SKILL_COSTS[hero_class][i])
         var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
         var unlocked: bool = level >= unlock_level
-        skill_button.disabled = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
+        var should_disable: bool = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
+        if skill_button.disabled != should_disable:
+            skill_button.disabled = should_disable
         var icon: Control = skill_button.get_node_or_null("AbilityGlyph") as Control
         if icon != null:
             if int(icon.get("class_id")) != hero_class:
@@ -853,9 +861,13 @@ func _process(delta: float) -> void:
                 icon.set("locked", not unlocked)
         var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
         if not unlocked:
-            skill_button.text = "LOCKED\nLVL %d" % unlock_level
+            var locked_label: String = "LOCKED\nLVL %d" % unlock_level
+            if skill_button.text != locked_label:
+                skill_button.text = locked_label
         else:
-            skill_button.text = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
+            var ready_label: String = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
+            if skill_button.text != ready_label:
+                skill_button.text = ready_label
     tick += delta
     save_timer += delta
     if hero != null:
@@ -1143,11 +1155,11 @@ func _apply_biome() -> void:
     scene.fog_enabled = true
     scene.fog_light_color = [Color("59423d"), Color("64879b"), Color("526851"), Color("48305e"), Color("704238")][next_biome]
     scene.fog_density = [0.009, 0.006, 0.004, 0.010, 0.008][next_biome]
-    scene.adjustment_brightness = [0.73, 0.72, 0.77, 0.70, 0.79][next_biome]
-    scene.adjustment_saturation = [0.78, 0.73, 0.84, 0.84, 0.92][next_biome]
+    scene.adjustment_brightness = [1.02, 0.97, 0.99, 0.93, 0.99][next_biome]
+    scene.adjustment_saturation = [0.92, 0.78, 0.96, 0.90, 0.94][next_biome]
     if key_sun != null:
-        key_sun.light_color = [Color("ffbd88"), Color("c2e7ff"), Color("c3dda1"), Color("bc9aff"), Color("ffa16b")][next_biome]
-        key_sun.light_energy = [0.86, 0.74, 0.88, 0.76, 0.95][next_biome]
+        key_sun.light_color = [Color("bfd2f2"), Color("c2e7ff"), Color("c3dda1"), Color("bc9aff"), Color("ffd0a6")][next_biome]
+        key_sun.light_energy = [1.05, 1.05, 0.99, 0.92, 1.08][next_biome]
     scene.ambient_light_color = [Color("677186"), Color("88b5c8"), Color("79a27a"), Color("805aa6"), Color("aa634b")][next_biome]
     if fire_light != null:
         fire_light.light_color = [Color("ff6332"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
@@ -1280,10 +1292,10 @@ func _update_camera(delta: float) -> void:
     camera_focus = camera_focus.lerp(focus, clampf(delta * 3.1, 0, 1))
     var boss_fight: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
     var random_shake := Vector3(sin(camera_time * 83.0) * camera_shake, cos(camera_time * 69.0) * camera_shake * 0.5, sin(camera_time * 51.0) * camera_shake * 0.5)
-    var destination: Vector3 = camera_focus + Vector3(0, 21.5 if boss_fight else 20.4, 22.6) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
+    var destination: Vector3 = camera_focus + Vector3(0, 19.0 if boss_fight else 17.7, 19.4) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
     camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.2, 0, 1))
     camera_ref.look_at(camera_focus, Vector3.UP)
-    camera_ref.fov = lerpf(camera_ref.fov, 48.5 if boss_fight else 49.0, clampf(delta * 1.5, 0, 1))
+    camera_ref.fov = lerpf(camera_ref.fov, 48.0 if boss_fight else 47.0, clampf(delta * 1.5, 0, 1))
     if fire_light != null:
         fire_light.position = hero.position + Vector3(2.8, 3.7, -1.4)
     if mystic_light != null:
@@ -1689,7 +1701,7 @@ func _refresh() -> void:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
     if hero_mana_label != null:
         hero_mana_label.text = "MP %.0f / %.0f   +%.0f / sec" % [mp, _max_mp(), _mana_regeneration()]
-    stage_banner.text = "ACT %d  •  FLOOR %d/10  •  ROOM %d/3%s" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, dungeon_room_index, " BOSS" if stage % BOSS_INTERVAL == 0 else ""]
+    stage_banner.text = "ACT %d   FLOOR %d/10   ROOM %d/3" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, dungeon_room_index]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
         boss_panel.visible = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
@@ -2151,7 +2163,7 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                _fit_visual_model(instance, [3.10, 3.24, 3.48][_boss_variant()] if elite else 1.43)
+                _fit_visual_model(instance, [3.12, 3.26, 3.48][_boss_variant()] if elite else 1.63)
                 _darken_character_materials(instance, elite)
                 if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
@@ -2613,7 +2625,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    _fit_visual_model(model, 1.66 if not enemy else 1.50)
+    _fit_visual_model(model, 1.89 if not enemy else 1.58)
     model.rotation.y = PI
     _darken_character_materials(model, false)
     if not enemy:
