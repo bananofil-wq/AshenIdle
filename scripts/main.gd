@@ -696,6 +696,7 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
             _fit_visual_model(preview_model, 2.6)
             preview_model.rotation.y = -0.38
             _attach_hero_clips(preview_model)
+            _pose_fantasy_skeleton(preview_model, 0.0)
             for clip_node in preview_model.find_children("*", "AnimationPlayer", true, false):
                 var animation_player: AnimationPlayer = clip_node as AnimationPlayer
                 if animation_player != null:
@@ -2586,6 +2587,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         _attach_hero_clips(model)
     _bind_motion_driver(root)
     _play_actor_clip(root, "Idle", 0.0, 1.0)
+    _pose_fantasy_skeleton(root, 0.0)
     # Subtle class-colored ground contact; silhouettes stay readable at the
     # wider portrait camera distance without cartoon outlines.
     var contact := TorusMesh.new()
