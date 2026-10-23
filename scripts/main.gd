@@ -598,6 +598,15 @@ func _build_ui() -> void:
 
 
 
+func _max_mp() -> float:
+    return float(CLASS_MP_BASE[hero_class]) + float(level - 1) * float(CLASS_MP_PER_LEVEL[hero_class]) + _bonus("mana")
+
+func _mana_regeneration() -> float:
+    return float(CLASS_MP_REGEN[hero_class]) + float(level - 1) * 0.10 + _bonus("mana_regen")
+
+func _defense_reduction() -> float:
+    return clampf(float(CLASS_DEFENSE[hero_class]) + float(skills[2]) * 0.014 + _bonus("defense") / 100.0, 0.0, 0.72)
+
 func _max_hp() -> float:
     var modifier = [1.2, 0.9, 0.85, 1.0][hero_class]
     return (100.0 + float(level) * 12.0 + float(skills[1]) * 24.0 + _bonus("hp")) * modifier
@@ -665,9 +674,10 @@ func _process(delta: float) -> void:
         skill_cooldowns[i] = maxf(0.0, float(skill_cooldowns[i]) - delta)
     for i in range(skill_buttons.size()):
         var skill_button: Button = skill_buttons[i]
-        skill_button.disabled = float(skill_cooldowns[i]) > 0.0
+        var cost: float = float(CLASS_SKILL_COSTS[hero_class][i])
+        skill_button.disabled = float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
         var skill_caption: String = str(CLASS_SPELLS[hero_class][i])
-        skill_button.text = (skill_caption if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
+        skill_button.text = (skill_caption + "\n%.0f MP" % cost if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
     tick += delta
     save_timer += delta
     if hero != null:
@@ -722,12 +732,13 @@ func _fight() -> void:
         _complete_wave()
         return
     var remaining_mobs: float = float(arena_mobs.size())
-    var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075 - float(skills[2]) * 0.25 - _bonus("defense") * 0.045)
+    var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075) * (1.0 - _defense_reduction())
     if stage % BOSS_INTERVAL == 0:
         incoming *= [1.28, 1.10, 1.48][_boss_variant()]
     hp -= incoming
     if hp <= 0.0:
         hp = _max_hp()
+        mp = _max_mp()
         grind_mode = true
         grind_cycles = 0
         stage = maxi(1, highest - 1)
@@ -867,7 +878,7 @@ func _update_boss_cast(delta: float) -> void:
             boss_telegraph.scale = Vector3.ONE * (0.8 + urgency * 0.4)
         if boss_cast_windup <= 0.0:
             var impact_damage: float = (10.0 + float(stage) * 0.9) * [1.1, 0.9, 1.4][_boss_variant()]
-            var reduced: float = impact_damage * (1.0 - clampf(_bonus("defense") / 100.0, 0.0, 0.52))
+            var reduced: float = impact_damage * (1.0 - _defense_reduction())
             hp -= reduced
             _spell_burst([Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()], 2.0, 7)
             camera_shake = maxf(camera_shake, 0.34)
@@ -877,6 +888,7 @@ func _update_boss_cast(delta: float) -> void:
             combat_note = "BOSS POWER ATTACK!"
             if hp <= 0.0:
                 hp = _max_hp()
+                mp = _max_mp()
                 grind_mode = true
                 stage = maxi(1, highest - 1)
                 combat_note = "DEFEATED — FARMING FOR BETTER GEAR"
@@ -1383,7 +1395,7 @@ func _refresh() -> void:
 func _save_game() -> void:
     var data = {
         "class": hero_class, "level": level, "xp": xp, "gold": gold,
-        "stage": stage, "highest": highest, "kills": kills, "hp": hp,
+        "stage": stage, "highest": highest, "kills": kills, "hp": hp, "mp": mp,
         "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents,
         "skill_points": skill_points, "auto_equip": auto_equip,
         "boss_history": earned_bosses, "statistics": battle_statistics, "sound": audio_enabled,
@@ -1429,6 +1441,7 @@ func _load_game() -> void:
         class_talents[str(hero_class)] = skills.duplicate()
     skill_points = maxi(0, int(data.get("skill_points", 0)))
     hp = float(data.get("hp", _max_hp()))
+    mp = clampf(float(data.get("mp", _max_mp())), 0.0, _max_mp())
     var now = Time.get_unix_time_from_system()
     var elapsed = clampi(int(now - float(data.get("saved_at", now))), 0, 28800)
     var offline_kills = int(float(elapsed) / 12.0)
@@ -1461,6 +1474,7 @@ func _load_game() -> void:
                 _auto_equip_item(prize)
         offline_note = "OFFLINE: %d KILLS  +%d GOLD  +%d ITEMS" % [offline_kills, offline_kills * (3 + stage * 2), found_relics]
     hp = _max_hp()
+    mp = _max_mp()
     _spawn_enemy()
 
 func _notification(what: int) -> void:
@@ -1615,6 +1629,12 @@ func _use_skill(index: int) -> void:
         return
     if float(skill_cooldowns[index]) > 0.0:
         return
+    var mana_cost: float = float(CLASS_SKILL_COSTS[hero_class][index])
+    if mp < mana_cost:
+        combat_note = "%s: NEED %.0f MP" % [CLASS_SPELLS[hero_class][index], mana_cost]
+        _refresh()
+        return
+    mp -= mana_cost
     skill_cooldowns[index] = [3.2, 5.2, 12.0][index]
     var palettes: Array = [
         [Color("ff6b20"), Color("e2bd68"), Color("ffb23a")],
