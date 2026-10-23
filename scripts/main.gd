@@ -1460,6 +1460,7 @@ func _kill_mob(target: Node3D) -> void:
         battle_statistics["bosses"] = int(battle_statistics.get("bosses", 0)) + 1
         _clear_boss_telegraph()
         combat_note = "BOSS DEFEATED — LEGENDARY REWARDS"
+    var old_level: int = level
     while xp >= level * 30:
         xp -= level * 30
         level += 1
@@ -1467,6 +1468,8 @@ func _kill_mob(target: Node3D) -> void:
         hp = _max_hp()
         combat_note = "LEVEL UP — TALENT POINT EARNED"
         _play_audio(6)
+    if level > old_level and EVO.next_tier(level, _evolution_picks()) >= 0:
+        call_deferred("_offer_evolution")
 
 func _update_wave_health() -> void:
     enemy_hp = 0.0
@@ -1594,6 +1597,94 @@ func _switch_class() -> void:
     # The old shortcut must never bypass the startup-only selection.
     combat_note = "RESTART TO CHOOSE A DIFFERENT HERO"
     _refresh()
+
+func _evolution_picks() -> Array:
+    return EVO.valid_choices(evolution_choices.get(str(hero_class), []))
+
+func _evolution_weight(branch: int) -> float:
+    return EVO.branch_weight(_evolution_picks(), branch)
+
+func _offer_evolution() -> void:
+    if not class_selection_locked or popup_shade == null or popup_shade.visible:
+        return
+    if EVO.next_tier(level, _evolution_picks()) >= 0:
+        _open_evolution_panel()
+
+func _open_evolution_panel() -> void:
+    if evolution_overlay == null or popup_shade.visible or not class_selection_locked:
+        return
+    _update_evolution_panel()
+    popup_shade.visible = true
+    evolution_overlay.visible = true
+
+func _update_evolution_panel() -> void:
+    if evolution_title == null:
+        return
+    var choices: Array = _evolution_picks()
+    var active_tier: int = EVO.next_tier(level, choices)
+    var display_tier: int = active_tier
+    if display_tier < 0:
+        for tier in range(4):
+            if int(choices[tier]) < 0:
+                display_tier = tier
+                break
+    var ascensions: int = EVO.total_evolutions(choices)
+    if display_tier < 0:
+        evolution_title.text = "APOTHEOSIS COMPLETE"
+    else:
+        evolution_title.text = "%s  •  LEVEL %d" % [EVO.PHASES[display_tier], int(EVO.MILESTONES[display_tier])]
+    var path_history := ""
+    for tier in range(4):
+        if tier > 0:
+            path_history += "  |  "
+        if int(choices[tier]) >= 0:
+            path_history += "%d: %s" % [int(EVO.MILESTONES[tier]), str(EVO.BRANCH_NAMES[hero_class][int(choices[tier])])]
+        else:
+            path_history += "%d: LOCKED" % int(EVO.MILESTONES[tier])
+    evolution_summary.text = "%s   •   %d / 4 EVOLUTIONS\n%s\n%s" % [
+        CLASSES[hero_class].to_upper(), ascensions, path_history,
+        "CHOOSE YOUR NEXT PERMANENT BRANCH" if active_tier >= 0 else "LEVEL UP TO UNLOCK THE NEXT ASCENSION" if display_tier >= 0 else "ALL FOUR ASCENSIONS UNLOCKED"
+    ]
+    for branch in range(3):
+        var button: Button = evolution_buttons[branch] as Button
+        if display_tier < 0:
+            button.text = "%s\nFULL EVOLUTION ACHIEVED" % str(EVO.BRANCH_NAMES[hero_class][branch])
+        else:
+            button.text = "%s\n%s" % [
+                str(EVO.BRANCH_NAMES[hero_class][branch]),
+                EVO.perk_description(hero_class, display_tier, branch)
+            ]
+        button.disabled = active_tier < 0
+    evolution_close_button.text = "RETURN TO BATTLE" if active_tier < 0 else "DECIDE LATER"
+
+func _choose_evolution(branch: int) -> void:
+    if not class_selection_locked or evolution_overlay == null or not evolution_overlay.visible or branch < 0 or branch >= 3:
+        return
+    var choices: Array = _evolution_picks()
+    var tier: int = EVO.next_tier(level, choices)
+    if tier < 0 or int(choices[tier]) >= 0:
+        return
+    choices[tier] = branch
+    evolution_choices[str(hero_class)] = choices
+    hp = _max_hp()
+    mp = _max_mp()
+    combat_note = "EVOLVED: %s  •  %s" % [str(EVO.PHASES[tier]), str(EVO.BRANCH_NAMES[hero_class][branch])]
+    _sync_equipment_visuals()
+    evolution_overlay.visible = false
+    popup_shade.visible = false
+    var evo_colors := [Color("ff994e"), Color("89d0fa"), Color("b08af8")]
+    _burst_particles(hero.position + Vector3(0, 1.1, 0), evo_colors[branch], 52, 2.0, 0.55)
+    _play_audio(6)
+    _save_game()
+    _refresh()
+    call_deferred("_offer_evolution")
+
+func _close_evolution_panel() -> void:
+    if evolution_overlay == null:
+        return
+    evolution_overlay.visible = false
+    popup_shade.visible = false
+
 
 func _upgrade_skill() -> void:
     if skill_points < 1:
@@ -1776,7 +1867,10 @@ func _equip(index: int) -> void:
 func _refresh() -> void:
     if status == null or inventory == null:
         return
-    status.text = "%s   LVL %d" % [CLASSES[hero_class], level]
+    var ascension_count: int = EVO.total_evolutions(_evolution_picks())
+    status.text = "%s   LVL %d  %s" % [CLASSES[hero_class], level, "✦" + str(ascension_count) if ascension_count > 0 else ""]
+    if evolution_action_button != null:
+        evolution_action_button.text = "EVOLVE!" if EVO.next_tier(level, _evolution_picks()) >= 0 else "EVOLVE"
     details.text = "HP %.0f / %.0f   DEF %.0f%%\nXP %d / %d" % [hp, _max_hp(), _defense_reduction() * 100.0, xp, level * 30]
     power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
     if auto_gear_button != null:
@@ -1823,7 +1917,7 @@ func _refresh() -> void:
 
 func _save_game() -> void:
     var data = {
-        "class": hero_class, "level": level, "xp": xp, "gold": gold,
+        "class": hero_class, "level": level, "xp": xp, "gold": gold, "evolutions": evolution_choices,
         "stage": stage, "highest": highest, "kills": kills, "hp": hp, "mp": mp,
         "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents, "class_skill_ranks": class_skill_ranks,
         "skill_points": skill_points, "auto_equip": auto_equip,
@@ -1848,6 +1942,10 @@ func _load_game() -> void:
         _spawn_enemy()
         return
     hero_class = clampi(int(data.get("class", 0)), 0, CLASSES.size() - 1)
+    var raw_evolutions: Variant = data.get("evolutions", {})
+    evolution_choices = raw_evolutions if raw_evolutions is Dictionary else {}
+    for class_key in evolution_choices.keys():
+        evolution_choices[class_key] = EVO.valid_choices(evolution_choices[class_key])
     level = maxi(1, int(data.get("level", 1)))
     xp = maxi(0, int(data.get("xp", 0)))
     gold = maxi(0, int(data.get("gold", 0)))
@@ -3019,11 +3117,12 @@ func _open_talent_panel() -> void:
 func _close_talent_panel() -> void:
     skill_overlay.visible = false
     popup_shade.visible = false
+    call_deferred("_offer_evolution")
 
 func _update_talent_labels() -> void:
     if skill_count_label == null:
         return
-    skill_count_label.text = "%s  •  POINTS: %d" % [CLASSES[hero_class].to_upper(), skill_points]
+    skill_count_label.text = "%s  •  POINTS: %d  •  EVO: %d/4" % [CLASSES[hero_class].to_upper(), skill_points, EVO.total_evolutions(_evolution_picks())]
     for i in range(3):
         var button: Button = skill_choice_buttons[i]
         var paths: Array = CLASS_TALENT_NAMES[hero_class]
