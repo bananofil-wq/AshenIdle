@@ -2,7 +2,29 @@ extends Node3D
 # Ashen Idle v0.2 — portrait mobile prototype, offline-safe save and auto combat.
 const CLASSES = ["Cinder Knight", "Ash Ranger", "Ember Mage", "Dusk Reaper"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
-const BOSS_NAMES = ["ASHEN WARDEN", "VOID HARBINGER", "BONE TYRANT"]
+const BOSS_NAMES = ["THE TOMB MAW", "THE ROOTMOTHER", "THE BOG TYRANT",
+    "THE GLACIER KING", "THE CINDER LORD", "QUEEN OF SORROW",
+    "THE DUNE COLOSSUS", "THE THUNDER TITAN", "THE ECLIPSE ORACLE", "THE RIFT SOVEREIGN"]
+const BIOME_NAMES = ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY",
+    "FROZEN CAVERN", "INFERNAL WASTES", "HAUNTED GRAVE KINGDOM",
+    "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
+const MOB_FAMILIES = [
+    ["SKELETON WARRIOR", "GOBLIN RAIDER", "CAVE BAT", "PLAGUE MUMMY", "CAVE SPIDER", "CRYPT SHAMAN", "BONE BRUTE", "WEREWOLF"],
+    ["FOREST WOLF", "THORN STALKER", "MOON ARCHER", "WILD SPIDER", "FAERIE", "ANCIENT TREANT", "SATYR", "CORRUPTED ELF"],
+    ["BOG SLIME", "BLIGHT TOAD", "SWAMP WITCH", "VENOM SPIDER", "ROTTING WALKER", "BOG REAPER", "ROT HAG", "SWAMP GOBLIN"],
+    ["FROST WOLF", "ICE WITCH", "YETI", "CRYSTAL GOLEM", "FROST SKELETON", "ICE DEMON", "FROST SHAMAN", "FROSTMAW"],
+    ["HELLHOUND", "ASH REAPER", "FLAMECALLER", "INFERNAL CRUSHER", "FIRE ELEMENTAL", "DEMON", "CULTIST", "IMP"],
+    ["GRAVE KNIGHT", "BANSHEE", "WRAITH", "NECROMANCER", "DEATH HOUND", "SKELETON GUARD", "CRYPT ZOMBIE", "SHADOW SPIRIT"],
+    ["DUNE SCORPION", "SAND BANDIT", "SAND WRAITH", "DUNE MUMMY", "SUN CULTIST", "SAND WYRM", "DESERT HYENA", "DESERT GOLEM"],
+    ["STORM HARPY", "MOUNTAIN TROLL", "THUNDER ELEMENTAL", "PEAK GUARDIAN", "STORM SHAMAN", "GRIFFIN", "CLIFF BEAST", "STORM KNIGHT"],
+    ["MOON CULTIST", "CORRUPTED GUARDIAN", "ARCANE BEAST", "VOID SPIRIT", "BLADE DANCER", "MOON SORCERER", "DUSK WATCHER", "ECLIPSE SHADE"],
+    ["ASTRAL SENTINEL", "VOID KNIGHT", "RIFT HORROR", "STAR BEAST", "CELESTIAL MAGE", "RIFT WARDEN", "STARBORN GOLEM", "ASTRAL WRAITH"]
+]
+const ELITE_FAMILIES = ["BONE BRUTE", "ANCIENT TREANT", "ROT HAG", "FROSTMAW",
+    "INFERNAL CRUSHER", "GRAVE KNIGHT", "DESERT GOLEM", "STORM KNIGHT",
+    "CORRUPTED GUARDIAN", "RIFT WARDEN"]
+const BOSS_DAMAGE = [1.28, 1.05, 1.18, 1.12, 1.42, 1.22, 1.08, 1.35, 1.19, 1.48]
+const BOSS_HP_SCALE = [13.0, 11.5, 14.0, 15.0, 16.0, 13.2, 14.8, 14.4, 15.3, 18.0]
 const BOSS_INTERVAL := 10
 const CLASS_MP_BASE = [70.0, 95.0, 165.0, 82.0]
 const CLASS_MP_PER_LEVEL = [2.0, 3.0, 6.0, 3.0]
@@ -979,6 +1001,12 @@ func _bonus(key: String) -> float:
                     if key == "speed": total += 20.0
     return total
 
+func _biome_fx_tint() -> Color:
+    return [Color("f8a564"), Color("a7e67c"), Color("99b953"), Color("9bdef8"),
+        Color("ff7948"), Color("86d7bc"), Color("e9c27c"), Color("91cfff"),
+        Color("ba98ff"), Color("7ceafa")][_boss_variant()]
+
+
 func _boss_variant() -> int:
     return posmod(floori(float(stage) / float(BOSS_INTERVAL)) - 1, BOSS_NAMES.size())
 
@@ -1190,7 +1218,7 @@ func _fight() -> void:
     var remaining_mobs: float = float(arena_mobs.size())
     var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075) * (1.0 - _defense_reduction())
     if stage % BOSS_INTERVAL == 0:
-        incoming *= [1.28, 1.10, 1.48][_boss_variant()]
+        incoming *= BOSS_DAMAGE[_boss_variant()]
     if defensive_ward_timer > 0.0:
         incoming *= 0.61
     var attacker: Node3D = _choose_target()
@@ -1408,12 +1436,12 @@ func _update_boss_cast(delta: float) -> void:
             var urgency: float = clampf(1.0 - boss_cast_windup / 1.35, 0.0, 1.0)
             boss_telegraph.scale = Vector3.ONE * (0.8 + urgency * 0.4)
         if boss_cast_windup <= 0.0:
-            var impact_damage: float = (10.0 + float(stage) * 0.9) * [1.1, 0.9, 1.4][_boss_variant()]
+            var impact_damage: float = (10.0 + float(stage) * 0.9) * BOSS_DAMAGE[_boss_variant()]
             var mage_ward: float = 1.0 - minf(0.30, 0.035 * _evolution_weight(1)) if hero_class == 2 else 1.0
             var reduced: float = impact_damage * (1.0 - _defense_reduction()) * mage_ward
             if defensive_ward_timer > 0.0:
                 reduced *= 0.61
-            var warning_color: Color = [Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()]
+            var warning_color: Color = _biome_fx_tint()
             _burst_particles(boss_warning_center + Vector3(0, 0.22, 0), warning_color, 43, 2.0, 0.42)
             camera_shake = maxf(camera_shake, 0.18)
             camera_kick = maxf(camera_kick, 0.46)
@@ -1445,36 +1473,55 @@ func _update_boss_cast(delta: float) -> void:
         var ring := TorusMesh.new()
         ring.inner_radius = 1.4
         ring.outer_radius = 1.5
-        boss_telegraph = _mesh(self, ring, boss_warning_center + Vector3(0, 0.15, 0), _bright([Color("b92c23"), Color("7140d3"), Color("db8537")][_boss_variant()]))
+        boss_telegraph = _mesh(self, ring, boss_warning_center + Vector3(0, 0.15, 0), _bright(_biome_fx_tint().darkened(0.25)))
         combat_note = "DANGER — BOSS CHARGING!"
         _play_audio(4)
         _refresh()
 
 func _apply_biome() -> void:
-    var next_biome: int = posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), 5)
+    var next_biome: int = posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), BIOME_NAMES.size())
     if biome_index == next_biome or bg_environment == null:
         return
     biome_index = next_biome
     var scene: Environment = bg_environment.environment
-    scene.background_color = [Color("101218"), Color("111b24"), Color("111c14"), Color("141719"), Color("231311")][next_biome]
+    scene.background_color = [Color("101218"), Color("152214"), Color("1e231a"),
+        Color("111b24"), Color("231311"), Color("151d23"), Color("392a1a"),
+        Color("192635"), Color("1c1728"), Color("101e35")][next_biome]
     scene.fog_enabled = true
-    scene.fog_light_color = [Color("343b43"), Color("64879b"), Color("526851"), Color("454750"), Color("704238")][next_biome]
-    scene.fog_density = [0.0020, 0.0030, 0.0024, 0.0013, 0.0030][next_biome]
-    scene.adjustment_brightness = [1.035, 1.02, 1.045, 1.095, 1.025][next_biome]
-    scene.adjustment_contrast = [1.17, 1.14, 1.15, 1.22, 1.18][next_biome]
-    scene.adjustment_saturation = [0.90, 0.90, 0.92, 0.82, 0.88][next_biome]
+    scene.fog_light_color = [Color("343b43"), Color("4f7953"), Color("596342"),
+        Color("64879b"), Color("704238"), Color("556c69"), Color("a38865"),
+        Color("536c84"), Color("625775"), Color("4b83aa")][next_biome]
+    scene.fog_density = [0.0020, 0.0026, 0.0042, 0.0030, 0.0030,
+        0.0038, 0.0028, 0.0045, 0.0023, 0.0028][next_biome]
+    scene.adjustment_brightness = [1.04, 1.06, 1.0, 1.02, 1.03,
+        1.01, 1.10, 1.05, 1.06, 1.08][next_biome]
+    scene.adjustment_contrast = [1.17, 1.16, 1.16, 1.14, 1.18,
+        1.2, 1.14, 1.2, 1.18, 1.18][next_biome]
+    scene.adjustment_saturation = [0.94, 1.13, 0.89, 0.96, 1.12,
+        0.86, 1.07, 0.99, 1.12, 1.08][next_biome]
     if key_sun != null:
-        key_sun.light_color = [Color("ffcf9d"), Color("c9e4f2"), Color("eeddb4"), Color("e2d5bc"), Color("ffbd8b")][next_biome]
-        key_sun.light_energy = [1.36, 1.38, 1.32, 1.44, 1.43][next_biome]
-    scene.ambient_light_color = [Color("97989c"), Color("8dabbc"), Color("9aa692"), Color("a1a4a6"), Color("a59a90")][next_biome]
-    scene.ambient_light_energy = [0.52, 0.59, 0.56, 0.53, 0.55][next_biome]
+        key_sun.light_color = [Color("ffcf9d"), Color("f5d992"), Color("c7c69d"),
+            Color("c9e4f2"), Color("ffbd8b"), Color("c7e1d9"), Color("ffdfab"),
+            Color("d4e3fa"), Color("d8c7ff"), Color("b3e5ff")][next_biome]
+        key_sun.light_energy = [1.36, 1.38, 1.23, 1.38, 1.43,
+            1.19, 1.52, 1.45, 1.35, 1.38][next_biome]
+    scene.ambient_light_color = [Color("97989c"), Color("a1b28c"), Color("999e84"),
+        Color("8dabbc"), Color("a59a90"), Color("899c9c"), Color("c5ae94"),
+        Color("9eb1ca"), Color("b3a1cc"), Color("9ecbdf")][next_biome]
+    scene.ambient_light_energy = [0.52, 0.59, 0.47, 0.59, 0.55,
+        0.49, 0.60, 0.58, 0.54, 0.58][next_biome]
     if fire_light != null:
-        fire_light.light_color = [Color("ffb166"), Color("f1e1ca"), Color("eed69a"), Color("ffd2a4"), Color("ff9a60")][next_biome]
+        fire_light.light_color = [Color("ffb166"), Color("e6cc74"), Color("97a659"),
+            Color("f1e1ca"), Color("ff9a60"), Color("93cbaa"), Color("ffcf88"),
+            Color("a4baf4"), Color("bc9ae9"), Color("8acaff")][next_biome]
     if mystic_light != null:
-        mystic_light.light_color = [Color("839bb9"), Color("6697b6"), Color("759a87"), Color("7e9cac"), Color("a68a81")][next_biome]
+        mystic_light.light_color = [Color("839bb9"), Color("759a87"), Color("648658"),
+            Color("6697b6"), Color("a68a81"), Color("7eaaa5"), Color("c6a27d"),
+            Color("7da6d2"), Color("a88dd7"), Color("85cadf")][next_biome]
     if center_banner != null:
-        center_banner.text = ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"][next_biome]
-        center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("b0e3a4"), Color("d4b4ff"), Color("ffbb81")][next_biome])
+        center_banner.text = BIOME_NAMES[next_biome]
+        center_banner.add_theme_color_override("font_color", _biome_fx_tint())
+
 
 func _bind_motion_driver(actor: Node3D) -> void:
     if actor == null:
@@ -1663,7 +1710,7 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
     last_target_pos = target.global_position
     _impact(last_target_pos + Vector3(0.0, 0.75, 0.0), Color("ffc769") if crit else Color("b477ff"))
     if crit:
-        var flare_tone: Color = [Color("ffc17a"), Color("bbf2ff"), Color("d1ee9c"), Color("dbacff"), Color("ff9458")][biome_index if biome_index >= 0 else 0]
+        var flare_tone: Color = _biome_fx_tint()
         _burst_particles(last_target_pos + Vector3(0, 0.9, 0), flare_tone, 24, 1.6, 0.24)
     _damage_popup(int(damage), last_target_pos + Vector3(0.0, 1.45, 0.0), crit)
     if crit and is_instance_valid(target):
@@ -1684,7 +1731,7 @@ func _kill_mob(target: Node3D) -> void:
     arena_mobs.erase(target)
     # Elemental death breakup is distinct in each biome; the animated model
     # still visibly tumbles before disappearing.
-    var death_tint: Color = [Color("df7e54"), Color("b6ebff"), Color("8ba965"), Color("b07cff"), Color("ff853c")][clampi(biome_index, 0, 4)]
+    var death_tint: Color = _biome_fx_tint()
     _burst_particles(drop_pos + Vector3(0, 1.1, 0), death_tint, 80 if boss else 20, 3.9 if boss else 1.25, 0.76 if boss else 0.42)
     # Keep the defeated mesh visible for a short physical fall instead of
     # popping enemies out of existence on the same frame as a hit.
@@ -2271,7 +2318,7 @@ func _refresh() -> void:
     if boss_panel != null:
         boss_panel.visible = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
         boss_hp_label.text = "%s  •  %.0f / %.0f HP" % [BOSS_NAMES[_boss_variant()], maxf(0.0, boss_health), boss_max]
-        boss_hp_bar.color = [Color("d94339"), Color("9e55e8"), Color("dc9c46")][_boss_variant()]
+        boss_hp_bar.color = _biome_fx_tint()
         boss_hp_bar.scale.x = clampf(boss_health / maxf(1.0, boss_max), 0.03, 1.0)
     center_banner.modulate.a = 0.87 + sin(chaos_time * 4.0) * 0.13
     combat.text = combat_note
@@ -2789,7 +2836,7 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                _fit_visual_model(instance, [3.12, 3.26, 3.48][_boss_variant()] if elite else 1.63)
+                _fit_visual_model(instance, (3.1 + 0.17 * float(_boss_variant() % 4)) if elite else 1.63)
                 _darken_character_materials(instance, elite)
                 if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
@@ -2798,7 +2845,7 @@ func _spawn_horde() -> void:
                     _pose_fantasy_skeleton(root, 0.0)
                 root.set_meta("visual_rest_position", instance.position)
         if elite:
-            var aura_tint: Color = [Color("d74931"), Color("8847da"), Color("e6a44e")][_boss_variant()]
+            var aura_tint: Color = _biome_fx_tint()
             var halo := TorusMesh.new()
             halo.inner_radius = 1.07
             halo.outer_radius = 1.12
@@ -2824,7 +2871,7 @@ func _spawn_horde() -> void:
         root.position = spawn_center + (Vector3(0.0, 0.0, -0.90) if elite else _random_spawn())
         if hero != null and is_instance_valid(hero):
             root.rotation.y = _heading_from_direction(hero.position - root.position)
-        var variant_hp: float = [13.0, 10.5, 16.0][_boss_variant()]
+        var variant_hp: float = BOSS_HP_SCALE[_boss_variant()]
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else float(current_encounter.get("hp_factor", 1.0)))
         root.set_meta("ai_role", "boss" if elite else ai_role)
         root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
