@@ -85,6 +85,29 @@ func _render_test() -> void:
         return
 
     if suffix == "tall":
+        # Reference-video VFX QA: snapshot the actual 3D rune/crack/ultimate
+        # system, with the combat camera centred on the effects.
+        var arena_positions: PackedVector3Array = game.get("dungeon_points")
+        var fx_center: Vector3 = arena_positions[1] if arena_positions.size() > 1 else Vector3.ZERO
+        var fx_hero: Node3D = game.get("hero") as Node3D
+        fx_hero.position = fx_center + Vector3(0, 0, 2.4)
+        var fx_camera: Camera3D = game.get("camera_ref") as Camera3D
+        fx_camera.position = fx_center + Vector3(0, 19.0, 19.0)
+        fx_camera.look_at(fx_center, Vector3.UP)
+        game.set("camera_focus", fx_center)
+        var vfx: Node3D = game.get("cinematic_skills") as Node3D
+        vfx.call("cast", 3, 2, 6, fx_hero.global_position, fx_center,
+            [fx_center + Vector3(1.5, 0, 0), fx_center + Vector3(-1, 0, -1)])
+        await create_timer(0.12).timeout
+        if not await _save_capture("skills-ultimate-shadow.png"):
+            quit(27)
+            return
+        vfx.call("cast", 2, 1, 6, fx_hero.global_position, fx_center,
+            [fx_center + Vector3(1.5, 0, 0), fx_center + Vector3(-1.0, 0, -1)])
+        await create_timer(0.09).timeout
+        if not await _save_capture("skills-chain-lightning.png"):
+            quit(28)
+            return
         # Capture the five different biome families from the actual Godot renderer.
         # Each floor creates a new traversable path, not a recolored static arena.
         for biome_floor in [11, 21, 31, 41]:
