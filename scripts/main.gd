@@ -155,6 +155,7 @@ var screen_flash: ColorRect
 var screen_flash_fade := 0.0
 var fx_sounds: Array = []
 var sound_bank: Node
+var footstep_clock := 0.0
 var audio_enabled := true
 var sfx_toggle_button: Button
 var last_hit_sound_msec := 0
@@ -455,7 +456,7 @@ func _build_ui() -> void:
     overlay.add_child(skill_bar)
     for spell_name in CLASS_SPELLS[hero_class]:
         var b := _ornate_button(str(spell_name), _use_skill.bind(skill_buttons.size()), Vector2(80, 76))
-        b.add_theme_font_size_override("font_size", 14)
+        b.add_theme_font_size_override("font_size", 12)
         b.add_theme_stylebox_override("normal", _skin(Color("1a1624e8"), Color("a7775c")))
         skill_buttons.append(b)
         skill_bar.add_child(b)
@@ -746,7 +747,7 @@ func _process(delta: float) -> void:
         var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
         var unlocked: bool = level >= unlock_level
         skill_button.disabled = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
-        var skill_caption: String = str(CLASS_SPELLS[hero_class][i])
+        var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
         if not unlocked:
             skill_button.text = "LOCKED\nLVL %d" % unlock_level
         else:
@@ -900,6 +901,13 @@ func _move_hero(delta: float) -> void:
         hero.position += motion.normalized() * minf(motion.length(), speed * delta)
     var velocity: float = hero.position.distance_to(before) / maxf(0.001, delta)
     dungeon_travel_distance += hero.position.distance_to(before)
+    if velocity > 0.65 and sound_bank != null and audio_enabled:
+        footstep_clock -= delta
+        if footstep_clock <= 0.0:
+            sound_bank.call("play_step", int((stage - 1) / 10) % 5)
+            footstep_clock = 0.47
+    else:
+        footstep_clock = 0.0
     _animate_actor(hero, velocity)
     if motion.length_squared() > 0.08:
         hero.rotation.y = lerp_angle(hero.rotation.y, atan2(motion.x, motion.z), clampf(delta * 8.0, 0.0, 1.0))
@@ -981,6 +989,7 @@ func _update_boss_cast(delta: float) -> void:
         ring.outer_radius = 1.5
         boss_telegraph = _mesh(self, ring, boss_warning_center + Vector3(0, 0.15, 0), _bright([Color("b92c23"), Color("7140d3"), Color("db8537")][_boss_variant()]))
         combat_note = "DANGER — BOSS CHARGING!"
+        _play_audio(4)
         _refresh()
 
 func _apply_biome() -> void:
@@ -1180,6 +1189,7 @@ func _kill_mob(target: Node3D) -> void:
         skill_points += 1
         hp = _max_hp()
         combat_note = "LEVEL UP — TALENT POINT EARNED"
+        _play_audio(6)
 
 func _update_wave_health() -> void:
     enemy_hp = 0.0
@@ -2697,7 +2707,7 @@ func _update_talent_labels() -> void:
         if level < requirement:
             upgrade.text = "LOCKED   %s — UNLOCK AT LVL %d" % [CLASS_SPELLS[hero_class][i], requirement]
         else:
-            var ability: String = "  •  +1 CHAIN JUMP EACH RANK" if hero_class == 2 and i == 1 else "  •  +16%% DMG / -3.5%% COOLDOWN"
+            var ability: String = "  •  +1 CHAIN JUMP EACH RANK" if hero_class == 2 and i == 1 else "  •  +16% DMG / -3.5% COOLDOWN"
             upgrade.text = "%s   RANK %d/%d\n%s" % [CLASS_SPELLS[hero_class][i], rank, SKILL_MAX_RANK, ability]
         upgrade.disabled = level < requirement or skill_points < 1 or rank >= SKILL_MAX_RANK
 
