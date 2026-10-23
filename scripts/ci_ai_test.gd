@@ -1,4 +1,5 @@
 extends SceneTree
+const DIRECTOR = preload("res://scripts/encounter_director.gd")
 # Offline deterministic tests for the adaptive director. These run in Actions
 # without a network, user save file, 3D renderer or expensive model imports.
 func _initialize() -> void:
@@ -10,11 +11,7 @@ func _assert(ok: bool, detail: String) -> bool:
     return ok
 
 func _run() -> void:
-    var script: Script = load("res://scripts/encounter_director.gd")
-    if script == null:
-        quit(1)
-        return
-    var mind: RefCounted = script.new()
+    var mind = DIRECTOR.new()
     var dice := RandomNumberGenerator.new()
     dice.seed = 23871
     var seen: Dictionary = {}
@@ -55,7 +52,7 @@ func _run() -> void:
         quit(9)
         return
     var saved: Dictionary = mind.save_state()
-    var recovered: RefCounted = script.new()
+    var recovered = DIRECTOR.new()
     recovered.load_state(saved)
     if not _assert(recovered.recent == mind.recent and recovered.wins == mind.wins and recovered.defeats == mind.defeats, "AI history must survive saving"):
         quit(10)
