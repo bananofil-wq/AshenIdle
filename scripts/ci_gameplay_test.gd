@@ -19,6 +19,42 @@ func _run() -> void:
     current_scene = game
     await process_frame
 
+    if not _check((game.get("hero_overlay") as Control).visible and bool(game.get("startup_selection")), "Character select must appear on every launch"):
+        quit(44)
+        return
+    if not _check((game.get("popup_shade") as Control).visible and not (game.get("hero_return_button") as Button).visible, "Initial character selection must pause combat until chosen"):
+        quit(45)
+        return
+    var selection: Control = game.get("hero_overlay")
+    var named_classes := 0
+    for button in selection.find_children("*", "Button", true, false):
+        if str(button.text).contains("REGEN") and str(button.text).contains("MP"):
+            named_classes += 1
+    if not _check(named_classes == 4, "All four hero choices need visible MP/DEF/regen and spell descriptions"):
+        quit(46)
+        return
+    game.call("_select_class", 0)
+    if not _check(not (game.get("popup_shade") as Control).visible, "Choosing a hero starts gameplay"):
+        quit(47)
+        return
+    for class_id in range(4):
+        game.call("_select_class", class_id)
+        if not _check(game.call("_max_mp") >= 65.0, "Each hero needs a real class-specific MP pool"):
+            quit(48)
+            return
+        if not _check(game.call("_defense_reduction") > 0.0, "Each class needs defensive specialization"):
+            quit(49)
+            return
+    game.call("_select_class", 0)
+    if not _check(game.call("_defense_reduction") > 0.20, "Knight should have high innate defense"):
+        quit(50)
+        return
+    game.call("_select_class", 2)
+    if not _check(game.call("_max_mp") > 2.0 * float(game.get("level")), "Mage should have a large magic resource pool"):
+        quit(51)
+        return
+    game.call("_select_class", 0)
+
     # Art QA is functional QA: ship genuine armored GLBs, not toy-model fallbacks.
     for character in ["ashen_armored_knight", "ashen_shadow_knight", "ashen_ranger", "ashen_mage", "ashen_shared_anims", "skeleton_dark"]:
         if not _check(game.call("_get_asset_scene", character) != null, "Required CC0 3D art missing: " + character):
@@ -108,7 +144,12 @@ func _run() -> void:
         return
 
     game.call("_try_boss")
-    if not _check(int(game.get("stage")) % 5 == 0, "Boss encounter must be a fifth stage"):
+    if not _check(int(game.get("stage")) == 2, "Boss shortcut must not skip the first nine floors"):
+        quit(52)
+        return
+    game.set("highest", 10)
+    game.call("_try_boss")
+    if not _check(int(game.get("stage")) == 10, "First boss must unlock on floor 10"):
         quit(15)
         return
     var has_boss := false
@@ -154,9 +195,9 @@ func _run() -> void:
     if not _check(int(game.get("gold")) < before_gold, "Forging should spend gold"):
         quit(24)
         return
-    game.set("stage", 10)
+    game.set("stage", 20)
     game.call("_spawn_enemy")
-    if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must have own HP and identity"):
+    if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must be on floor 20 with distinct identity"):
         quit(25)
         return
     # Verify the three collectible sets really give different 2-piece effects.
@@ -223,10 +264,21 @@ func _run() -> void:
         quit(20)
         return
     game.call("_close_talent_panel")
+    game.set("skill_cooldowns", [0.0, 0.0, 0.0])
+    game.set("mp", 0.0)
     game.call("_use_skill", 0)
+    if not _check(float((game.get("skill_cooldowns") as Array)[0]) == 0.0, "Skills cannot cast without enough MP"):
+        quit(53)
+        return
+    game.set("mp", game.call("_max_mp"))
+    var mana_before: float = float(game.get("mp"))
+    game.call("_use_skill", 0)
+    if not _check(float(game.get("mp")) < mana_before, "Casting must consume class-specific MP"):
+        quit(54)
+        return
     var cds: Array = game.get("skill_cooldowns")
     if not _check(float(cds[0]) > 0.0, "Using spell activates cooldown"):
         quit(21)
         return
-    print("GAMEPLAY TEST PASS: combat pursuit, telegraphed boss attacks, independent class talents, hero selector, enemy HP, waves, multiple bosses, unique 2-piece set bonuses, loot, smart auto-equip, forge, inventory, talent menu, spell cooldown")
+    print("GAMEPLAY TEST PASS: first-launch hero selection, class mana and defense, MP spell casting, 10-floor bosses, walking animation, boss mechanics, progression, loot, talents and equipment")
     quit(0)
