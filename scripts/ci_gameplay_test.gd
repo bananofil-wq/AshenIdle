@@ -116,7 +116,15 @@ func _run() -> void:
     if not _check(camera.global_position.distance_to(camera_start) > 0.09, "Camera should follow motion"):
         quit(43)
         return
-    print("MOTION QA PASS: running pose, attack state and camera following")
+    # Class selection must not send an exploring character back to the starting gate.
+    var route_position: Vector3 = actor.position
+    game.call("_select_class", 1)
+    var class_swapped_hero: Node3D = game.get("hero") as Node3D
+    if not _check(class_swapped_hero.position.distance_to(route_position) < 0.01, "Switching classes while exploring must preserve dungeon position"):
+        quit(81)
+        return
+    game.call("_select_class", 0)
+    print("MOTION QA PASS: running pose, attack state, camera following and position-safe class swap")
 
     game.set("stage", 1)
     game.set("highest", 1)
