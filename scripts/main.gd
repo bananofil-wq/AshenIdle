@@ -683,6 +683,9 @@ func _build_ui() -> void:
         var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(394, 149))
         hero_choice_buttons.append(class_button)
         class_button.add_theme_font_size_override("font_size", 14)
+        # The hero chooser has fixed-height cards. Wrap-enabled buttons can
+        # report an enormous minimum height before their width is assigned.
+        class_button.autowrap_mode = TextServer.AUTOWRAP_OFF
         class_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
         class_button.add_theme_stylebox_override("normal", _skin(Color("1a1e2bf5"), [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]))
         hero_row.add_child(class_button)
