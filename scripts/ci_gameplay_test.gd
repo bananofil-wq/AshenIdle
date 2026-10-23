@@ -680,6 +680,18 @@ func _run() -> void:
             quit(108)
             return
         tested_biomes[active_biome] = true
+        if floor_id == 1:
+            if not _check(ResourceLoader.exists("res://assets/models/halloween/crypt.gltf")
+                    and builder.find_children("Authentic_halloween_*", "Node3D", true, false).size() >= 8,
+                    "First crypt must render authentic licensed tombs, arches, coffins and monuments"):
+                quit(114)
+                return
+        if floor_id == 11:
+            if not _check(ResourceLoader.exists("res://assets/models/citytree/tree1.glb")
+                    and builder.find_children("Authentic_citytree_*", "Node3D", true, false).size() >= 5,
+                    "Enchanted forest must render actual broad-canopy CC0 tree assets"):
+                quit(115)
+                return
         var creatures: Array = game.get("arena_mobs")
         if not _check(not creatures.is_empty() and str((creatures[0] as Node3D).get_meta("species", "")) != "", "Each act needs a named biome-specific enemy family"):
             quit(109)
