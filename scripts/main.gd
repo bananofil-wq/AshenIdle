@@ -39,6 +39,7 @@ const SKILL_UNLOCK_LEVELS = [1, 5, 10]
 const SKILL_MAX_RANK := 12
 const SAVE_FILE = "user://save_v2.json"
 const EVO = preload("res://scripts/evolution_rules.gd")
+const DIRECTOR = preload("res://scripts/encounter_director.gd")
 
 var hero_class = 0
 var level = 1
@@ -179,6 +180,9 @@ var last_hit_sound_msec := 0
 var auto_equip := true
 var auto_gear_button: Button
 var equipped_vfx: Node3D
+var encounter_director = DIRECTOR.new()
+var current_encounter: Dictionary = {}
+var encounter_started_ms := 0
 
 
 func _ready() -> void:
@@ -930,6 +934,55 @@ func _bonus(key: String) -> float:
 func _boss_variant() -> int:
     return posmod(floori(float(stage) / float(BOSS_INTERVAL)) - 1, BOSS_NAMES.size())
 
+func _encounter_victory() -> void:
+    if current_encounter.is_empty() or encounter_director == null:
+        return
+    encounter_director.report_result(hp / maxf(1.0, _max_hp()), false)
+    var bonus: float = float(current_encounter.get("gold_bonus", 0.0))
+    if bonus > 0.0:
+        var extra_gold: int = maxi(8, int(float(stage) * 8.0 * bonus))
+        gold += extra_gold
+        combat_note = "TREASURE CONVOY - +%d BONUS GOLD" % extra_gold
+    var restoration: float = float(current_encounter.get("heal_bonus", 0.0))
+    if restoration > 0.0:
+        hp = minf(_max_hp(), hp + _max_hp() * restoration)
+        mp = minf(_max_mp(), mp + _max_mp() * 0.14)
+    if bool(current_encounter.get("loot_bonus", false)) and hero != null:
+        _drop_loot_at(hero.global_position, false)
+    current_encounter.clear()
+
+
+func _adaptive_defeat() -> void:
+    if encounter_director != null:
+        encounter_director.report_result(0.0, true)
+
+
+func _select_auto_skill() -> int:
+    # Tactical auto-casting: heal when threatened, interrupt groups with
+    # crowd control, spend high-cost ultimate only on worthwhile targets.
+    var options: Array = []
+    for spell in range(3):
+        if level < int(SKILL_UNLOCK_LEVELS[spell]) or float(skill_cooldowns[spell]) > 0.0:
+            continue
+        if mp < float(CLASS_SKILL_COSTS[hero_class][spell]) + float(_skill_rank(spell) - 1):
+            continue
+        options.append(spell)
+    if options.is_empty():
+        return -1
+    var danger: bool = hp / maxf(1.0, _max_hp()) < 0.55
+    if hero_class == 0 and danger and options.has(1):
+        return 1
+    if hero_class == 2 and arena_mobs.size() >= 3 and options.has(1):
+        return 1
+    if arena_mobs.size() >= 4 and options.has(2):
+        return 2
+    if arena_mobs.size() >= 3 and options.has(1):
+        return 1
+    if options.has(0):
+        return 0
+    return int(options[0])
+
+
 func _spawn_enemy() -> void:
     if hero == null:
         enemy_max = 50.0 + float(stage) * 20.0
@@ -1069,8 +1122,10 @@ func _fight() -> void:
     if crit:
         camera_shake = maxf(camera_shake, 0.11)
     attack_flash = 1.0
-    if rng.randf() < 0.23 and not arena_mobs.is_empty():
-        _use_skill(rng.randi_range(0, 0 if level < 5 else 1 if level < 10 else 2))
+    if rng.randf() < 0.25 and not arena_mobs.is_empty():
+        var tactical_choice: int = _select_auto_skill()
+        if tactical_choice >= 0:
+            _use_skill(tactical_choice)
     if arena_mobs.is_empty():
         _complete_wave()
         return
@@ -1081,13 +1136,22 @@ func _fight() -> void:
     var attacker: Node3D = _choose_target()
     if attacker != null and is_instance_valid(attacker):
         var distance_to_attacker: float = hero.global_position.distance_to(attacker.global_position)
-        if distance_to_attacker <= (3.4 if bool(attacker.get_meta("boss", false)) else 2.55):
-            _actor_attack(attacker)
-            # Enemies now have to get close to land the regular attacks.
+        var ai_role: String = str(attacker.get_meta("ai_role", "raider"))
+        incoming *= float(current_encounter.get("damage_factor", 1.0))
+        if ai_role == "flanker":
+            incoming *= 1.11
+        elif ai_role == "guardian":
+            incoming *= 0.85
+        elif ai_role == "caster":
+            incoming *= 1.04
+        if distance_to_attacker <= (5.15 if ai_role == "caster" else 3.4 if bool(attacker.get_meta("boss", false)) else 2.55):
+            _actor_attack(attacker, ai_role == "caster")
+            # Caster foes can hurt from medium range, others need to close.
             hp -= incoming
         else:
-            hp -= incoming * 0.16
+            hp -= incoming * 0.12
     if hp <= 0.0:
+        _adaptive_defeat()
         hp = _max_hp()
         mp = _max_mp()
         grind_mode = true
@@ -1282,6 +1346,7 @@ func _update_boss_cast(delta: float) -> void:
                 boss_dodges += 1
                 combat_note = "PERFECT DODGE — BOSS ATTACK EVADED"
             if hp <= 0.0:
+                _adaptive_defeat()
                 hp = _max_hp()
                 mp = _max_mp()
                 grind_mode = true
@@ -1487,6 +1552,9 @@ func _trigger_combat_animation(actor: Node3D) -> void:
 func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
     if not is_instance_valid(target) or not arena_mobs.has(target):
         return
+    # Guardian enemies absorb a portion of direct and area damage.
+    if str(target.get_meta("ai_role", "")) == "guardian":
+        damage *= 0.82
     var health: float = float(target.get_meta("hp", 1.0)) - damage
     target.set_meta("hp", health)
     # Physical readability: every hit interrupts forward motion briefly,
@@ -1584,6 +1652,7 @@ func _update_wave_health() -> void:
 func _complete_wave() -> void:
     # A floor has three linked encounters; clearing one opens the NEXT room.
     # Progressing beyond the final encounter generates the following floor.
+    _encounter_victory()
     if dungeon_room_index < 3:
         dungeon_room_index += 1
         combat_note = "GATE OPEN — FORWARD TO CHAMBER %d / 3" % dungeon_room_index
@@ -2029,6 +2098,7 @@ func _save_game() -> void:
         "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents, "class_skill_ranks": class_skill_ranks,
         "skill_points": skill_points, "auto_equip": auto_equip,
         "boss_history": earned_bosses, "statistics": battle_statistics, "sound": audio_enabled,
+        "encounter_ai": encounter_director.save_state(),
         "saved_at": Time.get_unix_time_from_system()
     }
     var f = FileAccess.open(SAVE_FILE, FileAccess.WRITE)
@@ -2065,6 +2135,7 @@ func _load_game() -> void:
     earned_bosses = data.get("boss_history", {})
     battle_statistics = data.get("statistics", {"bosses": 0, "loot": 0, "forged": 0})
     audio_enabled = bool(data.get("sound", true))
+    encounter_director.load_state(data.get("encounter_ai", {}))
     skills = data.get("skills", [0, 0, 0])
     if skills.size() != 3:
         skills = [0, 0, 0]
@@ -2449,12 +2520,19 @@ func _spawn_horde() -> void:
     arena_mobs.clear()
     wave_kills = 0
     var is_boss: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
+    current_encounter = encounter_director.choose(stage, dungeon_room_index, hero_class,
+        grind_mode, hp / maxf(1.0, _max_hp()), rng)
+    encounter_started_ms = Time.get_ticks_msec()
     var mob_count: int = (5 + mini(int(stage / 20), 3)) if is_boss else (5 + mini(int(stage / 16), 3))
+    mob_count = clampi(mob_count + int(current_encounter.get("count_bonus", 0)), 4, 10)
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
+        var ai_role: String = encounter_director.enemy_role(current_encounter, i, elite)
         var boss_models := ["ashen_shadow_knight", "ashen_mage", "ashen_armored_knight"]
-        var model_name: String = str(boss_models[_boss_variant()]) if elite else ["skeleton_dark", "skeleton_dark", "ashen_shadow_knight", "skeleton_dark"][i % 4]
+        var role_models := {"raider": "skeleton_dark", "flanker": "ashen_ranger",
+            "guardian": "ashen_armored_knight", "caster": "ashen_mage"}
+        var model_name: String = str(boss_models[_boss_variant()]) if elite else str(role_models.get(ai_role, "skeleton_dark"))
         var root := Node3D.new()
         add_child(root)
         var packed := _get_asset_scene(model_name)
@@ -2497,14 +2575,16 @@ func _spawn_horde() -> void:
         var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
         root.position = spawn_center + (Vector3(0.0, 0.0, -0.90) if elite else _random_spawn())
         var variant_hp: float = [13.0, 10.5, 16.0][_boss_variant()]
-        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 1.0)
+        var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else float(current_encounter.get("hp_factor", 1.0)))
+        root.set_meta("ai_role", "boss" if elite else ai_role)
+        root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
         root.set_meta("hp", mob_health)
         root.set_meta("max_hp", mob_health)
         root.set_meta("boss", elite)
         root.set_meta("speed", 0.22 + rng.randf_range(0.01, 0.10))
         root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
-    combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else "HORDE APPROACHING"
+    combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else str(current_encounter.get("title", "HORDE APPROACHING"))
 
 func _impact(pos: Vector3, color: Color) -> void:
     _burst_particles(pos, color, 12, 2.6, 0.33)
