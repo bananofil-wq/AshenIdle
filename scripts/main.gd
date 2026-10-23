@@ -1360,18 +1360,18 @@ func _sync_equipment_visuals() -> void:
         if int(set_pieces[set_name]) >= 2:
             aura_color = Color("ff824d") if set_name == "Cinderborn" else Color("9c78e0") if set_name == "Gravewarden" else Color("d1bd74")
     var underglow := TorusMesh.new()
-    underglow.inner_radius = 0.64
-    underglow.outer_radius = 0.68
+    underglow.inner_radius = 0.46
+    underglow.outer_radius = 0.50
     _mesh(equipped_vfx, underglow, Vector3(0, 0.10, 0), _mat(aura_color.darkened(0.38), 0.0, true))
     if equipped.has("Armor"):
         var armor_item: Dictionary = equipped["Armor"]
         var armor_color := Color("7e3f35") if str(armor_item.get("element", "")) == "FIRE" else Color("494e71")
-        var mantle := _box(equipped_vfx, Vector3(0.75, 1.05, 0.09), Vector3(0, 1.03, -0.45), armor_color)
+        var mantle := _box(equipped_vfx, Vector3(0.49, 0.73, 0.07), Vector3(0, 0.80, -0.31), armor_color)
         mantle.rotation.x = 0.20
     if equipped.has("Helm"):
         var helm_item: Dictionary = equipped["Helm"]
         var gem_color := Color("ffb66c") if str(helm_item.get("element", "")) == "FIRE" else Color("a1c9ea")
-        var gem := _sphere_part(equipped_vfx, 0.12, Vector3(0, 2.64, 0), gem_color)
+        var gem := _sphere_part(equipped_vfx, 0.075, Vector3(0, 1.59, 0), gem_color)
         gem.material_override = _bright(gem_color)
 
 func _equip(index: int) -> void:
