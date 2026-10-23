@@ -40,6 +40,7 @@ const SKILL_MAX_RANK := 12
 const SAVE_FILE = "user://save_v2.json"
 const EVO = preload("res://scripts/evolution_rules.gd")
 const DIRECTOR = preload("res://scripts/encounter_director.gd")
+const CINEMATIC_SKILLS = preload("res://scripts/cinematic_skills.gd")
 
 var hero_class = 0
 var level = 1
@@ -106,6 +107,7 @@ var hero_mana_bar: ColorRect
 var hero_mana_label: Label
 var combat_bar: ColorRect
 var skill_buttons: Array = []
+var cinematic_skills: Node3D
 var spawned_boss := false
 var screen_note: Label
 var popup_shade: ColorRect
@@ -189,6 +191,9 @@ func _ready() -> void:
     rng.randomize()
     _load_game()
     _create_fx_textures()
+    cinematic_skills = CINEMATIC_SKILLS.new() as Node3D
+    cinematic_skills.name = "CinematicSkillEffects"
+    add_child(cinematic_skills)
     _build_world()
     _build_ui()
     _fit_hud()
@@ -2483,53 +2488,26 @@ func _use_skill(index: int) -> void:
     _refresh()
 
 func _cast_class_visual(index: int, tint: Color) -> void:
-    # Each hero has its own readable silhouette, not a recolored generic nova.
-    # Especially important for isometric play at small portrait-screen sizes.
-    if hero == null:
+    # Cinematic direction follows the uploaded reference: a directional
+    # primary, a distinct lingering control/defense effect, then a large
+    # multi-stage ultimate with ground cracks and runic geometry.
+    # Keep the art procedural and owned by this project rather than
+    # extracting copyrighted textures or animation files from the video.
+    if hero == null or not is_instance_valid(hero) or cinematic_skills == null:
         return
-    var origin: Vector3 = hero.global_position + Vector3(0, 1.4, 0)
-    var focus: Node3D = _choose_target()
-    var target_pos: Vector3 = focus.global_position + Vector3(0, 0.95, 0) if focus != null else origin + Vector3(0, 0, -1.0)
-    match hero_class:
-        0:
-            if index == 0:
-                _slash_trail(target_pos, false)
-                _burst_particles(target_pos, tint, 18, 1.2, 0.31)
-            elif index == 1:
-                # A restrained shield sigil wraps the defender.
-                _spell_burst(tint, 0.92, 2)
-            else:
-                _spell_burst(tint, 2.1, 8)
-        1:
-            # A volley of clear, thin arrows instead of a full-screen fireball.
-            var shafts: int = 3 + index * 2
-            for i in range(shafts):
-                var arc: float = float(i) * TAU / float(shafts)
-                var tip: Vector3 = target_pos + Vector3(cos(arc), 0.0, sin(arc)) * (0.24 if index == 0 else 1.07)
-                var from: Vector3 = origin + Vector3(sin(float(i) * 2.0) * 0.15, 0.14 * float(i % 3), 0.0)
-                _energy_arc(from, tip, tint, 0.03)
-            _burst_particles(target_pos, tint, 19, 1.45 if index < 2 else 2.2, 0.35)
-        2:
-            if index == 0:
-                _energy_arc(origin, target_pos, tint, 0.065)
-                _burst_particles(target_pos, tint, 34, 1.8, 0.42)
-            elif index == 1:
-                # Real hop-by-hop arcs are emitted by _cast_chain_lightning.
-                _burst_particles(origin, tint, 13, 0.9, 0.26)
-            else:
-                # Arcane beams are drawn for each target in the damage loop.
-                _burst_particles(origin, tint, 19, 1.0, 0.27)
-        3:
-            if index == 0:
-                _signature_ray(target_pos, origin, tint, 0.46)
-            elif index == 1:
-                _energy_arc(origin, target_pos, tint, 0.09)
-                _burst_particles(target_pos, tint, 29, 2.0, 0.40)
-            else:
-                # Blood-red execution beams appear in the damage loop.
-                _burst_particles(origin, tint, 21, 1.2, 0.30)
-
-
+    var target: Node3D = _choose_target()
+    var target_position: Vector3 = target.global_position if target != null and is_instance_valid(target) else hero.global_position + hero.global_transform.basis.z * 2.5
+    var target_positions: Array = []
+    # Pass actual mob positions for jump-by-jump lightning. No dummy beams
+    # shooting into empty corners when enemy positions change.
+    if target != null:
+        target_positions.append(target_position)
+    for candidate in arena_mobs:
+        var mob: Node3D = candidate as Node3D
+        if mob != null and is_instance_valid(mob) and mob != target:
+            target_positions.append(mob.global_position)
+    cinematic_skills.call("cast", hero_class, index, _skill_rank(index),
+        hero.global_position, target_position, target_positions)
 func _random_spawn() -> Vector3:
     var a := rng.randf_range(0.0, TAU)
     var d := rng.randf_range(0.8, 2.8)
