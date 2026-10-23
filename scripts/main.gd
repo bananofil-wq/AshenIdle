@@ -2524,7 +2524,7 @@ func _spawn_horde() -> void:
         grind_mode, hp / maxf(1.0, _max_hp()), rng)
     encounter_started_ms = Time.get_ticks_msec()
     var mob_count: int = (5 + mini(int(stage / 20), 3)) if is_boss else (5 + mini(int(stage / 16), 3))
-    mob_count = clampi(mob_count + int(current_encounter.get("count_bonus", 0)), 4, 10)
+    mob_count = clampi(mob_count + int(current_encounter.get("count_bonus", 0)), 5, 10)
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
