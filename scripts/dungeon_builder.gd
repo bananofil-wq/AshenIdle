@@ -241,6 +241,10 @@ func _mountain(parent: Node3D, at: Vector3, height: float, width: float) -> void
                 tone = Color("e0eef3") * randomizer.randf_range(0.85, 1.0)
             for vertex in [p0, p2, p1, p1, p2, p3]:
                 builder.set_color(tone)
+                # Mountain sides previously had no UVs, sampling ONE pixel
+                # of the PBR rock texture across each entire cliff face.
+                builder.set_uv(Vector2(vertex.x * 0.21 + vertex.y * 0.09,
+                    vertex.z * 0.21 + vertex.y * 0.13))
                 builder.add_vertex(vertex)
     builder.generate_normals()
     var model := MeshInstance3D.new()
@@ -783,14 +787,20 @@ func generate(floor_number: int) -> PackedVector3Array:
                 # Irregular broken wall sections with visible gaps instead of
                 # continuous rectangular slabs on every floor.
                 for panel in range(4):
-                    var span: float = 2.1 + randomizer.randf_range(-0.15, 0.22)
-                    var p_wall: Vector3 = wall + Vector3(randomizer.randf_range(-0.25, 0.25), 0, -3.65 + float(panel) * 2.45)
-                    var fragment := _block(room, p_wall, Vector3(0.62, randomizer.randf_range(0.8, 2.25), span), rock_material)
-                    fragment.rotation.y = randomizer.randf_range(-0.12, 0.12)
-                    # Rough fractured caps and fallen masonry break the straight
-                    # cartoon-box silhouette without expensive individual meshes.
-                    _stone(room, p_wall + Vector3(0.1, fragment.scale.y * 0.48, 0), Vector3(0.83, 0.42, span * 0.52), rock_material)
-                    _stone(room, p_wall + Vector3(side * 0.64, -0.09, 0.35), Vector3(0.77, 0.31, 0.89), rock_material)
+                    var span: float = 1.85 + randomizer.randf_range(-0.16, 0.27)
+                    var height: float = randomizer.randf_range(1.05, 2.45)
+                    var p_wall: Vector3 = wall + Vector3(randomizer.randf_range(-0.26, 0.26), 0,
+                        -3.65 + float(panel) * 2.45)
+                    # Fractured multi-faceted rock walls interrupt the rigid
+                    # rectangular silhouette while reusing one instanced mesh.
+                    _stone(room, p_wall + Vector3(0, height * 0.54, 0),
+                        Vector3(0.82, height * 1.03, span * 0.58), rock_material)
+                    if panel % 2 == 0:
+                        var fragment := _block(room, p_wall + Vector3(-0.14, 0, 0),
+                            Vector3(0.34, height * 0.72, span * 0.53), rock_material)
+                        fragment.rotation.y = randomizer.randf_range(-0.24, 0.24)
+                    _stone(room, p_wall + Vector3(side * 0.48, 0.12, 0.35),
+                        Vector3(0.86, 0.42, 0.82), rock_material)
         _decorate(room, p, i + (current_stage % 10))
         _ground_details(room, p)
         if i > 0:
