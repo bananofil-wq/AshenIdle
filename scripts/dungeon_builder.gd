@@ -859,8 +859,13 @@ func _boss_sanctum(parent: Node3D, center: Vector3) -> void:
         var anchor: Vector3 = center + Vector3(cos(angle) * 4.5, 0.0, -0.8 + sin(angle) * 4.5)
         match current_theme:
             0:
+                # Relic-like dark stone caps feel like a crumbling crypt,
+                # not oversized fluorescent traffic cones around the boss.
                 _column(boss_stage, anchor, 3.4, 0.56, rock_material)
-                _spike(boss_stage, anchor + Vector3(0, 3.2, 0), 0.85, 0.33, accent_material)
+                _stone(boss_stage, anchor + Vector3(0, 3.46, 0),
+                    Vector3(0.72, 0.38, 0.70), rock_material)
+                _spike(boss_stage, anchor + Vector3(0, 3.65, 0),
+                    0.29, 0.13, accent_material)
             1:
                 _spike(boss_stage, anchor, 4.3, 0.92, rock_material)
                 _spike(boss_stage, anchor + Vector3(0.35, 0, 0.15), 2.35, 0.48, accent_material)
@@ -1257,7 +1262,13 @@ func generate(floor_number: int) -> PackedVector3Array:
             altar.name = "BossDais"
             for k in range(8):
                 var angle := TAU * float(k) / 8.0
-                _spike(room, p + Vector3(cos(angle) * 3.8, 0, sin(angle) * 3.8), 1.1, 0.21, accent_material)
+                var rune_position: Vector3 = p + Vector3(cos(angle) * 3.8,
+                    0.0, sin(angle) * 3.8)
+                _stone(room, rune_position + Vector3(0, 0.08, 0),
+                    Vector3(0.45, 0.25, 0.47), rock_material)
+                if k % 2 == 0:
+                    _spike(room, rune_position + Vector3(0, 0.17, 0),
+                        0.31, 0.11, accent_material)
 
     # The surrounding world continues beyond the route. Procedural rock,
     # snow and tree silhouettes create strong biome differences on every floor.
