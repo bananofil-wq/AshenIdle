@@ -913,12 +913,7 @@ func _build_exterior_terrain(parent: Node3D) -> void:
     noise.frequency = 0.085
     var earth := floor_material.duplicate() as StandardMaterial3D
     earth.vertex_color_use_as_albedo = true
-    earth.albedo_color = [
-        Color("6e676a"), Color("607f50"), Color("676749"),
-        Color("c0d8e3"), Color("75676a"), Color("667276"),
-        Color("c5a16c"), Color("899ba8"), Color("77708c"),
-        Color("7398b2")
-    ][current_theme]
+    earth.albedo_color = BIOME_PROFILES.profile_for_stage(current_stage)["ground"] as Color
     earth.uv1_scale = Vector3(2.0, 2.0, 1.0)
     var x_steps: int = 11
     var z_steps: int = 37
@@ -1022,13 +1017,30 @@ func _set_materials() -> void:
             rock_material.normal_enabled = true
             rock_material.normal_texture = load(cliff_normal)
     # Nonemissive stone and muted inlaid metal replace neon purple rubble.
-    accent_material = _solid(Color(ACCENTS[current_theme]), false)
+    accent_material = _solid(BIOME_PROFILES.profile_for_stage(current_stage)["accent"] as Color, false)
     if current_theme == 8 or current_theme == 9:
         accent_material.roughness = 0.69
         accent_material.metallic = 0.24
 
 func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
     # Props never occupy the central corridor used by the automatic pathfinder.
+    # Rotate authored scenery within each biome while keeping route clearance.
+    var signature_prop: String = BIOME_PROFILES.prop_for(current_stage, index)
+    var signature_at: Vector3 = at + Vector3(-5.8 if index % 2 == 0 else 5.8, 0, -2.6)
+    match signature_prop:
+        "oak", "dead_tree", "pine":
+            _tree(parent, signature_at)
+        "ice_spire", "crystal", "floating_shard", "rift":
+            for spike_index in range(3):
+                _spike(parent, signature_at + Vector3(float(spike_index - 1) * 0.55, 0, 0), 1.4 + float(spike_index) * 0.6, 0.28, accent_material)
+        "cliff", "dune", "basalt":
+            _mountain(parent, signature_at, 3.8, 1.9)
+        "bog_pool", "lava_crack":
+            _water_feature(parent, signature_at, Vector2(1.2, 0.85), signature_prop == "lava_crack")
+        "broken_pillar", "gravestone", "moon_pillar", "star_pillar", "obelisk", "ruin":
+            _column(parent, signature_at, 2.1, 0.38, rock_material)
+        _:
+            _stone(parent, signature_at + Vector3(0, 0.15, 0), Vector3(1.1, 0.6, 0.95), rock_material)
     for side in [-1, 1]:
         var x: float = float(side) * randomizer.randf_range(4.1, 5.6)
         var n: int = 2 + int(index % 2)
@@ -1164,13 +1176,9 @@ func generate(floor_number: int) -> PackedVector3Array:
     _set_materials()
     # Surround the playable route with biome-specific terrain, not an empty
     # black skybox. Landscapes need to occupy the whole portrait view.
-    var terrain_colors := ["26303c", "152b1b", "33341f", "273d4b", "2d1110",
-        "202a2a", "796143", "293847", "271d35", "182b43"]
     var terrain := _solid(biome_profile["ground"] as Color)
     terrain.albedo_texture = floor_material.albedo_texture
-    terrain.albedo_color = [Color("454f5a"), Color("485c49"), Color("596042"),
-        Color("7d91a9"), Color("534348"), Color("586568"), Color("b99568"),
-        Color("8695a5"), Color("857092"), Color("648da8")][current_theme]
+    terrain.albedo_color = biome_profile["ground"] as Color
     terrain.uv1_scale = Vector3(11, 11, 1)
     terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
