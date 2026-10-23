@@ -266,13 +266,13 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" \
             godot --resolution 720x1280 --path . --rendering-driver opengl3 \
             --script res://scripts/ci_motion.gd 2>&1 | tee build/motion.log
-          test "$(find build/motion -name '*.jpg' | wc -l)" -eq 48
+          test "$(find build/motion -name '*.jpg' | wc -l)" -eq 96
           if ! command -v ffmpeg >/dev/null 2>&1; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg
           fi
-          ffmpeg -hide_banner -loglevel error -y -framerate 15 \
-            -i build/motion/%03d.jpg -c:v libx264 -preset veryfast -crf 29 \
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 \
+            -i build/motion/%03d.jpg -c:v libx264 -preset veryfast -crf 24 \
             -pix_fmt yuv420p -movflags +faststart build/gameplay-motion.mp4
           test -s build/gameplay-motion.mp4
           ffprobe -v error -show_entries format=duration \
