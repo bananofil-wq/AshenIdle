@@ -199,6 +199,15 @@ func _run() -> void:
         quit(13)
         return
     var prior: int = int(game.get("stage"))
+    # Stage advance must wait until the hero physically collects surviving
+    # ground drops (if the cleared horde spawned one).
+    var waiting_loot: Array = game.get("ground_drops")
+    if not waiting_loot.is_empty():
+        game.call("_complete_wave")
+        if not _check(int(game.get("dungeon_room_index")) == 1, "Room cannot skip uncollected loot"):
+            quit(111)
+            return
+        game.call("_clear_ground_drops")
     game.call("_complete_wave")
     if not _check(int(game.get("stage")) == prior and int(game.get("dungeon_room_index")) == 2, "First encounter opens the second dungeon room"):
         quit(14)
@@ -234,18 +243,62 @@ func _run() -> void:
         quit(16)
         return
 
-    game.call("_drop_loot")
+    # Simulate a cleared arena and verify actual walking-distance pickup.
+    game.call("_clear_ground_drops")
+    for remnant in (game.get("arena_mobs") as Array).duplicate():
+        if is_instance_valid(remnant):
+            remnant.queue_free()
+    (game.get("arena_mobs") as Array).clear()
     var items: Array = game.get("gear")
     game.set("auto_equip", true)
     game.call("_hide_legendary")
-    game.call("_drop_loot_at", Vector3.ZERO, true)
-    if not _check(not game.get("popup_shade").visible, "Legendary auto drops must not freeze unattended idle combat"):
+    var loot_position: Vector3 = (game.get("hero") as Node3D).position + Vector3(3.8, 0, 0)
+    game.call("_drop_loot_at", loot_position, true)
+    if not _check((game.get("ground_drops") as Array).size() == 1 and items.is_empty(),
+        "Loot must remain on the ground, not enter inventory immediately"):
+        quit(112)
+        return
+    game.call("_complete_wave")
+    if not _check(int(game.get("dungeon_room_index")) == 3, "Uncollected legendary must pause stage progress"):
+        quit(113)
+        return
+    game.call("_update_ground_pickup")
+    if not _check(items.is_empty(), "Loot cannot teleport from outside pickup reach"):
+        quit(114)
+        return
+    (game.get("hero") as Node3D).position = loot_position
+    game.call("_update_ground_pickup")
+    if not _check((game.get("ground_drops") as Array).is_empty() and not items.is_empty(),
+        "Approaching drop should collect it into backpack"):
+        quit(115)
+        return
+    if not _check(not (game.get("popup_shade") as Control).visible,
+        "Idle pickup and auto equip must not interrupt autoplay"):
         quit(37)
         return
-    if not _check(not items.is_empty(), "Loot should enter inventory"):
-        quit(17)
-        return
     game.call("_equip", 0)
+    # In manual mode, a strictly superior drop must ask first, compare stats,
+    # and only change equipment after explicit confirmation.
+    game.set("auto_equip", false)
+    var sample := {"slot": "Weapon", "name": "Manual Hero Upgrade",
+        "damage": 9000, "hp": 18000, "crit": 90, "speed": 100,
+        "element": "VOID", "elemental": 500, "set": "", "rarity": "EPIC"}
+    game.call("_place_ground_drop", loot_position, Color("af7cff"), sample)
+    game.call("_update_ground_pickup")
+    if not _check((game.get("drop_prompt") as Control).visible
+        and not (game.get("pending_comparison") as Dictionary).is_empty()
+        and (game.get("drop_comparison") as Label).text.contains("CURRENT:"),
+        "Manual mode requires side-by-side equipment comparison"):
+        quit(116)
+        return
+    game.call("_answer_drop_comparison", true)
+    if not _check(str((game.get("equipped") as Dictionary)["Weapon"]["name"]) == "Manual Hero Upgrade"
+        and not (game.get("drop_prompt") as Control).visible,
+        "Confirming an upgrade must equip it and unpause"):
+        quit(117)
+        return
+    game.set("auto_equip", true)
+    print("PHYSICAL LOOT QA PASS: ground drops, walk-to-pickup, idle auto equip, manual comparison")
     if not _check(not (game.get("equipped") as Dictionary).is_empty(), "Equip must change equipment state"):
         quit(18)
         return
