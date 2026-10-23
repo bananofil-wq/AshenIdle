@@ -282,12 +282,14 @@ func _build_world() -> void:
     environment.background_mode = Environment.BG_COLOR
     environment.background_color = Color("070a12")
     environment.adjustment_enabled = true
-    environment.adjustment_brightness = 1.02
-    environment.adjustment_contrast = 1.08
-    environment.adjustment_saturation = 0.88
+    # Filmic readability, without the purple/blue ambient wash that erased
+    # textures and made every biome look like a low-poly prototype.
+    environment.adjustment_brightness = 1.055
+    environment.adjustment_contrast = 1.17
+    environment.adjustment_saturation = 0.92
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color("677186")
-    environment.ambient_light_energy = 0.73
+    environment.ambient_light_color = Color("8b9196")
+    environment.ambient_light_energy = 0.56
     environment.glow_enabled = false
     # Keep saturated spell silhouettes; aggressive glow had clipped the entire combat area white.
     environment.glow_intensity = 0.38
@@ -296,18 +298,18 @@ func _build_world() -> void:
     add_child(world)
 
     camera_ref = Camera3D.new()
-    camera_ref.position = Vector3(0.0, 17.2, 19.2)
+    camera_ref.position = Vector3(0.0, 16.0, 17.0)
     add_child(camera_ref)
     camera_ref.look_at(Vector3(0.0, 0.2, 0.0), Vector3.UP)
-    camera_ref.fov = 47.0
+    camera_ref.fov = 46.0
     camera_ref.current = true
     camera_focus = Vector3.ZERO
     var sun := DirectionalLight3D.new()
     key_sun = sun
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
-    sun.light_color = Color("f5b990")
-    sun.light_energy = 1.05
+    sun.light_color = Color("f5d7b6")
+    sun.light_energy = 1.42
     # Fake contact shadows remain beneath characters; full-scene shadows
     # over thousands of dungeon props were too expensive for mobile GLES3.
     sun.shadow_enabled = false
@@ -315,15 +317,15 @@ func _build_world() -> void:
     fire_light = ember
     add_child(ember)
     ember.position = Vector3(0.0, 2.8, 0.5)
-    ember.light_color = Color("ff6332")
-    ember.light_energy = 0.94
+    ember.light_color = Color("ffc18a")
+    ember.light_energy = 0.85
     ember.omni_range = 10.5
     var arcane := OmniLight3D.new()
     mystic_light = arcane
     add_child(arcane)
     arcane.position = Vector3(-3.6, 4.0, -2.0)
-    arcane.light_color = Color("965eff")
-    arcane.light_energy = 0.56
+    arcane.light_color = Color("93b8d7")
+    arcane.light_energy = 0.46
     arcane.omni_range = 10
 
     # The old static arena is replaced by interconnected dungeon chambers.
@@ -1454,20 +1456,22 @@ func _apply_biome() -> void:
         return
     biome_index = next_biome
     var scene: Environment = bg_environment.environment
-    scene.background_color = [Color("070a12"), Color("091925"), Color("0b1e12"), Color("130e24"), Color("250b09")][next_biome]
+    scene.background_color = [Color("101218"), Color("111b24"), Color("111c14"), Color("141719"), Color("231311")][next_biome]
     scene.fog_enabled = true
-    scene.fog_light_color = [Color("35445c"), Color("64879b"), Color("526851"), Color("313342"), Color("704238")][next_biome]
-    scene.fog_density = [0.004, 0.005, 0.004, 0.0035, 0.006][next_biome]
-    scene.adjustment_brightness = [1.02, 0.97, 0.99, 1.045, 0.99][next_biome]
-    scene.adjustment_saturation = [0.92, 0.78, 0.96, 0.73, 0.94][next_biome]
+    scene.fog_light_color = [Color("343b43"), Color("64879b"), Color("526851"), Color("454750"), Color("704238")][next_biome]
+    scene.fog_density = [0.0020, 0.0030, 0.0024, 0.0013, 0.0030][next_biome]
+    scene.adjustment_brightness = [1.035, 1.02, 1.045, 1.095, 1.025][next_biome]
+    scene.adjustment_contrast = [1.17, 1.14, 1.15, 1.22, 1.18][next_biome]
+    scene.adjustment_saturation = [0.90, 0.90, 0.92, 0.82, 0.88][next_biome]
     if key_sun != null:
-        key_sun.light_color = [Color("bfd2f2"), Color("c2e7ff"), Color("c3dda1"), Color("c7c1dc"), Color("ffd0a6")][next_biome]
-        key_sun.light_energy = [1.05, 1.05, 0.99, 0.92, 1.08][next_biome]
-    scene.ambient_light_color = [Color("8da5c7"), Color("88b5c8"), Color("8eae88"), Color("70788c"), Color("a17b77")][next_biome]
+        key_sun.light_color = [Color("ffcf9d"), Color("c9e4f2"), Color("eeddb4"), Color("e2d5bc"), Color("ffbd8b")][next_biome]
+        key_sun.light_energy = [1.36, 1.38, 1.32, 1.44, 1.43][next_biome]
+    scene.ambient_light_color = [Color("97989c"), Color("8dabbc"), Color("9aa692"), Color("a1a4a6"), Color("a59a90")][next_biome]
+    scene.ambient_light_energy = [0.52, 0.59, 0.56, 0.53, 0.55][next_biome]
     if fire_light != null:
-        fire_light.light_color = [Color("ff9a61"), Color("8ee3ff"), Color("a4dc72"), Color("b28fc4"), Color("ff6e30")][next_biome]
+        fire_light.light_color = [Color("ffb166"), Color("f1e1ca"), Color("eed69a"), Color("ffd2a4"), Color("ff9a60")][next_biome]
     if mystic_light != null:
-        mystic_light.light_color = [Color("965eff"), Color("63b4d3"), Color("5b9f66"), Color("9d87b2"), Color("ff9b45")][next_biome]
+        mystic_light.light_color = [Color("839bb9"), Color("6697b6"), Color("759a87"), Color("7e9cac"), Color("a68a81")][next_biome]
     if center_banner != null:
         center_banner.text = ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"][next_biome]
         center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("b0e3a4"), Color("d4b4ff"), Color("ffbb81")][next_biome])
@@ -1599,17 +1603,19 @@ func _update_camera(delta: float) -> void:
     camera_time += delta
     # Portrait-isometric tracking down a long world, not an orbit of one arena.
     # Lead the hero by several metres so the next room is in view.
-    var focus: Vector3 = hero.global_position + Vector3(0, 0.70, -3.3)
+    var focus: Vector3 = hero.global_position + Vector3(0, 0.70, -3.15)
     var target: Node3D = _choose_target()
     if target != null and hero.position.distance_to(target.position) < 7.5:
         focus = focus.lerp(target.global_position + Vector3(0, 0.8, 0), 0.17)
     camera_focus = camera_focus.lerp(focus, clampf(delta * 3.1, 0, 1))
     var boss_fight: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
     var random_shake := Vector3(sin(camera_time * 83.0) * camera_shake, cos(camera_time * 69.0) * camera_shake * 0.5, sin(camera_time * 51.0) * camera_shake * 0.5)
-    var destination: Vector3 = camera_focus + Vector3(0, 19.0 if boss_fight else 17.7, 19.4) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
+    # A modest dolly-in makes armor, monsters and impact detail legible while
+    # retaining the tall portrait view of the route toward the next chamber.
+    var destination: Vector3 = camera_focus + Vector3(0, 17.4 if boss_fight else 15.9, 17.4) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
     camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.2, 0, 1))
     camera_ref.look_at(camera_focus, Vector3.UP)
-    camera_ref.fov = lerpf(camera_ref.fov, 48.0 if boss_fight else 47.0, clampf(delta * 1.5, 0, 1))
+    camera_ref.fov = lerpf(camera_ref.fov, 46.5 if boss_fight else 45.5, clampf(delta * 1.5, 0, 1))
     if fire_light != null:
         fire_light.position = hero.position + Vector3(2.8, 3.7, -1.4)
     if mystic_light != null:
@@ -2212,10 +2218,8 @@ func _sync_equipment_visuals() -> void:
     for set_name in set_pieces.keys():
         if int(set_pieces[set_name]) >= 2:
             aura_color = Color("ff824d") if set_name == "Cinderborn" else Color("9c78e0") if set_name == "Gravewarden" else Color("d1bd74")
-    var underglow := TorusMesh.new()
-    underglow.inner_radius = 0.46
-    underglow.outer_radius = 0.50
-    _mesh(equipped_vfx, underglow, Vector3(0, 0.10, 0), _mat(aura_color.darkened(0.38), 0.0, true))
+    # Do not draw a perpetual neon ring under every character. A subtle
+    # neutral contact mark from the actor rig already grounds the feet.
     # Distinct, cheap persistent evolution aura. Each invested branch adds one
     # narrow luminous ring; strength grows with the four evolution milestones.
     var branch_tints := [Color("fc8b4f"), Color("71c4e1"), Color("b58ef5")]
@@ -2228,11 +2232,10 @@ func _sync_equipment_visuals() -> void:
         halo.outer_radius = halo.inner_radius + 0.025
         var glow: MeshInstance3D = _mesh(equipped_vfx, halo, Vector3(0, 0.11 + float(branch) * 0.035, 0), _bright(branch_tints[branch]))
         glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    if equipped.has("Armor"):
-        var armor_item: Dictionary = equipped["Armor"]
-        var armor_color := Color("7e3f35") if str(armor_item.get("element", "")) == "FIRE" else Color("494e71")
-        var mantle := _box(equipped_vfx, Vector3(0.49, 0.73, 0.07), Vector3(0, 0.80, -0.31), armor_color)
-        mantle.rotation.x = 0.20
+    # The old 3D 'armor' was literally a blue/red BoxMesh covering the
+    # character's back. It read as an untextured rectangle from the isometric
+    # camera. Never fake an item silhouette with a primitive cuboid; actual
+    # equipment stats/set glows remain fully functional.
     # Do not attach an emissive helmet gem: at phone scale it rendered as
     # an opaque white dot floating above the character's forehead.
 
@@ -3345,7 +3348,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    _fit_visual_model(model, 1.89 if not enemy else 1.58)
+    _fit_visual_model(model, 2.08 if not enemy else 1.79)
     # Forward correction belongs to the actor root only. A second PI rotation
     # on the visual mesh cancels/reverses its actual movement direction.
     model.rotation.y = 0.0
