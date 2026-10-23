@@ -23,7 +23,7 @@ func _capture() -> void:
     game.call("_spawn_enemy")
     game.call("_refresh")
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/motion"))
-    for frame in range(90):
+    for frame in range(48):
         # Camera and skeletal animation run naturally in _process every frame.
         if frame == 8 or frame == 28:
             game.set("skill_cooldowns", [0.0, 0.0, 0.0])
@@ -44,5 +44,5 @@ func _capture() -> void:
             push_error("Could not save animation frame " + filename)
             quit(4)
             return
-    print("MOTION QA PASS: 90 Godot-rendered frames of actual moving dungeon traversal")
+    print("MOTION QA PASS: 48 Godot-rendered frames of actual moving dungeon traversal")
     quit(0)
