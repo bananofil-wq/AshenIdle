@@ -187,6 +187,8 @@ func _ready() -> void:
     _create_fx_textures()
     _build_world()
     _build_ui()
+    _fit_hud()
+    get_viewport().size_changed.connect(_fit_hud)
     _create_flash_layer()
     _prepare_audio()
     _spawn_enemy()
@@ -351,11 +353,37 @@ func _button(t: String, callback: Callable) -> Button:
     b.pressed.connect(callback)
     return b
 
+func _fit_hud() -> void:
+    # The game is authored in a 720px-wide portrait design space. Scale the
+    # entire HUD to the *actual* window width, but preserve all extra height:
+    # 720x1280 and tall Pixel displays keep the bottom controls accessible.
+    if overlay == null:
+        return
+    var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+    var ui_scale: float = clampf(viewport_size.x / 720.0, 0.45, 2.5)
+    overlay.scale = Vector2.ONE * ui_scale
+    overlay.position = Vector2.ZERO
+    overlay.size = Vector2(720, maxf(1280.0, viewport_size.y / ui_scale))
+    var height: float = overlay.size.y
+    var bottom: Control = overlay.get_node_or_null("BottomHUD") as Control
+    if bottom != null:
+        bottom.position.y = height - 156.0
+    var abilities: Control = overlay.get_node_or_null("SkillHUD") as Control
+    if abilities != null:
+        abilities.position.y = height - 248.0
+    if popup_shade != null:
+        popup_shade.size = overlay.size
+    for panel in [legendary_overlay, skill_overlay, hero_overlay, evolution_overlay, inventory_overlay]:
+        if panel != null:
+            var popup: Control = panel as Control
+            popup.position = Vector2((720.0 - popup.size.x) * 0.5, (height - popup.size.y) * 0.5)
+
+
 func _build_ui() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
     overlay = Control.new()
-    overlay.size = get_viewport().get_visible_rect().size
+    overlay.size = Vector2(720, 1280)
     overlay.mouse_filter = Control.MOUSE_FILTER_PASS
     layer.add_child(overlay)
 
@@ -455,6 +483,7 @@ func _build_ui() -> void:
 
 
     var bottom := PanelContainer.new()
+    bottom.name = "BottomHUD"
     bottom.position = Vector2(16, overlay.size.y - 156)
     bottom.size = Vector2(688, 142)
     bottom.add_theme_stylebox_override("panel", _skin(Color("090b11ea"), Color("68615c")))
@@ -487,6 +516,7 @@ func _build_ui() -> void:
     col.add_child(offline)
 
     var skill_bar := HBoxContainer.new()
+    skill_bar.name = "SkillHUD"
     skill_bar.position = Vector2(380, overlay.size.y - 248)
     skill_bar.add_theme_constant_override("separation", 7)
     overlay.add_child(skill_bar)
@@ -636,15 +666,15 @@ func _build_ui() -> void:
         var costs: Array = CLASS_SKILL_COSTS[class_id]
         var titles: Array = CLASS_SPELLS[class_id]
         var spell_help: Array = CLASS_SKILL_DESCRIPTIONS[class_id]
-        var class_text := "%s  %s\nDEF %d%%    MP %d    REGEN %d/sec\n%s\n%s (%d MP): %s\n%s (%d MP): %s\n%s (%d MP): %s" % [
+        var class_text := "%s  %s\nDEF %d%%  •  MP %d  •  REGEN %d/s\n%s\n%s — %d MP\n%s — %d MP\n%s — %d MP" % [
             "▶" if class_id == hero_class else "◆", CLASSES[class_id].to_upper(),
             int(float(CLASS_DEFENSE[class_id]) * 100.0),
             int(float(CLASS_MP_BASE[class_id])),
             int(float(CLASS_MP_REGEN[class_id])),
             CLASS_DESCRIPTIONS[class_id],
-            titles[0], int(costs[0]), spell_help[0],
-            titles[1], int(costs[1]), spell_help[1],
-            titles[2], int(costs[2]), spell_help[2]
+            titles[0], int(costs[0]),
+            titles[1], int(costs[1]),
+            titles[2], int(costs[2])
         ]
         var hero_row := HBoxContainer.new()
         hero_row.add_theme_constant_override("separation", 8)
@@ -652,7 +682,8 @@ func _build_ui() -> void:
         hero_row.add_child(_create_hero_preview(class_id))
         var class_button := _ornate_button(class_text, _select_class.bind(class_id), Vector2(394, 149))
         hero_choice_buttons.append(class_button)
-        class_button.add_theme_font_size_override("font_size", 13)
+        class_button.add_theme_font_size_override("font_size", 14)
+        class_button.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
         class_button.add_theme_stylebox_override("normal", _skin(Color("1a1e2bf5"), [Color("b8794d"), Color("81a36d"), Color("608ac9"), Color("8e62a8")][class_id]))
         hero_row.add_child(class_button)
     sfx_toggle_button = _ornate_button("SOUND: ON" if audio_enabled else "SOUND: OFF", _toggle_sound, Vector2(510, 42))
@@ -676,6 +707,8 @@ func _build_ui() -> void:
     evolution_column.add_child(evolution_title)
     evolution_summary = _label("", 16, Color("d1c2b1"))
     evolution_summary.custom_minimum_size = Vector2(515, 115)
+    evolution_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    evolution_summary.clip_text = true
     evolution_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     evolution_column.add_child(evolution_summary)
     var evolution_divider := HSeparator.new()
@@ -1126,10 +1159,13 @@ func _move_hero(delta: float) -> void:
         footstep_clock = 0.0
     _animate_actor(hero, velocity)
     if motion.length_squared() > 0.08:
-        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(motion.x, motion.z), clampf(delta * 8.0, 0.0, 1.0))
+        # Model imports already carry a PI yaw to align their forward axis.
+        # Applying the raw motion yaw on top pointed the hero's back into its
+        # travel direction: it looked like it was running backwards.
+        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(motion.x, motion.z) + PI, clampf(delta * 8.0, 0.0, 1.0))
     elif target != null and is_instance_valid(target):
         var face: Vector3 = target.position - hero.position
-        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(face.x, face.z), clampf(delta * 8.0, 0.0, 1.0))
+        hero.rotation.y = lerp_angle(hero.rotation.y, atan2(face.x, face.z) + PI, clampf(delta * 8.0, 0.0, 1.0))
     hero.position.y = 0.0
     if hero_hit_flash > 0.0:
         hero_hit_flash = maxf(0.0, hero_hit_flash - delta)
@@ -2076,6 +2112,10 @@ func _skin(bg: Color, edge: Color) -> StyleBoxFlat:
 func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
     var b := Button.new()
     b.text = title
+    # Godot buttons otherwise request their unbroken text width, forcing
+    # modal VBox/HBox layouts past the phone's right edge.
+    b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    b.clip_text = true
     b.custom_minimum_size = dims
     b.add_theme_font_size_override("font_size", 15)
     b.add_theme_stylebox_override("normal", _skin(Color("101016ed"), Color("68605f")))
