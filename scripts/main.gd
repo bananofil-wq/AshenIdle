@@ -1448,18 +1448,18 @@ func _apply_biome() -> void:
     var scene: Environment = bg_environment.environment
     scene.background_color = [Color("070a12"), Color("091925"), Color("0b1e12"), Color("130e24"), Color("250b09")][next_biome]
     scene.fog_enabled = true
-    scene.fog_light_color = [Color("35445c"), Color("64879b"), Color("526851"), Color("48305e"), Color("704238")][next_biome]
-    scene.fog_density = [0.004, 0.005, 0.004, 0.007, 0.006][next_biome]
-    scene.adjustment_brightness = [1.02, 0.97, 0.99, 0.93, 0.99][next_biome]
-    scene.adjustment_saturation = [0.92, 0.78, 0.96, 0.90, 0.94][next_biome]
+    scene.fog_light_color = [Color("35445c"), Color("64879b"), Color("526851"), Color("313342"), Color("704238")][next_biome]
+    scene.fog_density = [0.004, 0.005, 0.004, 0.0035, 0.006][next_biome]
+    scene.adjustment_brightness = [1.02, 0.97, 0.99, 1.045, 0.99][next_biome]
+    scene.adjustment_saturation = [0.92, 0.78, 0.96, 0.73, 0.94][next_biome]
     if key_sun != null:
-        key_sun.light_color = [Color("bfd2f2"), Color("c2e7ff"), Color("c3dda1"), Color("bc9aff"), Color("ffd0a6")][next_biome]
+        key_sun.light_color = [Color("bfd2f2"), Color("c2e7ff"), Color("c3dda1"), Color("c7c1dc"), Color("ffd0a6")][next_biome]
         key_sun.light_energy = [1.05, 1.05, 0.99, 0.92, 1.08][next_biome]
-    scene.ambient_light_color = [Color("8da5c7"), Color("88b5c8"), Color("8eae88"), Color("805aa6"), Color("a17b77")][next_biome]
+    scene.ambient_light_color = [Color("8da5c7"), Color("88b5c8"), Color("8eae88"), Color("70788c"), Color("a17b77")][next_biome]
     if fire_light != null:
-        fire_light.light_color = [Color("ff9a61"), Color("8ee3ff"), Color("a4dc72"), Color("c376ff"), Color("ff6e30")][next_biome]
+        fire_light.light_color = [Color("ff9a61"), Color("8ee3ff"), Color("a4dc72"), Color("b28fc4"), Color("ff6e30")][next_biome]
     if mystic_light != null:
-        mystic_light.light_color = [Color("965eff"), Color("63b4d3"), Color("5b9f66"), Color("743ee0"), Color("ff9b45")][next_biome]
+        mystic_light.light_color = [Color("965eff"), Color("63b4d3"), Color("5b9f66"), Color("9d87b2"), Color("ff9b45")][next_biome]
     if center_banner != null:
         center_banner.text = ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"][next_biome]
         center_banner.add_theme_color_override("font_color", [Color("ffd08c"), Color("b3ebff"), Color("b0e3a4"), Color("d4b4ff"), Color("ffbb81")][next_biome])
