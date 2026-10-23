@@ -25,15 +25,17 @@ func _save_capture(filename: String) -> bool:
 func _check_modal_fits(panel: Control, label: String) -> bool:
     # Never accept a screenshot as good when Godot silently expands a Button
     # beyond the phone width (long descriptions used to escape on the right).
-    var device_width: float = root.get_visible_rect().size.x
-    if panel.get_global_rect().position.x < -1.0 or panel.get_global_rect().end.x > device_width + 1.0:
-        push_error(label + ": modal frame exceeds screen width")
+    var screen: Vector2 = root.get_visible_rect().size
+    var frame: Rect2 = panel.get_global_rect()
+    print("MOBILE MODAL QA ", label, " screen=", screen, " frame=", frame)
+    if frame.position.x < -1.0 or frame.end.x > screen.x + 1.0 or frame.position.y < -1.0 or frame.end.y > screen.y + 1.0:
+        push_error(label + ": modal frame exceeds phone viewport")
         return false
     for candidate in panel.find_children("*", "Button", true, false):
-        var b: Button = candidate as Button
-        var bounds: Rect2 = b.get_global_rect()
-        if bounds.position.x < -2.0 or bounds.end.x > device_width + 2.0:
-            push_error(label + ": button clipped offscreen: " + b.text.substr(0, 30))
+        var button: Button = candidate as Button
+        var bounds: Rect2 = button.get_global_rect()
+        if bounds.position.x < -2.0 or bounds.end.x > screen.x + 2.0 or bounds.position.y < -2.0 or bounds.end.y > screen.y + 2.0:
+            push_error(label + ": button clipped offscreen: " + button.text.substr(0, 30))
             return false
     return true
 
