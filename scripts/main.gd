@@ -823,7 +823,10 @@ func _mana_regeneration() -> float:
 
 func _defense_reduction() -> float:
     var baseline: float = float(CLASS_DEFENSE[hero_class]) + float(skills[2]) * 0.014 + _bonus("defense") / 100.0
-    return clampf(baseline + 0.022 * _evolution_weight(1), 0.0, 0.84)
+    var class_ward: float = 0.0
+    if hero_class == 0 and stage % BOSS_INTERVAL == 0:
+        class_ward = 0.012 * _evolution_weight(1)
+    return clampf(baseline + 0.022 * _evolution_weight(1) + class_ward, 0.0, 0.84)
 
 func _max_hp() -> float:
     var modifier: float = float([1.2, 0.9, 0.85, 1.0][hero_class])
@@ -972,7 +975,8 @@ func _fight() -> void:
     var attack_reach: float = 5.9 if hero_class == 1 or hero_class == 2 else 2.45
     if hero.position.distance_to(target.position) > attack_reach:
         return
-    var crit: bool = rng.randf() < clampf(0.20 + _bonus("crit") / 100.0 + (0.08 if hero_class == 1 else 0.0) + 0.03 * _evolution_weight(0), 0.20, 0.85)
+    var ranger_precision: float = 0.015 * _evolution_weight(0) if hero_class == 1 else 0.0
+    var crit: bool = rng.randf() < clampf(0.20 + _bonus("crit") / 100.0 + (0.08 if hero_class == 1 else 0.0) + 0.03 * _evolution_weight(0) + ranger_precision, 0.20, 0.85)
     var damage: float = _damage() * rng.randf_range(0.90, 1.40) * (2.1 if crit else 1.0)
     if hero_class == 3:
         hp = minf(_max_hp(), hp + damage * 0.035)
@@ -981,6 +985,8 @@ func _fight() -> void:
         _energy_arc(hero.global_position + Vector3(0.0, 1.45, 0.0), target.global_position + Vector3(0.0, 0.95, 0.0), Color("a86aff") if hero_class == 2 else Color("ed4058"), 0.075 if crit else 0.046)
     var impact_point: Vector3 = target.global_position
     _hit_mob(target, damage, crit)
+    if hero_class == 3 and _evolution_weight(0) > 0.0:
+        hp = minf(_max_hp(), hp + damage * 0.011 * _evolution_weight(0))
     _slash_trail(impact_point, crit)
     _play_audio(0)
     attack_animation_index += 1
@@ -995,7 +1001,10 @@ func _fight() -> void:
             if secondary == null or not is_instance_valid(secondary) or secondary == target:
                 continue
             if secondary.global_position.distance_squared_to(impact_point) <= 12.25:
-                _hit_mob(secondary, damage * (0.26 + assault_power * 0.045), false)
+                var cleave_power: float = damage * (0.26 + assault_power * 0.045)
+                if hero_class == 0:
+                    cleave_power *= 1.18
+                _hit_mob(secondary, cleave_power, false)
                 victims += 1
             if victims >= mini(4, 1 + EVO.count_branch(_evolution_picks(), 0)):
                 break
@@ -1200,7 +1209,8 @@ func _update_boss_cast(delta: float) -> void:
             boss_telegraph.scale = Vector3.ONE * (0.8 + urgency * 0.4)
         if boss_cast_windup <= 0.0:
             var impact_damage: float = (10.0 + float(stage) * 0.9) * [1.1, 0.9, 1.4][_boss_variant()]
-            var reduced: float = impact_damage * (1.0 - _defense_reduction())
+            var mage_ward: float = 1.0 - minf(0.30, 0.035 * _evolution_weight(1)) if hero_class == 2 else 1.0
+            var reduced: float = impact_damage * (1.0 - _defense_reduction()) * mage_ward
             var warning_color: Color = [Color("ed5038"), Color("9e60d9"), Color("e8ab53")][_boss_variant()]
             _burst_particles(boss_warning_center + Vector3(0, 0.22, 0), warning_color, 43, 2.0, 0.42)
             camera_shake = maxf(camera_shake, 0.18)
@@ -1472,7 +1482,10 @@ func _kill_mob(target: Node3D) -> void:
     # Bastion path converts finishing blows into survivability, including
     # during long unattended boss grinds.
     if _evolution_weight(1) > 0.0:
-        hp = minf(_max_hp(), hp + _max_hp() * (0.008 * _evolution_weight(1)))
+        var kill_heal: float = 0.008 * _evolution_weight(1)
+        if hero_class == 1 or hero_class == 3:
+            kill_heal *= 1.35
+        hp = minf(_max_hp(), hp + _max_hp() * kill_heal)
     gold += stage * 2 + (25 if boss else 3)
     xp += 5 + stage * 2 + (60 if boss else 0)
     if boss or rng.randf() < 0.22:
@@ -2260,6 +2273,10 @@ func _use_skill(index: int) -> void:
         return
     mp -= mana_cost
     skill_cooldowns[index] = float([3.2, 5.2, 12.0][index]) * maxf(0.58, 1.0 - 0.035 * float(rank - 1)) * maxf(0.50, 1.0 - 0.06 * _evolution_weight(2))
+    if hero_class == 0 and _evolution_weight(2) > 0.0:
+        skill_cooldowns[index] *= maxf(0.78, 1.0 - 0.025 * _evolution_weight(2))
+    if hero_class == 3 and _evolution_weight(2) > 0.0:
+        mp = minf(_max_mp(), mp + 3.0 * _evolution_weight(2))
     var palettes: Array = [
         [Color("ff6b20"), Color("e2bd68"), Color("ffb23a")],
         [Color("87c866"), Color("95d9db"), Color("fff09a")],
@@ -2273,6 +2290,8 @@ func _use_skill(index: int) -> void:
     camera_shake = maxf(camera_shake, 0.28 if index == 2 else 0.09)
     _play_audio(5 if hero_class == 2 and index == 1 else 3)
     var multiplier: float = float([1.25, 1.60, 2.80][index]) * (1.0 + float(rank - 1) * 0.16) * (1.0 + 0.12 * _evolution_weight(2))
+    if hero_class == 2:
+        multiplier *= 1.0 + 0.04 * _evolution_weight(0)
     if hero_class == 2:
         multiplier *= 1.18
     elif hero_class == 3 and index == 2:
@@ -2288,7 +2307,8 @@ func _use_skill(index: int) -> void:
         return
     var targets: Array = arena_mobs.duplicate()
     targets.shuffle()
-    var target_count: int = mini(targets.size(), int([3, 5, 10][index]) + (2 if hero_class == 1 else 0) + int((rank - 1) / 3))
+    var seeker_volley: int = EVO.count_branch(_evolution_picks(), 2) if hero_class == 1 else 0
+    var target_count: int = mini(targets.size(), int([3, 5, 10][index]) + (2 if hero_class == 1 else 0) + int((rank - 1) / 3) + seeker_volley)
     for i in range(target_count):
         var mob: Node3D = targets[i] as Node3D
         if is_instance_valid(mob) and arena_mobs.has(mob):
