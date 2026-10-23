@@ -41,7 +41,7 @@ The game is a development prototype, and these stylized assets are not intended 
 ## Poly Haven CC0 photographic biome PBR maps (V3)
 - Creator: Poly Haven authors (https://polyhaven.com), CC0 1.0 Universal.
 - Each Android build downloads 1k JPG diffuse, OpenGL normal and roughness maps (when available) via `scripts/fetch_pbr.py`.
-- Assets: `stone_floor` (Crypt), `snow_02` (Frost), `forest_ground_01` (Thornwild), `rock_face_03` (Void), `volcanic_rock_tiles` (Molten).
+- Assets: `stone_floor` (Crypt), `snow_02` (Frost), `forrest_ground_01` (Thornwild), `rock_face_03` (Void), `volcanic_rock_tiles` (Molten).
 - License: https://polyhaven.com/license
 - The generator uses procedural biome fallback if a remote 1k channel is missing.
 - Mobile: only 1k source materials, normal/roughness maps use optional fallbacks.
