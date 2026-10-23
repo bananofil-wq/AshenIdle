@@ -18,8 +18,15 @@ var rock_material: StandardMaterial3D
 var accent_material: StandardMaterial3D
 var landmark_count := 0
 var route_style := 0
+var box_batch_count := 0
+var unbatched_box_count := 0
+var _unit_box: BoxMesh = BoxMesh.new()
+var _material_cache: Dictionary = {}
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
+    var key: String = color.to_html(true) + (":glow" if emissive else ":mat")
+    if _material_cache.has(key):
+        return _material_cache[key] as StandardMaterial3D
     var m := StandardMaterial3D.new()
     m.albedo_color = color
     m.roughness = 0.90
@@ -27,17 +34,59 @@ func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
         m.emission_enabled = true
         m.emission = color
         m.emission_energy_multiplier = 0.9
+    _material_cache[key] = m
     return m
 
 func _block(parent: Node3D, at: Vector3, size: Vector3, mat: Material) -> MeshInstance3D:
-    var mesh := BoxMesh.new()
-    mesh.size = size
+    # One shared unit cube. Scale carries individual dimensions; all small
+    # stone/wood/rubble pieces can be merged into a few GPU instanced batches.
     var instance := MeshInstance3D.new()
-    instance.mesh = mesh
+    instance.mesh = _unit_box
+    instance.scale = size
     instance.material_override = mat
     instance.position = at
     parent.add_child(instance)
     return instance
+
+func _batch_static_boxes() -> void:
+    # On portrait Android, hundreds of unique BoxMesh/Node3D draw calls were
+    # a substantial CPU/GPU overhead. Batch static blocks per material, while
+    # retaining distinct physical shapes and rotations via 3D transforms.
+    var batches: Dictionary = {}
+    var rendered: Array = find_children("*", "MeshInstance3D", true, false)
+    for child in rendered:
+        var part: MeshInstance3D = child as MeshInstance3D
+        if part == null or part.mesh != _unit_box:
+            continue
+        var material: Material = part.material_override
+        if material == null:
+            continue
+        var id: int = material.get_instance_id()
+        if not batches.has(id):
+            batches[id] = {"material": material, "transforms": []}
+        var local_transform: Transform3D = global_transform.affine_inverse() * part.global_transform
+        (batches[id]["transforms"] as Array).append(local_transform)
+        unbatched_box_count += 1
+        part.queue_free()
+    box_batch_count = batches.size()
+    for id in batches:
+        var batch: Dictionary = batches[id]
+        var placements: Array = batch["transforms"]
+        if placements.is_empty():
+            continue
+        var multi := MultiMesh.new()
+        multi.transform_format = MultiMesh.TRANSFORM_3D
+        multi.mesh = _unit_box
+        multi.instance_count = placements.size()
+        for i in range(placements.size()):
+            multi.set_instance_transform(i, placements[i] as Transform3D)
+        var instance := MultiMeshInstance3D.new()
+        instance.name = "BatchedEnvironment_%d" % int(id)
+        instance.multimesh = multi
+        instance.material_override = batch["material"] as Material
+        instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        add_child(instance)
+
 
 func _column(parent: Node3D, at: Vector3, height: float, radius: float, mat: Material, sides: int = 8) -> MeshInstance3D:
     var shape := CylinderMesh.new()
@@ -467,6 +516,9 @@ func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
 
 func generate(floor_number: int) -> PackedVector3Array:
     current_stage = maxi(1, floor_number)
+    box_batch_count = 0
+    unbatched_box_count = 0
+    _material_cache.clear()
     landmark_count = 0
     route_style = (current_stage - 1) % 5
     current_theme = posmod(int((current_stage - 1) / 10), THEMES.size())
@@ -570,5 +622,8 @@ func generate(floor_number: int) -> PackedVector3Array:
     _arch(exit_gate, end_position, rock_material)
     var exit_core := _column(exit_gate, end_position + Vector3(0, 0.0, -0.2), 0.05, 1.45, accent_material, 16)
     exit_core.name = "RiftGate"
+    # Thousands of static stage blocks are now rendered through a few
+    # MultiMesh batches rather than separate draw calls per cube.
+    _batch_static_boxes()
     # This exit marks the destination; gameplay advances only after combat.
     return walk_points
