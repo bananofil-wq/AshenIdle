@@ -189,6 +189,109 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             _spike(parent, at, h * 1.2, 0.48, rock_material)
             _block(parent, at + Vector3(float(side) * 0.36, 0.02, 0.44), Vector3(0.82, 0.035, 1.05), accent_material)
 
+func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
+    # Uneven 22-segment silhouette eliminates identical square arena footprints.
+    # Low-cost mesh, no colliders: autonomous walking remains on the central aisle.
+    var mesh_builder := SurfaceTool.new()
+    mesh_builder.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var rim := PackedVector3Array()
+    var count: int = 22
+    var room_width: float = 5.6 + float((current_stage + room_id) % 3) * 0.45
+    var room_depth: float = 5.8 + float((room_id + current_stage) % 4) * 0.31
+    for j in range(count):
+        var angle: float = TAU * float(j) / float(count)
+        var jagged: float = randomizer.randf_range(0.88, 1.08)
+        rim.append(Vector3(cos(angle) * room_width * jagged, -0.16, sin(angle) * room_depth * jagged))
+    var middle := Vector3(0.0, -0.16, 0.0)
+    for j in range(count):
+        var a: Vector3 = rim[j]
+        var b: Vector3 = rim[(j + 1) % count]
+        for vertex in [middle, a, b]:
+            mesh_builder.set_uv(Vector2(vertex.x * 0.31, vertex.z * 0.31))
+            mesh_builder.add_vertex(vertex)
+    mesh_builder.generate_normals()
+    var platform := MeshInstance3D.new()
+    platform.name = "IrregularFloor_%d" % room_id
+    platform.mesh = mesh_builder.commit()
+    platform.material_override = floor_material
+    platform.position = center
+    parent.add_child(platform)
+    # A stone lip creates physical edges and visible differences in elevation.
+    for j in range(0, count, 2):
+        var a: Vector3 = rim[j]
+        var b: Vector3 = rim[(j + 1) % count]
+        var difference: Vector3 = b - a
+        var ledge := _block(parent, center + (a + b) * 0.5 + Vector3(0, -0.22, 0), Vector3(0.21, 0.36, difference.length()), rock_material)
+        ledge.rotation.y = atan2(difference.x, difference.z) + PI * 0.5
+
+
+func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
+    # Floor-specific environmental patterns: frost veins, root networks,
+    # glowing faults and ancient masonry. Only thin meshes, no obstacles.
+    var dust := _solid(Color("4e4140") if current_theme == 0 else Color("dcecf2") if current_theme == 1 else Color("334a2e") if current_theme == 2 else Color("3e2b58") if current_theme == 3 else Color("29282a"))
+    var symbol := TorusMesh.new()
+    symbol.inner_radius = 1.65 + float(room_id % 2) * 0.25
+    symbol.outer_radius = symbol.inner_radius + 0.026
+    var glyph := MeshInstance3D.new()
+    glyph.mesh = symbol
+    glyph.position = center + Vector3(0, 0.018, -1.25)
+    glyph.rotation.y = float(current_stage * 17 + room_id * 13) * 0.1
+    glyph.material_override = accent_material if current_theme == 3 or current_theme == 4 else dust
+    parent.add_child(glyph)
+    for k in range(9):
+        var p: Vector3 = center + Vector3(randomizer.randf_range(-4.4, 4.4), 0.024, randomizer.randf_range(-4.5, 4.5))
+        var streak := _block(parent, p, Vector3(randomizer.randf_range(0.22, 0.92), 0.019, randomizer.randf_range(0.09, 0.19)), dust if k % 3 != 0 else accent_material)
+        streak.rotation.y = randomizer.randf_range(-PI, PI)
+    if current_theme == 2:
+        for k in range(7):
+            var p: Vector3 = center + Vector3(randomizer.randf_range(-4.5, 4.5), 0.04, randomizer.randf_range(-5.0, 5.0))
+            var root := _block(parent, p, Vector3(1.15, 0.10, 0.12), rock_material)
+            root.rotation.y = randomizer.randf_range(0, PI)
+
+
+func _boss_sanctum(parent: Node3D, center: Vector3) -> void:
+    # A distinct final arena for each biome, not three ordinary mob rooms.
+    var boss_stage := Node3D.new()
+    boss_stage.name = "BossSanctum_%d" % current_theme
+    parent.add_child(boss_stage)
+    _column(boss_stage, center + Vector3(0, -0.26, -0.8), 0.45, 3.75, rock_material, 14)
+    var ritual := TorusMesh.new()
+    ritual.inner_radius = 3.20
+    ritual.outer_radius = 3.29
+    var halo := MeshInstance3D.new()
+    halo.mesh = ritual
+    halo.material_override = accent_material
+    halo.position = center + Vector3(0, 0.06, -0.8)
+    boss_stage.add_child(halo)
+    for pylon in range(6):
+        var angle: float = TAU * float(pylon) / 6.0
+        var anchor: Vector3 = center + Vector3(cos(angle) * 4.5, 0.0, -0.8 + sin(angle) * 4.5)
+        match current_theme:
+            0:
+                _column(boss_stage, anchor, 3.4, 0.56, rock_material)
+                _spike(boss_stage, anchor + Vector3(0, 3.2, 0), 0.85, 0.33, accent_material)
+            1:
+                _spike(boss_stage, anchor, 4.3, 0.92, rock_material)
+                _spike(boss_stage, anchor + Vector3(0.35, 0, 0.15), 2.35, 0.48, accent_material)
+            2:
+                _tree(boss_stage, anchor)
+                _block(boss_stage, anchor + Vector3(0, 0.16, 0), Vector3(1.6, 0.26, 0.43), rock_material)
+            3:
+                _column(boss_stage, anchor, 4.4, 0.58, rock_material, 4)
+                _spike(boss_stage, anchor + Vector3(0, 4.1, 0), 1.05, 0.25, accent_material)
+            4:
+                _mountain(boss_stage, anchor, 3.7, 1.1)
+                _spike(boss_stage, anchor + Vector3(0, 2.3, 0), 2.2, 0.25, accent_material)
+    var beacon := OmniLight3D.new()
+    beacon.name = "BossArenaGlow"
+    beacon.position = center + Vector3(0, 3.7, -0.8)
+    beacon.light_color = Color(ACCENTS[current_theme])
+    beacon.light_energy = 1.35
+    beacon.omni_range = 10.2
+    beacon.shadow_enabled = false
+    boss_stage.add_child(beacon)
+
+
 func _terrain_texture() -> ImageTexture:
     # Deterministic rock, snow, leaf-litter, void and lava texture variants.
     # Lightweight CPU noise replaces featureless solid-color floors on Android.
@@ -210,17 +313,40 @@ func _terrain_texture() -> ImageTexture:
     return ImageTexture.create_from_image(img)
 
 func _set_materials() -> void:
+    # Physically-based 1k photographic textures from Poly Haven, CC0.
+    # Fallback terrain generation is retained for offline development.
+    var keys: Array = ["stone_floor", "snow_02", "forest_ground_01", "rock_face_03", "volcanic_rock_tiles"]
+    var key: String = str(keys[current_theme])
     floor_material = _solid(Color(FLOOR_COLORS[current_theme]))
-    if current_theme == 0 and ResourceLoader.exists("res://assets/pbr/stone_floor_diff_1k.jpg"):
-        floor_material.albedo_texture = load("res://assets/pbr/stone_floor_diff_1k.jpg")
-        floor_material.uv1_scale = Vector3(2.5, 2.5, 1)
-        floor_material.albedo_color = Color("94939b")
+    floor_material.uv1_scale = Vector3(2.1, 2.1, 1.0)
+    var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
+    if ResourceLoader.exists(diffuse_path):
+        floor_material.albedo_texture = load(diffuse_path)
+        floor_material.albedo_color = [Color("b3aaa6"), Color("b5c9df"), Color("8a9d79"), Color("b0a1b4"), Color("887b77")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
-        floor_material.albedo_color = Color("d9e0df")
-        floor_material.uv1_scale = Vector3(3.5, 3.5, 1)
+        floor_material.albedo_color = Color("c0c5c5")
+    var normal_path: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % key
+    if ResourceLoader.exists(normal_path):
+        floor_material.normal_enabled = true
+        floor_material.normal_scale = 1.35
+        floor_material.normal_texture = load(normal_path)
+    var rough_path: String = "res://assets/pbr/%s_rough_1k.jpg" % key
+    if ResourceLoader.exists(rough_path):
+        floor_material.roughness_texture = load(rough_path)
     floor_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    floor_material.roughness = 0.82 if current_theme == 1 else 0.95
     rock_material = _solid(Color(ROCKS[current_theme]))
+    rock_material.uv1_scale = Vector3(2.7, 2.7, 1.0)
+    var cliff_key: String = "rock_face_03" if current_theme != 4 else "volcanic_rock_tiles"
+    var cliff_path: String = "res://assets/pbr/%s_diff_1k.jpg" % cliff_key
+    if ResourceLoader.exists(cliff_path):
+        rock_material.albedo_texture = load(cliff_path)
+        rock_material.albedo_color = [Color("73707a"), Color("a6b5c4"), Color("5d735c"), Color("6f6088"), Color("55494b")][current_theme]
+        var cliff_normal: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % cliff_key
+        if ResourceLoader.exists(cliff_normal):
+            rock_material.normal_enabled = true
+            rock_material.normal_texture = load(cliff_normal)
     accent_material = _solid(Color(ACCENTS[current_theme]), true)
 
 func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
@@ -329,11 +455,17 @@ func generate(floor_number: int) -> PackedVector3Array:
         room.name = "Chamber_%d" % i
         add_child(room)
         var p: Vector3 = walk_points[i]
-        _block(room, p + Vector3(0, -0.18, 0), Vector3(WIDTH + 1.1, 0.32, 10.3), floor_material)
+        _room_floor(room, p, i)
+        _surface_story(room, p, i)
         for side in [-1.0, 1.0]:
             if current_theme != 2:
                 var wall: Vector3 = p + Vector3(side * 5.4, 0.7, 0)
-                _block(room, wall, Vector3(0.55, 1.3 if current_theme != 1 else 0.72, 10.3), rock_material)
+                # Irregular broken wall sections with visible gaps instead of
+                # continuous rectangular slabs on every floor.
+                for panel in range(4):
+                    var span: float = 2.1 + randomizer.randf_range(-0.15, 0.22)
+                    var fragment := _block(room, wall + Vector3(randomizer.randf_range(-0.25, 0.25), 0, -3.65 + float(panel) * 2.45), Vector3(0.62, randomizer.randf_range(0.8, 2.25), span), rock_material)
+                    fragment.rotation.y = randomizer.randf_range(-0.12, 0.12)
         _decorate(room, p, i + (current_stage % 10))
         _ground_details(room, p)
         if i > 0:
@@ -341,6 +473,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         if i > 0:
             _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), 5.9, floor_material)
         if i == 3 and current_stage % 10 == 0:
+            _boss_sanctum(room, p)
             var altar := _column(room, p + Vector3(0, -0.03, -2.8), 0.35, 2.7, rock_material, 12)
             altar.name = "BossDais"
             for k in range(8):
