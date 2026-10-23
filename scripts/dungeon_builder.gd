@@ -676,6 +676,63 @@ func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> voi
     parent.add_child(weather)
 
 
+func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
+    # The old landscape had a featureless photo-textured aisle through every
+    # world. A softly winding worn trail gives exterior acts a recognizable
+    # traversed route while preserving the flat, predictable navigation plane.
+    if current_theme not in [1, 2, 5, 6, 7]:
+        return
+    var tint: Color = [Color("ffffff"), Color("695943"), Color("655d43"),
+        Color("ffffff"), Color("ffffff"), Color("64605b"), Color("b3956b"),
+        Color("707b84"), Color("ffffff"), Color("ffffff")][current_theme]
+    var dirt := floor_material.duplicate() as StandardMaterial3D
+    dirt.albedo_color = tint
+    dirt.vertex_color_use_as_albedo = true
+    dirt.roughness = 0.99
+    dirt.uv1_scale = Vector3(0.75, 0.75, 1)
+    var builder := SurfaceTool.new()
+    builder.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var amount: int = 14
+    var left := PackedVector3Array()
+    var right := PackedVector3Array()
+    for n in range(amount + 1):
+        var progress: float = float(n) / float(amount)
+        var z: float = -5.5 + progress * 11.0
+        var wobble: float = sin(z * 0.46 + float(room_id) * 1.65 + float(current_stage) * 0.13) * 0.54
+        var half: float = 1.32 + 0.17 * sin(float(n) * 1.73 + float(room_id))
+        left.append(center + Vector3(wobble - half, -0.147, z))
+        right.append(center + Vector3(wobble + half, -0.147, z))
+    for n in range(amount):
+        for v in [left[n], left[n+1], right[n], right[n], left[n+1], right[n+1]]:
+            var shade: float = 0.87 + 0.11 * sin(v.z * 0.75 + v.x * 1.3)
+            builder.set_color(Color(shade, shade, shade))
+            builder.set_uv(Vector2(v.x * 0.23, v.z * 0.23))
+            builder.add_vertex(v)
+    builder.generate_normals()
+    var strip := MeshInstance3D.new()
+    strip.name = "WindingTrail_%d" % room_id
+    strip.mesh = builder.commit()
+    strip.material_override = dirt
+    strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    parent.add_child(strip)
+
+
+func _fern_rosette(parent: Node3D, at: Vector3) -> void:
+    # Flat sculpted leaves, not needle-like evergreen cones.
+    var deep := _solid(Color("285e35") if current_theme == 1 else Color("485c36"))
+    var bright := _solid(Color("74a64e") if current_theme == 1 else Color("879359"))
+    for leaf_index in range(6):
+        var angle: float = TAU * float(leaf_index) / 6.0
+        var leaf := _stone(parent, at + Vector3(cos(angle) * 0.20, 0.15,
+            sin(angle) * 0.20), Vector3(0.24, 0.14, 0.72),
+            bright if leaf_index % 3 == 0 else deep)
+        leaf.rotation.y = angle
+        leaf.rotation.z = 0.12 * sin(angle)
+    if current_theme == 1 and randomizer.randf() < 0.32:
+        _stone(parent, at + Vector3(0, 0.23, 0),
+            Vector3(0.17, 0.19, 0.16), _solid(Color("d9b078")))
+
+
 func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
     # Worn paving stones and fractures. Previously every room was covered
     # in identical fluorescent rings and matchstick-like luminous shards.
@@ -1094,6 +1151,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         add_child(room)
         var p: Vector3 = walk_points[i]
         _room_floor(room, p, i)
+        _winding_trail(room, p, i)
         _surface_story(room, p, i)
         _biome_beacon(room, p, i)
         _weather_particles(room, p, i)
@@ -1123,6 +1181,11 @@ func generate(floor_number: int) -> PackedVector3Array:
                         Vector3(0.86, 0.42, 0.82), rock_material)
         _decorate(room, p, i + (current_stage % 10))
         _ground_details(room, p)
+        if current_theme == 1 or current_theme == 2:
+            for tuft in range(5):
+                var tuft_side: float = -1.0 if tuft % 2 == 0 else 1.0
+                _fern_rosette(room, p + Vector3(tuft_side * randomizer.randf_range(2.1, 3.6),
+                    0, randomizer.randf_range(-4.3, 4.3)))
         _biome_dressing(room, p, i)
         if i > 0:
             _landmark(room, p, i)
