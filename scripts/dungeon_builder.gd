@@ -4,7 +4,7 @@ extends Node3D
 # The boss is always on the tenth floor of its biome.
 const THEMES := ["THE CINDER CRYPT", "THE FROST HOLLOW", "THE THORNWILD", "THE VOID CITADEL", "THE MOLTEN DEPTHS"]
 const FLOOR_COLORS := ["55505a", "879dad", "374c38", "343049", "3d3437"]
-const ACCENTS := ["eb864e", "8bdcff", "8acb69", "b46fff", "ff6232"]
+const ACCENTS := ["eb864e", "8bdcff", "8acb69", "82669c", "ff6232"]
 const ROCKS := ["35313c", "50647a", "354337", "302c4a", "34262b"]
 const WIDTH := 9.0
 const DISTANCE := 14.0
@@ -316,9 +316,15 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             else:
                 _stone(parent, at, Vector3(1.5, 0.8, 1.1), rock_material)
         3:
-            # Floating-looking void obelisks with luminous runes.
-            _column(parent, at, h * 1.20, 0.41, rock_material, 4)
-            _block(parent, at + Vector3(0, h * 0.8, 0.21), Vector3(0.17, 0.58, 0.07), accent_material)
+            # Fallen masonry and fractured steles instead of glowing cuboids.
+            var obelisk := _column(parent, at, h * 1.15, 0.46, rock_material, 7)
+            obelisk.rotation.z = randomizer.randf_range(-0.22, 0.22)
+            _stone(parent, at + Vector3(0.45, 0.09, -0.2),
+                Vector3(1.32, 0.70, 1.15), rock_material)
+            if variant % 4 == 0:
+                var tablet := _block(parent, at + Vector3(0.18, h * 0.68, 0.32),
+                    Vector3(0.41, 0.32, 0.10), accent_material)
+                tablet.rotation.z = -0.15
         4:
             # Lava cliffs, black rock ridges and volcanic spires.
             if variant % 2 == 0:
@@ -420,11 +426,11 @@ func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
     glyph.mesh = symbol
     glyph.position = center + Vector3(0, 0.018, -1.25)
     glyph.rotation.y = float(current_stage * 17 + room_id * 13) * 0.1
-    glyph.material_override = accent_material if current_theme == 3 or current_theme == 4 else dust
+    glyph.material_override = accent_material if current_theme == 4 and room_id == 3 else dust
     parent.add_child(glyph)
     for k in range(9):
         var p: Vector3 = center + Vector3(randomizer.randf_range(-4.4, 4.4), 0.024, randomizer.randf_range(-4.5, 4.5))
-        var streak := _block(parent, p, Vector3(randomizer.randf_range(0.22, 0.92), 0.019, randomizer.randf_range(0.09, 0.19)), dust if k % 3 != 0 else accent_material)
+        var streak := _block(parent, p, Vector3(randomizer.randf_range(0.22, 0.92), 0.019, randomizer.randf_range(0.09, 0.19)), dust if current_theme == 3 or k % 3 != 0 else accent_material)
         streak.rotation.y = randomizer.randf_range(-PI, PI)
     if current_theme == 2:
         for k in range(7):
@@ -614,7 +620,11 @@ func _set_materials() -> void:
         if ResourceLoader.exists(cliff_normal):
             rock_material.normal_enabled = true
             rock_material.normal_texture = load(cliff_normal)
-    accent_material = _solid(Color(ACCENTS[current_theme]), true)
+    # Nonemissive stone and muted inlaid metal replace neon purple rubble.
+    accent_material = _solid(Color(ACCENTS[current_theme]), current_theme != 3)
+    if current_theme == 3:
+        accent_material.roughness = 0.69
+        accent_material.metallic = 0.24
 
 func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
     # Props never occupy the central corridor used by the automatic pathfinder.
@@ -631,7 +641,11 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
             for side in [-1.0, 1.0]:
                 var support: Vector3 = at + Vector3(side * 4.15, 0, 3.8)
                 _column(parent, support, randomizer.randf_range(2.3, 3.3), 0.33, rock_material)
-                _block(parent, support + Vector3(side * 0.39, 0.22, 0), Vector3(0.76, 0.42, 1.18), rock_material)
+                _stone(parent, support + Vector3(side * 0.39, 0.22, 0),
+                    Vector3(1.1, 0.60, 1.52), rock_material)
+                if current_theme == 3:
+                    _stone(parent, support + Vector3(side * 0.71, -0.05, 0.8),
+                        Vector3(1.0, 0.36, 1.0), rock_material)
     elif current_theme == 1:
         for side in [-1.0, 1.0]:
             _block(parent, at + Vector3(side * 4.45, -0.1, 0), Vector3(0.9, 0.23, 7.8), rock_material)
@@ -673,14 +687,20 @@ func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
             for root_index in range(4):
                 var root := _block(structure, at + Vector3(float(root_index - 2) * 0.63, 0.04, 2.50), Vector3(0.14, 0.14, 1.1), rock_material)
                 root.rotation.y = float(root_index) * 0.4
-        3: # Jagged violet altar with suspended-looking obelisk shards.
-            _column(structure, at, 2.15, 1.55, rock_material, 6)
+        3: # Ruined fortified shrine with toppled capitals and rocky bases.
+            _column(structure, at, 1.35, 1.47, rock_material, 10)
+            _stone(structure, at + Vector3(0, 1.2, 0), Vector3(2.5, 0.65, 2.1), rock_material)
             for obelisk in range(5):
                 var angle: float = float(obelisk) * TAU / 5.0
-                var p := at + Vector3(cos(angle) * 1.5, 0, sin(angle) * 1.5)
-                _column(structure, p, 2.0 + float(obelisk % 3) * 1.25, 0.38, rock_material, 4)
-                _block(structure, p + Vector3(0, 1.9, 0.30), Vector3(0.16, 0.55, 0.12), accent_material)
-            _spike(structure, at + Vector3(0, 2.15, 0), 3.6, 0.47, accent_material)
+                var point := at + Vector3(cos(angle) * 2.1, 0, sin(angle) * 1.8)
+                var tower := _column(structure, point, 2.2 + float(obelisk % 3) * 0.95, 0.42, rock_material, 7)
+                tower.rotation.z = 0.14 * sin(angle)
+                _stone(structure, point + Vector3(0.42, 0.05, 0),
+                    Vector3(1.25, 0.50, 1.08), rock_material)
+                if obelisk % 2 == 0:
+                    _block(structure, point + Vector3(0, 1.96, 0.25),
+                        Vector3(0.43, 0.18, 0.16), accent_material)
+            _spike(structure, at + Vector3(0, 1.47, 0), 2.4, 0.55, rock_material)
         4: # Volcanic cliff shelf, magma seams, stacked dark basalt columns.
             _mountain(structure, at + Vector3(side, -0.10, 0), 6.5, 3.6)
             for spike_i in range(5):
@@ -719,7 +739,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     var terrain_colors := ["26303c", "273d4b", "152b1b", "1a142a", "2d1110"]
     var terrain := _solid(Color(terrain_colors[current_theme]))
     terrain.albedo_texture = floor_material.albedo_texture
-    terrain.albedo_color = [Color("454f5a"), Color("7d91a9"), Color("485c49"), Color("4d435f"), Color("534348")][current_theme]
+    terrain.albedo_color = [Color("454f5a"), Color("7d91a9"), Color("485c49"), Color("77717e"), Color("534348")][current_theme]
     terrain.uv1_scale = Vector3(11, 11, 1)
     terrain.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     _block(self, Vector3(0, -0.58, -18.0), Vector3(48, 0.40, 88), terrain)
