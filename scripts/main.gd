@@ -2844,8 +2844,14 @@ func _update_chaos(delta: float) -> void:
         mob.position.y = 0
         if engaged and hero != null:
             var face: Vector3 = hero.position - mob.position
-            if face.length_squared() > 0.02:
-                _turn_actor_towards(mob, face, delta, 7.0)
+            # Use the run animation only when facing the direction of travel.
+            # Face the hero at attack distance or when aiming a caster spell.
+            # Otherwise flankers looked like they were running sideways/backward.
+            var moving: Vector3 = mob.position - last_position
+            var close_enough: bool = face.length_squared() <= (3.7 * 3.7 if boss else 2.5 * 2.5)
+            var facing: Vector3 = face if close_enough or role == "caster" or moving.length_squared() < 0.0005 else moving
+            if facing.length_squared() > 0.02:
+                _turn_actor_towards(mob, facing, delta, 8.0)
             if role == "caster" and not popup_shade.visible:
                 var cast_in: float = float(mob.get_meta("ai_next_cast", 5.0)) - delta
                 if cast_in <= 0.0 and hero.position.distance_squared_to(mob.position) < 36.0:
