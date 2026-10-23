@@ -250,11 +250,12 @@ func _run() -> void:
             remnant.queue_free()
     (game.get("arena_mobs") as Array).clear()
     var items: Array = game.get("gear")
+    var original_bag_size: int = items.size()
     game.set("auto_equip", true)
     game.call("_hide_legendary")
     var loot_position: Vector3 = (game.get("hero") as Node3D).position + Vector3(3.8, 0, 0)
     game.call("_drop_loot_at", loot_position, true)
-    if not _check((game.get("ground_drops") as Array).size() == 1 and items.is_empty(),
+    if not _check((game.get("ground_drops") as Array).size() == 1 and items.size() == original_bag_size,
         "Loot must remain on the ground, not enter inventory immediately"):
         quit(112)
         return
@@ -263,12 +264,12 @@ func _run() -> void:
         quit(113)
         return
     game.call("_update_ground_pickup")
-    if not _check(items.is_empty(), "Loot cannot teleport from outside pickup reach"):
+    if not _check(items.size() == original_bag_size, "Loot cannot teleport from outside pickup reach"):
         quit(114)
         return
     (game.get("hero") as Node3D).position = loot_position
     game.call("_update_ground_pickup")
-    if not _check((game.get("ground_drops") as Array).is_empty() and not items.is_empty(),
+    if not _check((game.get("ground_drops") as Array).is_empty() and items.size() > original_bag_size,
         "Approaching drop should collect it into backpack"):
         quit(115)
         return
