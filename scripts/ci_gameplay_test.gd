@@ -331,8 +331,12 @@ func _run() -> void:
         return
     game.set("stage", 20)
     game.call("_spawn_enemy")
-    game.call("_complete_wave")
-    game.call("_complete_wave")
+    for target_room in [2, 3]:
+        for attempt in range(3):
+            game.call("_clear_ground_drops")
+            game.call("_complete_wave")
+            if int(game.get("dungeon_room_index")) == target_room:
+                break
     if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must be at end of floor 20 with distinct identity"):
         quit(25)
         return
@@ -379,8 +383,12 @@ func _run() -> void:
     # Bosses telegraph a real charged attack.
     game.set("stage", 10)
     game.call("_spawn_enemy")
-    game.call("_complete_wave")
-    game.call("_complete_wave")
+    for target_room in [2, 3]:
+        for attempt in range(3):
+            game.call("_clear_ground_drops")
+            game.call("_complete_wave")
+            if int(game.get("dungeon_room_index")) == target_room:
+                break
     game.call("_update_boss_cast", 5.0)
     if not _check(float(game.get("boss_cast_windup")) > 0.0, "Boss cast must warn before impact"):
         quit(30)
