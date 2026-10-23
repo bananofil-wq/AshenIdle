@@ -3,6 +3,13 @@ extends Node3D
 const CLASSES = ["Cinder Knight", "Ash Ranger", "Ember Mage", "Dusk Reaper"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
 const BOSS_NAMES = ["ASHEN WARDEN", "VOID HARBINGER", "BONE TYRANT"]
+const BOSS_INTERVAL := 10
+const CLASS_MP_BASE = [70.0, 95.0, 165.0, 82.0]
+const CLASS_MP_PER_LEVEL = [2.0, 3.0, 6.0, 3.0]
+const CLASS_MP_REGEN = [6.0, 10.0, 16.0, 9.0]
+const CLASS_DEFENSE = [0.23, 0.07, 0.06, 0.13]
+const CLASS_SKILL_COSTS = [[10.0, 20.0, 45.0], [14.0, 22.0, 48.0], [25.0, 36.0, 85.0], [15.0, 27.0, 56.0]]
+
 const CLASS_SPELLS = [
     ["FLAME", "SHIELD", "INFERNO"],
     ["VOLLEY", "TRAP", "ARROWFALL"],
@@ -17,10 +24,16 @@ const CLASS_TALENT_NAMES = [
     ["SOUL HARVEST", "BLOOD RITUAL", "SHADOW VEIL"]
 ]
 const CLASS_DESCRIPTIONS = [
-    "Melee guardian  •  Resilient against bosses",
-    "Rapid ranged hunter  •  Multiple targets",
-    "Elemental caster  •  Powerful spells",
-    "Lifestealing reaper  •  High critical burst"
+    "Heavy armor and high DEF. Protects against bosses.",
+    "Fast precision hunter. High critical chance.",
+    "Arcane sorcerer. Highest MP and spell damage.",
+    "Shadow fighter. Steals life with each strike."
+]
+const CLASS_SKILL_DESCRIPTIONS = [
+    ["Flame: elemental slash", "Shield: restores health", "Inferno: mass fire damage"],
+    ["Volley: multiple arrows", "Trap: area control", "Arrowfall: storm of arrows"],
+    ["Fire: explosive spell", "Frost: cold shockwave", "Arcane: extreme magical burst"],
+    ["Reap: life-stealing strike", "Void: dark blast", "Nightfall: shadow devastation"]
 ]
 const SAVE_FILE = "user://save_v2.json"
 
@@ -32,6 +45,7 @@ var stage = 1
 var highest = 1
 var kills = 0
 var hp = 112.0
+var mp := 0.0
 var enemy_hp = 48.0
 var enemy_max = 48.0
 var boss_health := 1.0
@@ -78,6 +92,8 @@ var legendary_name: Label
 var legendary_stats: Label
 var last_legendary: Dictionary = {}
 var hero_heart: ColorRect
+var hero_mana_bar: ColorRect
+var hero_mana_label: Label
 var combat_bar: ColorRect
 var skill_buttons: Array = []
 var spawned_boss := false
@@ -88,6 +104,8 @@ var minimap_refresh_timer := 10.0
 var last_map_stage := -1
 var skill_overlay: PanelContainer
 var hero_overlay: PanelContainer
+var hero_return_button: Button
+var startup_selection := true
 var skill_choice_buttons: Array = []
 var skill_count_label: Label
 var grind_mode := false
@@ -145,7 +163,10 @@ func _ready() -> void:
     _spawn_enemy()
     _sync_equipment_visuals()
     _apply_biome()
+    if mp <= 0.0:
+        mp = _max_mp()
     _refresh()
+    _show_hero_panel(true)
 
 func _mat(color: Color, metallic: float = 0.0, emission: bool = false) -> StandardMaterial3D:
     var m = StandardMaterial3D.new()
@@ -622,7 +643,7 @@ func _bonus(key: String) -> float:
     return total
 
 func _boss_variant() -> int:
-    return posmod(floori(float(stage) / 5.0) - 1, BOSS_NAMES.size())
+    return posmod(floori(float(stage) / float(BOSS_INTERVAL)) - 1, BOSS_NAMES.size())
 
 func _spawn_enemy() -> void:
     if hero == null:
@@ -636,6 +657,8 @@ func _spawn_enemy() -> void:
 
 func _process(delta: float) -> void:
     chaos_time += delta
+    if not popup_shade.visible:
+        mp = minf(_max_mp(), mp + _mana_regeneration() * delta)
     if legendary_item_display != null and legendary_overlay.visible:
         legendary_item_display.rotation.y += delta * 0.64
     for i in range(skill_cooldowns.size()):
@@ -700,7 +723,7 @@ func _fight() -> void:
         return
     var remaining_mobs: float = float(arena_mobs.size())
     var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075 - float(skills[2]) * 0.25 - _bonus("defense") * 0.045)
-    if stage % 5 == 0:
+    if stage % BOSS_INTERVAL == 0:
         incoming *= [1.28, 1.10, 1.48][_boss_variant()]
     hp -= incoming
     if hp <= 0.0:
@@ -828,7 +851,7 @@ func _clear_boss_telegraph() -> void:
     boss_cast_timer = 4.5
 
 func _update_boss_cast(delta: float) -> void:
-    if stage % 5 != 0 or popup_shade.visible:
+    if stage % BOSS_INTERVAL != 0 or popup_shade.visible:
         return
     var has_boss := false
     for candidate in arena_mobs:
@@ -874,7 +897,7 @@ func _update_boss_cast(delta: float) -> void:
         _refresh()
 
 func _apply_biome() -> void:
-    var next_biome: int = posmod(floori(float(stage - 1) / 5.0), 3)
+    var next_biome: int = posmod(floori(float(stage - 1) / float(BOSS_INTERVAL)), 3)
     if biome_index == next_biome or bg_environment == null:
         return
     biome_index = next_biome
@@ -966,7 +989,7 @@ func _update_camera(delta: float) -> void:
         focus += (target.global_position - hero_target) * 0.12
     focus.y = 0.66
     camera_focus = camera_focus.lerp(focus, clampf(delta * 2.1, 0.0, 1.0))
-    var boss_fight: bool = stage % 5 == 0
+    var boss_fight: bool = stage % BOSS_INTERVAL == 0
     var look_offset := Vector3(0, 13.6 if boss_fight else 13.4, 15.1 if boss_fight else 14.5)
     var subtle_orbit: float = sin(camera_time * 0.31) * 0.32
     var random_shake := Vector3(
@@ -1063,7 +1086,7 @@ func _update_wave_health() -> void:
     boss_max = maxf(boss_max, 1.0)
 
 func _complete_wave() -> void:
-    var was_boss: bool = stage % 5 == 0
+    var was_boss: bool = stage % BOSS_INTERVAL == 0
     if grind_mode:
         grind_cycles += 1
         if grind_cycles >= 3 and _damage() >= float(highest) * 3.0 + 10.0:
@@ -1077,13 +1100,14 @@ func _complete_wave() -> void:
         highest = maxi(highest, stage)
         combat_note = "BOSS CLEARED — NEXT AREA" if was_boss else "AREA CLEARED"
     hp = _max_hp()
+    mp = _max_mp()
     _spawn_enemy()
     _apply_biome()
     _save_game()
 
 func _try_boss() -> void:
     grind_mode = false
-    stage = maxi(5, int(ceil(float(highest) / 5.0)) * 5)
+    stage = maxi(BOSS_INTERVAL, int(ceil(float(highest) / float(BOSS_INTERVAL))) * BOSS_INTERVAL)
     hp = _max_hp()
     combat_note = "BOSS CHALLENGE"
     _spawn_enemy()
@@ -1127,6 +1151,7 @@ func _select_class(next_class: int) -> void:
         hero.queue_free()
     hero = _make_animated_character(["Knight", "Rogue", "Mage", "Barbarian"][hero_class], Vector3(-0.45, 0, 0.65), false)
     hp = _max_hp()
+    mp = _max_mp()
     combat_note = "NEW CLASS: " + CLASSES[hero_class]
     if hero_overlay != null and hero_overlay.visible:
         _close_hero_panel()
@@ -1324,10 +1349,10 @@ func _refresh() -> void:
     if auto_gear_button != null:
         auto_gear_button.text = "AUTO: ON" if auto_equip else "AUTO: OFF"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
-    stage_banner.text = "ACT %d  •  %d/5%s" % [floori(float(stage - 1) / 5.0) + 1, posmod(stage - 1, 5) + 1, "  BOSS" if stage % 5 == 0 else ""]
+    stage_banner.text = "ACT %d  •  %d/5%s" % [floori(float(stage - 1) / 5.0) + 1, posmod(stage - 1, 5) + 1, "  BOSS" if stage % BOSS_INTERVAL == 0 else ""]
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
-        boss_panel.visible = stage % 5 == 0
+        boss_panel.visible = stage % BOSS_INTERVAL == 0
         boss_hp_label.text = "%s  •  %.0f / %.0f HP" % [BOSS_NAMES[_boss_variant()], maxf(0.0, boss_health), boss_max]
         boss_hp_bar.color = [Color("d94339"), Color("9e55e8"), Color("dc9c46")][_boss_variant()]
         boss_hp_bar.scale.x = clampf(boss_health / maxf(1.0, boss_max), 0.03, 1.0)
@@ -1636,8 +1661,8 @@ func _spawn_horde() -> void:
             mob.queue_free()
     arena_mobs.clear()
     wave_kills = 0
-    var is_boss: bool = stage % 5 == 0
-    var mob_count: int = (6 + mini(int(stage / 10), 4)) if is_boss else (11 + mini(int(stage / 5), 11))
+    var is_boss: bool = stage % BOSS_INTERVAL == 0
+    var mob_count: int = (6 + mini(int(stage / 20), 4)) if is_boss else (9 + mini(int(stage / 10), 9))
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
@@ -1652,7 +1677,7 @@ func _spawn_horde() -> void:
             var instance: Node3D = packed.instantiate() as Node3D
             if instance != null:
                 root.add_child(instance)
-                _fit_visual_model(instance, [3.15, 3.36, 3.4][_boss_variant()] if elite else 1.9)
+                _fit_visual_model(instance, [2.35, 2.46, 2.58][_boss_variant()] if elite else 1.43)
                 _darken_character_materials(instance, elite)
                 if model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
@@ -2065,7 +2090,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.queue_free()
         return _fighter(at, Color("a43f52") if enemy else Color("507b81"), enemy)
     root.add_child(model)
-    _fit_visual_model(model, 2.35 if not enemy else 2.20)
+    _fit_visual_model(model, 1.66 if not enemy else 1.50)
     model.rotation.y = PI
     _darken_character_materials(model, false)
     if not enemy:
