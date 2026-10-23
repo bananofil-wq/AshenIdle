@@ -693,6 +693,11 @@ func _run() -> void:
                     "Cave/forest/swamp/lava/rift require distinctive physical set dressing"):
                 quit(112)
                 return
+        if floor_id in [11, 21, 51, 61, 71]:
+            if not _check(builder.get_node_or_null("Chamber_1/WindingTrail_1") != null,
+                    "Exterior biomes must render a winding walkable trail rather than one flat empty textured floor"):
+                quit(113)
+                return
         var original_primitives: int = int(builder.get("unbatched_box_count"))
         var new_batches: int = int(builder.get("box_batch_count"))
         if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
