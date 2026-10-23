@@ -103,6 +103,14 @@ jobs:
           done
           test -s assets/models/halloween/crypt.bin
           test -s assets/models/halloween/halloweenbits_texture.png
+          # Additional CC0 Quaternius Downtown City MegaKit stylized deciduous
+          # trees: real trunks / foliage crowns for forest and swamp focal props.
+          CITYTREE="https://raw.githubusercontent.com/anshaneja5/skyline-run/main/public/assets/models"
+          mkdir -p assets/models/citytree
+          for tree in tree1 tree2 tree3 bush; do
+            curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$CITYTREE/$tree.glb" -o "assets/models/citytree/$tree.glb"
+          done
+          test "$(stat -c %s assets/models/citytree/tree1.glb)" -gt 100000
           mkdir -p assets/weapons
           BASE_WEAPON="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Assets/gltf"
           for asset in sword_2handed staff dagger; do
