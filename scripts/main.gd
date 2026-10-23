@@ -183,6 +183,11 @@ var sfx_toggle_button: Button
 var last_hit_sound_msec := 0
 var auto_equip := true
 var auto_gear_button: Button
+var ground_drops: Array = []   # Real loot: stays on ground until the hero reaches it.
+var drop_prompt: PanelContainer
+var drop_comparison: Label
+var pending_comparison: Dictionary = {}
+var recovered_ground_drops: Array = []
 var equipped_vfx: Node3D
 var encounter_director = DIRECTOR.new()
 var current_encounter: Dictionary = {}
@@ -203,6 +208,7 @@ func _ready() -> void:
     _create_flash_layer()
     _prepare_audio()
     _spawn_enemy()
+    _restore_saved_ground_drops()
     _sync_equipment_visuals()
     _apply_biome()
     if mp <= 0.0:
@@ -995,6 +1001,7 @@ func _spawn_enemy() -> void:
         enemy_hp = enemy_max
         return
     _clear_boss_telegraph()
+    _clear_ground_drops()
     # Persistent spells never damage monsters on the next floor.
     active_skill_zones.clear()
     defensive_ward_timer = 0.0
@@ -1066,6 +1073,7 @@ func _process(delta: float) -> void:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
+    _update_ground_pickup()
     _update_skill_zones(delta)
     defensive_ward_timer = maxf(0.0, defensive_ward_timer - delta)
     _update_camera(delta)
@@ -1230,6 +1238,11 @@ func _move_hero(delta: float) -> void:
     var before: Vector3 = hero.position
     var destination: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else hero.position
     var target: Node3D = _choose_target()
+    # After the fight, physically walk to the dropped equipment; no magic
+    # collection from across the room and no stage skip before pickup.
+    if arena_mobs.is_empty() and not ground_drops.is_empty():
+        var nearest: Dictionary = _nearest_ground_drop()
+        destination = nearest.get("pos", destination)
     var in_encounter: bool = hero.position.distance_to(destination) < 5.5
     # Along the corridor: always move towards the next room. Only stop for
     # actual enemies when close enough to the chamber.
@@ -1689,9 +1702,14 @@ func _update_wave_health() -> void:
     boss_max = maxf(boss_max, 1.0)
 
 func _complete_wave() -> void:
-    # A floor has three linked encounters; clearing one opens the NEXT room.
-    # Progressing beyond the final encounter generates the following floor.
+    # Never jump to the next room while loot is still lying on the ground.
+    if not ground_drops.is_empty() or not pending_comparison.is_empty():
+        return
+    # Treasure events may spawn their own drop upon room victory.
     _encounter_victory()
+    if not ground_drops.is_empty():
+        return
+    # A floor has three linked encounters; clearing one opens the NEXT room.
     if dungeon_room_index < 3:
         dungeon_room_index += 1
         combat_note = "GATE OPEN — FORWARD TO CHAMBER %d / 3" % dungeon_room_index
@@ -1942,19 +1960,131 @@ func _drop_loot_at(drop_pos: Vector3, boss_drop: bool) -> void:
         "element": ["FIRE", "FROST", "VOID", "LIGHTNING"][rng.randi_range(0, 3)],
         "elemental": rng.randi_range(1, 4) * power
     }
-    gear.push_front(item)
+    _place_ground_drop(drop_pos, loot_color, item)
+    if rarity == "LEGENDARY":
+        _burst_particles(drop_pos + Vector3(0, 1.1, 0), loot_color, 30, 1.5, 0.56)
+    combat_note = "DROPPED: " + name.to_upper()
+
+func _nearest_ground_drop() -> Dictionary:
+    var nearest: Dictionary = {}
+    var best: float = INF
+    if hero == null:
+        return nearest
+    for drop in ground_drops:
+        var point: Vector3 = drop["pos"]
+        var distance: float = hero.position.distance_squared_to(point)
+        if distance < best:
+            best = distance
+            nearest = drop
+    return nearest
+
+
+func _place_ground_drop(where: Vector3, tint: Color, item: Dictionary) -> void:
+    # Drops are game entities, not just decorative loot beams.
+    var loot: Dictionary = {"pos": where, "item": item.duplicate(true)}
+    loot["beam"] = _loot_beam(where, tint, str(item.get("name", "Loot")))
+    ground_drops.append(loot)
+    while ground_drops.size() > 12:
+        var overflow: Dictionary = ground_drops.pop_front()
+        _collect_ground_drop(overflow, true)
+
+
+func _clear_ground_drops() -> void:
+    for entry in ground_drops:
+        var beam: Dictionary = entry.get("beam", {})
+        if not beam.is_empty():
+            loot_beams.erase(beam)
+            _clear_beam(beam)
+    ground_drops.clear()
+
+
+func _update_ground_pickup() -> void:
+    if popup_shade == null or popup_shade.visible or hero == null:
+        return
+    if not arena_mobs.is_empty() or ground_drops.is_empty():
+        return
+    var nearest: Dictionary = _nearest_ground_drop()
+    var point: Vector3 = nearest.get("pos", Vector3.ZERO)
+    if hero.position.distance_squared_to(point) <= 1.30 * 1.30:
+        ground_drops.erase(nearest)
+        _collect_ground_drop(nearest, false)
+
+
+func _collect_ground_drop(drop: Dictionary, forced_auto: bool = false) -> void:
+    var beam: Dictionary = drop.get("beam", {})
+    if not beam.is_empty():
+        loot_beams.erase(beam)
+        _clear_beam(beam)
+    var item: Dictionary = drop.get("item", {})
+    if item.is_empty():
+        return
+    gear.push_front(item.duplicate(true))
     if gear.size() > 36:
         gear.pop_back()
-    _loot_beam(drop_pos, loot_color, name)
-    if rarity == "LEGENDARY":
-        _burst_particles(drop_pos + Vector3(0, 1.1, 0), loot_color, 110, 4.0, 0.92)
-    _play_audio(2 if rarity == "LEGENDARY" else 1)
     battle_statistics["loot"] = int(battle_statistics.get("loot", 0)) + 1
-    if auto_equip:
+    _play_audio(2 if str(item.get("rarity", "")) == "LEGENDARY" else 1)
+    var slot: String = str(item.get("slot", "Weapon"))
+    var current: Dictionary = equipped.get(slot, {})
+    if auto_equip or forced_auto:
         _auto_equip_item(item)
-    if rarity == "LEGENDARY":
-        # Legendary drops must not freeze an unattended idle run.
-        combat_note = "LEGENDARY FOUND — " + name.to_upper()
+        combat_note = "COLLECTED: " + str(item.get("name", "Loot"))
+    elif _item_score(item) > _item_score(current) + 1.5:
+        pending_comparison = item.duplicate(true)
+        _show_drop_comparison(item, current)
+    else:
+        combat_note = "STORED: " + str(item.get("name", "Loot"))
+    _save_game()
+    _refresh()
+
+
+func _show_drop_comparison(item: Dictionary, current: Dictionary) -> void:
+    if drop_prompt == null or drop_comparison == null:
+        return
+    var old_name: String = str(current.get("name", "EMPTY SLOT"))
+    var incoming: float = _item_score(item)
+    var outgoing: float = _item_score(current)
+    var diff: float = incoming - outgoing
+    var set_text: String = str(item.get("set", ""))
+    drop_comparison.text = "NEW: %s  [%s]\nATK +%d    HP +%d    CRIT +%d%%\nSPEED +%d%%    ELEMENT +%d\nSET: %s\n\nCURRENT: %s\nATK +%d    HP +%d    CRIT +%d%%\nSPEED +%d%%    ELEMENT +%d\n\nPOWER: %+.0f" % [
+        str(item.get("name", "Loot")), str(item.get("rarity", "COMMON")),
+        int(item.get("damage", 0)), int(item.get("hp", 0)), int(item.get("crit", 0)),
+        int(item.get("speed", 0)), int(item.get("elemental", 0)),
+        set_text if set_text != "" else "NONE", old_name,
+        int(current.get("damage", 0)), int(current.get("hp", 0)),
+        int(current.get("crit", 0)), int(current.get("speed", 0)),
+        int(current.get("elemental", 0)), diff]
+    popup_shade.visible = true
+    drop_prompt.visible = true
+
+
+func _answer_drop_comparison(equip_it: bool) -> void:
+    if pending_comparison.is_empty():
+        return
+    if equip_it:
+        var item: Dictionary = pending_comparison
+        equipped[str(item.get("slot", "Weapon"))] = item.duplicate(true)
+        hp = minf(hp, _max_hp())
+        _sync_equipment_visuals()
+        combat_note = "EQUIPPED: " + str(item.get("name", "Loot"))
+    else:
+        combat_note = "SAVED IN BAG"
+    pending_comparison.clear()
+    drop_prompt.visible = false
+    popup_shade.visible = false
+    _save_game()
+    _refresh()
+
+
+func _restore_saved_ground_drops() -> void:
+    for entry in recovered_ground_drops:
+        var row: Dictionary = entry
+        var coordinates: Array = row.get("point", [])
+        if coordinates.size() != 3:
+            continue
+        var point := Vector3(float(coordinates[0]), float(coordinates[1]), float(coordinates[2]))
+        _place_ground_drop(point, Color("a8cffb"), row.get("item", {}))
+    recovered_ground_drops.clear()
+
 
 func _item_score(item: Dictionary) -> float:
     if item.is_empty():
@@ -1963,7 +2093,7 @@ func _item_score(item: Dictionary) -> float:
 
 func _toggle_auto_gear() -> void:
     auto_equip = not auto_equip
-    combat_note = "AUTO EQUIP ENABLED" if auto_equip else "MANUAL EQUIPMENT MODE"
+    combat_note = "IDLE: PICKUP + AUTO EQUIP" if auto_equip else "MANUAL: ASK BEFORE EQUIPPING"
     _save_game()
     _refresh()
 
@@ -2062,11 +2192,8 @@ func _sync_equipment_visuals() -> void:
         var armor_color := Color("7e3f35") if str(armor_item.get("element", "")) == "FIRE" else Color("494e71")
         var mantle := _box(equipped_vfx, Vector3(0.49, 0.73, 0.07), Vector3(0, 0.80, -0.31), armor_color)
         mantle.rotation.x = 0.20
-    if equipped.has("Helm"):
-        var helm_item: Dictionary = equipped["Helm"]
-        var gem_color := Color("ffb66c") if str(helm_item.get("element", "")) == "FIRE" else Color("a1c9ea")
-        var gem := _sphere_part(equipped_vfx, 0.075, Vector3(0, 1.59, 0), gem_color)
-        gem.material_override = _bright(gem_color)
+    # Do not attach an emissive helmet gem: at phone scale it rendered as
+    # an opaque white dot floating above the character's forehead.
 
 func _equip(index: int) -> void:
     if index < 0 or index >= gear.size():
@@ -2089,7 +2216,7 @@ func _refresh() -> void:
     details.text = "HP %.0f / %.0f   DEF %.0f%%\nXP %d / %d" % [hp, _max_hp(), _defense_reduction() * 100.0, xp, level * 30]
     power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
     if auto_gear_button != null:
-        auto_gear_button.text = "AUTO: ON" if auto_equip else "AUTO: OFF"
+        auto_gear_button.text = "IDLE: ON" if auto_equip else "MANUAL"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
     if hero_mana_bar != null:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
@@ -2131,7 +2258,12 @@ func _refresh() -> void:
             inventory.add_child(loot_button)
 
 func _save_game() -> void:
+    var serialized_ground: Array = []
+    for drop in ground_drops:
+        var pos: Vector3 = drop["pos"]
+        serialized_ground.append({"point": [pos.x, pos.y, pos.z], "item": drop["item"]})
     var data = {
+        "ground_drops": serialized_ground,
         "class": hero_class, "level": level, "xp": xp, "gold": gold, "evolutions": evolution_choices,
         "stage": stage, "highest": highest, "kills": kills, "hp": hp, "mp": mp,
         "gear": gear, "equipped": equipped, "skills": skills, "class_talents": class_talents, "class_skill_ranks": class_skill_ranks,
@@ -2171,6 +2303,8 @@ func _load_game() -> void:
     gear = data.get("gear", [])
     equipped = data.get("equipped", {})
     auto_equip = bool(data.get("auto_equip", true))
+    recovered_ground_drops = data.get("ground_drops", [])
+    pending_comparison = {}
     earned_bosses = data.get("boss_history", {})
     battle_statistics = data.get("statistics", {"bosses": 0, "loot": 0, "forged": 0})
     audio_enabled = bool(data.get("sound", true))
@@ -2772,7 +2906,7 @@ func _beam_material(color: Color, alpha: float) -> StandardMaterial3D:
     mat.emission_energy_multiplier = 1.42
     return mat
 
-func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
+func _loot_beam(pos: Vector3, color: Color, title: String) -> Dictionary:
     var pillar := CylinderMesh.new()
     pillar.top_radius = 0.06
     pillar.bottom_radius = 0.12
@@ -2796,9 +2930,9 @@ func _loot_beam(pos: Vector3, color: Color, title: String) -> void:
     label.add_theme_constant_override("shadow_offset_x", 1)
     label.add_theme_constant_override("shadow_offset_y", 2)
     overlay.add_child(label)
-    loot_beams.append({"mesh": column, "core": core_mesh, "disc": disc, "label": label, "pos": pos, "time": 5.0})
-    if loot_beams.size() > 13:
-        _clear_beam(loot_beams.pop_front())
+    var beam: Dictionary = {"mesh": column, "core": core_mesh, "disc": disc, "label": label, "pos": pos, "time": 180.0}
+    loot_beams.append(beam)
+    return beam
 
 func _clear_beam(beam: Dictionary) -> void:
     for key in ["mesh", "core", "disc", "label"]:
@@ -2952,8 +3086,8 @@ func _update_chaos(delta: float) -> void:
             label.position = p - Vector2(100, 14)
             label.modulate.a = clampf(float(beam["time"]), 0.0, 1.0)
         if float(beam["time"]) <= 0.0:
-            _clear_beam(beam)
-            loot_beams.remove_at(i)
+            # Loot beam lifetime mirrors a collectible, not a timed VFX.
+            beam["time"] = 180.0
     for i in range(hit_texts.size() - 1, -1, -1):
         var hit: Dictionary = hit_texts[i]
         hit["time"] = float(hit["time"]) - delta
