@@ -815,8 +815,10 @@ func _process(delta: float) -> void:
         skill_button.disabled = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
         var icon: Control = skill_button.get_node_or_null("AbilityGlyph") as Control
         if icon != null:
-            icon.set("class_id", hero_class)
-            icon.set("locked", not unlocked)
+            if int(icon.get("class_id")) != hero_class:
+                icon.set("class_id", hero_class)
+            if bool(icon.get("locked")) == unlocked:
+                icon.set("locked", not unlocked)
         var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
         if not unlocked:
             skill_button.text = "LOCKED\nLVL %d" % unlock_level
@@ -1646,8 +1648,12 @@ func _refresh() -> void:
     else:
         for i in range(mini(gear.size(), 3)):
             var item: Dictionary = gear[i]
-            var text_value := "%s  +%d ATK  +%d HP" % [str(item.get("name", "")), int(item.get("damage", 0)), int(item.get("hp", 0))]
-            inventory.add_child(_ornate_button(text_value, _equip.bind(i), Vector2(600, 40)))
+            var rarity: String = str(item.get("rarity", "COMMON")).to_upper()
+            var text_value := "[%s] %s  +%d ATK  +%d HP" % [rarity, str(item.get("name", "")), int(item.get("damage", 0)), int(item.get("hp", 0))]
+            var loot_button := _ornate_button(text_value, _equip.bind(i), Vector2(600, 40))
+            var rarity_tint: Color = Color("eebc6c") if rarity == "LEGENDARY" else Color("c396df") if rarity == "EPIC" else Color("93c6ee") if rarity == "RARE" else Color("a9b0a7")
+            loot_button.add_theme_color_override("font_color", rarity_tint)
+            inventory.add_child(loot_button)
 
 func _save_game() -> void:
     var data = {
@@ -2537,6 +2543,15 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         _attach_hero_clips(model)
     _bind_motion_driver(root)
     _play_actor_clip(root, "Idle", 0.0, 1.0)
+    # Subtle class-colored ground contact; silhouettes stay readable at the
+    # wider portrait camera distance without cartoon outlines.
+    var contact := TorusMesh.new()
+    contact.inner_radius = 0.45 if enemy else 0.58
+    contact.outer_radius = 0.47 if enemy else 0.605
+    var color: Color = Color("ac4c49") if enemy else [Color("f1a16e"), Color("9ccf77"), Color("85caff"), Color("bb91f7")][hero_class]
+    var contact_mesh := _mesh(root, contact, Vector3(0, 0.045, 0), _bright(color.darkened(0.35)))
+    contact_mesh.name = "GroundContactGlow"
+    contact_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     return root
 
 func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, factor: float = 1.0) -> void:
