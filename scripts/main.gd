@@ -2876,7 +2876,9 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
         kind = "slime"
     elif species.contains("TREANT"):
         kind = "treant"
-    elif species.contains("GOLEM") or species.contains("ELEMENTAL"):
+    elif species.contains("ELEMENTAL"):
+        kind = "elemental"
+    elif species.contains("GOLEM"):
         kind = "golem"
     elif species.contains("WYRM") or species.contains("HORROR"):
         kind = "serpent"
@@ -2918,19 +2920,53 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
             for sign in [-1.0, 1.0]:
                 _sphere_part(visual, 0.12, Vector3(sign * 0.23, 0.66, 0.48), shade)
         "treant":
-            _capsule(visual, 0.39, 1.9, Vector3(0, 1.05, 0), shade)
-            _sphere_part(visual, 0.63, Vector3(0, 1.78, 0), tint)
+            # Actual bark-colored torso and branching crown. Previously this
+            # was literally a bright green pill with no readable tree anatomy.
+            var bark := Color("4e3724")
+            var canopy := Color("426c36")
+            _cone(visual, 0.55, 0.34, 2.10, Vector3(0, 1.08, 0), bark)
+            _sphere_part(visual, 0.50, Vector3(0, 1.79, 0), bark.darkened(0.15))
             for sign in [-1.0, 1.0]:
-                var branch := _cone(visual, 0.19, 0.035, 1.48,
-                    Vector3(sign * 0.63, 1.41, 0), shade)
-                branch.rotation.z = sign * 0.72
-                _cone(visual, 0.24, 0.05, 1.15, Vector3(sign * 0.24, 0.45, 0), shade)
+                var branch := _cone(visual, 0.27, 0.07, 1.48,
+                    Vector3(sign * 0.62, 1.47, 0), bark)
+                branch.rotation.z = sign * 0.78
+                var root := _cone(visual, 0.36, 0.10, 1.05,
+                    Vector3(sign * 0.34, 0.39, 0), bark.darkened(0.15))
+                root.rotation.z = sign * 0.43
+                _sphere_part(visual, 0.42, Vector3(sign * 0.88, 2.07, 0.12), canopy)
+                _sphere_part(visual, 0.12, Vector3(sign * 0.19, 1.92, 0.45), Color("ffbe65"))
+            _sphere_part(visual, 0.52, Vector3(0, 2.32, -0.10), canopy.lightened(0.14))
         "golem":
-            _box(visual, Vector3(1.12, 1.03, 0.88), Vector3(0, 1.12, 0), shade)
-            _sphere_part(visual, 0.40, Vector3(0, 1.89, 0), tint)
+            # Huge interlocking rock masses read better on a small screen than
+            # the old flat rectangular robot/chess-piece proportions.
+            var mineral := Color("7b8d9f") if species.contains("FROST") or species.contains("CRYSTAL") else Color("5c5554")
+            _sphere_part(visual, 0.62, Vector3(0, 1.24, 0), mineral)
+            _sphere_part(visual, 0.37, Vector3(0, 2.0, 0.12), mineral.lightened(0.17))
             for sign in [-1.0, 1.0]:
-                _box(visual, Vector3(0.45, 0.89, 0.50), Vector3(sign * 0.83, 1.0, 0), tint)
-                _box(visual, Vector3(0.32, 0.56, 0.38), Vector3(sign * 0.35, 0.33, 0), shade)
+                _sphere_part(visual, 0.37, Vector3(sign * 0.67, 1.35, 0), mineral.darkened(0.14))
+                _sphere_part(visual, 0.36, Vector3(sign * 0.88, 0.76, 0.20), mineral)
+                _cone(visual, 0.28, 0.21, 0.72, Vector3(sign * 0.35, 0.38, 0),
+                    mineral.darkened(0.18))
+                _sphere_part(visual, 0.09, Vector3(sign * 0.17, 2.10, 0.43), tint)
+        "elemental":
+            # Angular ember core with rising flame tongues and separated arms.
+            # Do not use the glowing orange capsule from early prototypes.
+            var charred := Color("4a2823")
+            _sphere_part(visual, 0.43, Vector3(0, 1.10, 0), charred)
+            _sphere_part(visual, 0.27, Vector3(0, 1.63, 0.1), tint.lightened(0.26))
+            for sign in [-1.0, 1.0]:
+                var flare_arm := _cone(visual, 0.24, 0.015, 1.05,
+                    Vector3(sign * 0.58, 1.02, 0), tint)
+                flare_arm.rotation.z = sign * 0.51
+                _cone(visual, 0.23, 0.06, 0.75,
+                    Vector3(sign * 0.30, 0.37, 0), charred)
+            for flame in range(5):
+                var a: float = TAU * float(flame) / 5.0
+                var flare := _cone(visual, 0.25, 0.012,
+                    0.98 + float(flame % 2) * 0.50,
+                    Vector3(cos(a) * 0.40, 1.58, sin(a) * 0.38),
+                    tint if flame % 2 == 0 else Color("ffc16b"))
+                flare.rotation.z = cos(a) * 0.27
         "serpent":
             for segment in range(5):
                 _sphere_part(visual, 0.42 - float(segment) * 0.042,
