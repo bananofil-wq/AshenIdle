@@ -3729,6 +3729,18 @@ func _attach_hero_clips(model: Node3D) -> void:
     donor.queue_free()
 
 func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> Node3D:
+    # Player characters now use the same true chibi character architecture
+    # as mobs/bosses, with independently animated limbs and oversized heads.
+    # The imported realistic rig stays as a fallback if a class is unknown.
+    if not enemy:
+        var cartoon_root := Node3D.new()
+        cartoon_root.position = at
+        add_child(cartoon_root)
+        if toon_enemy_art.build_hero(cartoon_root,model_name):
+            _bind_motion_driver(cartoon_root)
+            _play_actor_clip(cartoon_root,"Idle",0.0,1.0)
+            return cartoon_root
+        cartoon_root.queue_free()
     var hero_hd: String = hd_characters.model_for_hero(model_name) if not enemy else ""
     var dark_name: String = hero_hd if hero_hd != "" and _get_asset_scene(hero_hd) != null else _dark_character_name(model_name, enemy)
     var packed := _get_asset_scene(dark_name)
