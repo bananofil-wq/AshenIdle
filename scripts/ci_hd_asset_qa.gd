@@ -51,6 +51,7 @@ func _run() -> void:
     world.add_child(camera)
     camera.current = true
     camera.fov = 43.0
+    var wolf_motion = preload("res://scripts/hd_wolf_gait.gd").new()
     var found_total: int = 0
     for item in ITEMS:
         var name: String = str(item[0])
@@ -64,6 +65,23 @@ func _run() -> void:
             _fail("Could not instantiate " + name)
             return
         world.add_child(model)
+        if name == "marsh_direwolf":
+            if not wolf_motion.attach(model):
+                _fail("Imported wolf rig cannot animate articulated legs")
+                return
+            var driver: AnimationPlayer = model.get_node_or_null("WolfMotionDriver") as AnimationPlayer
+            if driver == null:
+                _fail("Wolf bone animation player unavailable")
+                return
+            if not driver.has_animation("Jog") or not driver.has_animation("Attack"):
+                _fail("Wolf missing real skeletal locomotion and bite attack")
+                return
+            var animation: Animation = driver.get_animation("Jog")
+            if animation.get_track_count() < 4:
+                _fail("Wolf needs all four articulated legs, not rigid body bob")
+                return
+            driver.play("Jog")
+            driver.advance(0.17)
         var skeletons: Array = model.find_children("*","Skeleton3D",true,false)
         var meshes: Array = model.find_children("*","MeshInstance3D",true,false)
         var players: Array = model.find_children("*","AnimationPlayer",true,false)
