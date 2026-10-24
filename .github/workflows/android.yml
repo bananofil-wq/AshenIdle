@@ -216,6 +216,14 @@ jobs:
           grep -q "RELEASE CONTENT PASS" build/release-test.log
           if grep -E 'SCRIPT ERROR|Parse Error|RELEASE CHECK FAILED|Invalid call|Invalid access' build/release-test.log; then exit 1; fi
 
+      - name: Test six sculpted and animated forest enemies
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --script res://scripts/ci_forest_monsters_test.gd 2>&1 | tee build/forest-monsters.log
+          grep -q "FOREST MONSTERS PASS" build/forest-monsters.log
+          if grep -E 'SCRIPT ERROR|Parse Error|FOREST MONSTERS FAIL|Invalid call|Invalid access' build/forest-monsters.log; then exit 1; fi
+
       - name: Verify Android 60 FPS quality adaptation
         shell: bash
         run: |
