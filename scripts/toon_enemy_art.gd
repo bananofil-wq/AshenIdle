@@ -376,8 +376,22 @@ func _animate(root: Node3D, body: Node3D, beast: bool, legs: int) -> void:
         var animation := Animation.new()
         animation.length = duration
         animation.loop_mode = Animation.LOOP_LINEAR if walking or clip_name=="Idle" else Animation.LOOP_NONE
-        _rotation(animation,"ToonVisual/Head:rotation",duration,
-            [Vector3.ZERO,Vector3(.07 if not walking else -.04,0,0),Vector3.ZERO])
+        # Humanoid heads sit on ToonVisual/Head; animal and treant heads
+        # have their own pivot at the same path. Real neck motion is animated.
+        var head: Node3D = body.get_node_or_null("Head") as Node3D
+        if head != null:
+            var nod: float = .11 if striking else .045 if walking else .025
+            _rotation(animation,"ToonVisual/Head:rotation",duration,
+                [Vector3.ZERO,Vector3(nod,0,0),Vector3.ZERO])
+        if striking:
+            # Attacks must have an unmistakable physical anticipation, impact
+            # and follow-through, even for quadrupeds without humanoid arms.
+            var lean: float = -.30 if beast else -.17
+            _rotation(animation,"ToonVisual:rotation",duration,
+                [Vector3(.12,0,0),Vector3(lean,0,0),Vector3.ZERO])
+            if beast and head != null:
+                _rotation(animation,"ToonVisual/Head:position",duration,
+                    [head.position,head.position+Vector3(0,-.13,.27),head.position])
         var swing: float = .52 if clip_name in ["Jog","Jog_Fwd"] else .33 if walking else .025
         for child in body.get_children():
             if not child is Node3D:
@@ -398,9 +412,14 @@ func _animate(root: Node3D, body: Node3D, beast: bool, legs: int) -> void:
                 if striking:
                     arc = [Vector3(-.8,0,phase*.08),Vector3(.96,0,-phase*.2),Vector3.ZERO]
                 _rotation(animation,"ToonVisual/%s:rotation" % pivot.name,duration,arc)
+        if clip_name == "Hit":
+            _rotation(animation,"ToonVisual:rotation",duration,
+                [Vector3.ZERO,Vector3(.14,0,.12),Vector3.ZERO])
         if dying:
             _rotation(animation,"ToonVisual:rotation",duration,
                 [Vector3.ZERO,Vector3(.15,0,.44),Vector3(.3,0,1.30)])
+        # No sudden snap on animation loops: a complete stride begins and
+        # ends at the same pose. Blend via the game's animation driver.
         library.add_animation(clip_name,animation)
     player.add_animation_library("",library)
     root.set_meta("stylized_enemy",true)
