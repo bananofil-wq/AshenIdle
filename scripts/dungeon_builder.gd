@@ -42,6 +42,7 @@ var _forest_trail_material: StandardMaterial3D
 # or far-off leaf layers when the portrait camera can only see two.
 var _visibility_chambers: Array[Node3D] = []
 var _visibility_batches: Array[MultiMeshInstance3D] = []
+var _visibility_merged: Array[MeshInstance3D] = []
 var _visibility_weather: Array[CPUParticles3D] = []
 var _visibility_shafts: Array[MeshInstance3D] = []
 var _visibility_flora: Array[MultiMeshInstance3D] = []
@@ -52,6 +53,7 @@ var _last_visibility_focus: Vector3 = Vector3(9999, 0, 9999)
 func _cache_visibility() -> void:
     _visibility_chambers.clear()
     _visibility_batches.clear()
+    _visibility_merged.clear()
     _visibility_weather.clear()
     _visibility_shafts.clear()
     _visibility_flora.clear()
@@ -62,6 +64,8 @@ func _cache_visibility() -> void:
             _visibility_chambers.append(node as Node3D)
         elif node is MultiMeshInstance3D and node.name.begins_with("BatchedEnvironment_"):
             _visibility_batches.append(node as MultiMeshInstance3D)
+        elif node is MeshInstance3D and node.name.begins_with("MergedAuthenticChunk_"):
+            _visibility_merged.append(node as MeshInstance3D)
     for node in find_children("Atmosphere_*", "CPUParticles3D", true, false):
         _visibility_weather.append(node as CPUParticles3D)
     for node in find_children("ForestLightShaft_*", "MeshInstance3D", true, false):
@@ -110,6 +114,11 @@ func set_lod_focus(focus: Vector3, force: bool = false) -> void:
             var chunk: int = int(batch.get_meta("spatial_chunk", 0))
             var chunk_center_z: float = (float(chunk) + 0.5) * 26.0
             batch.visible = absf(chunk_center_z - focus.z) < batch_radius
+    for scenery in _visibility_merged:
+        if is_instance_valid(scenery):
+            var section_id: int = int(scenery.get_meta("spatial_chunk", 0))
+            var center_z: float = (float(section_id) + 0.5) * 26.0
+            scenery.visible = absf(center_z - focus.z) < batch_radius
 
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
@@ -171,6 +180,85 @@ func _block(parent: Node3D, at: Vector3, size: Vector3, mat: Material) -> MeshIn
     parent.add_child(instance)
     return instance
 
+func _merge_static_prefab_surfaces() -> void:
+    # Imported GLBs often consist of dozens of *different* small submeshes.
+    # MultiMesh cannot reduce draws for those unique parts. Bake triangle
+    # surfaces by PBR material and 26m route chunk, preserving UVs/normals.
+    # Transparent, skinned, animated and nontriangle models stay untouched.
+    var groups: Dictionary = {}
+    var valid_parts: Dictionary = {}
+    for fixture in find_children("Authentic_*", "Node3D", true, false):
+        for candidate in fixture.find_children("*", "MeshInstance3D", true, false):
+            var part: MeshInstance3D = candidate as MeshInstance3D
+            if part == null or part.mesh == null or part.skin != null:
+                continue
+            if part.get_node_or_null(part.skeleton) is Skeleton3D:
+                continue
+            if part.mesh.get_blend_shape_count() > 0:
+                continue
+            var definitions: Array = []
+            for surface_index in range(part.mesh.get_surface_count()):
+                if part.mesh.surface_get_primitive_type(surface_index) != Mesh.PRIMITIVE_TRIANGLES:
+                    definitions.clear()
+                    break
+                var surface_material: Material = part.get_surface_override_material(surface_index)
+                if surface_material == null:
+                    surface_material = part.material_override
+                if surface_material == null:
+                    surface_material = part.mesh.surface_get_material(surface_index)
+                if surface_material == null:
+                    definitions.clear()
+                    break
+                if surface_material is BaseMaterial3D and (surface_material as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+                    definitions.clear()
+                    break
+                definitions.append([surface_index, surface_material])
+            if definitions.is_empty():
+                continue
+            var chunk: int = floori(part.global_position.z / 26.0)
+            var transform: Transform3D = global_transform.affine_inverse() * part.global_transform
+            valid_parts[part.get_instance_id()] = part
+            for spec in definitions:
+                var face: int = int(spec[0])
+                var material: Material = spec[1] as Material
+                var format_code: int = int(part.mesh.surface_get_format(face))
+                var key: String = "%d-%d-%d" % [material.get_instance_id(), format_code, chunk]
+                if not groups.has(key):
+                    groups[key] = {"material": material, "chunk": chunk, "surfaces": []}
+                (groups[key]["surfaces"] as Array).append({
+                    "mesh": part.mesh, "surface": face, "transform": transform
+                })
+    var combined_count: int = 0
+    for group_key in groups:
+        var group: Dictionary = groups[group_key]
+        var tool := SurfaceTool.new()
+        tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+        tool.set_material(group["material"] as Material)
+        for part_data in group["surfaces"]:
+            tool.append_from(part_data["mesh"] as Mesh,
+                int(part_data["surface"]), part_data["transform"] as Transform3D)
+        var merged: ArrayMesh = tool.commit()
+        if merged == null or merged.get_surface_count() <= 0:
+            continue
+        var instance := MeshInstance3D.new()
+        instance.name = "MergedAuthenticChunk_%d_%d" % [int(group["chunk"]), combined_count]
+        instance.mesh = merged
+        instance.material_override = group["material"] as Material
+        instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        instance.set_meta("spatial_chunk", int(group["chunk"]))
+        add_child(instance)
+        combined_count += 1
+    if combined_count != groups.size():
+        # Safe fallback: leave originals intact if any merge failed.
+        for merged in find_children("MergedAuthenticChunk_*", "MeshInstance3D", true, false):
+            merged.queue_free()
+        return
+    for original in valid_parts.values():
+        (original as MeshInstance3D).queue_free()
+    print("STATIC PREFAB BATCHING: %d original GLB parts -> %d merged textured material chunks" %
+        [valid_parts.size(), combined_count])
+
+
 func _batch_static_boxes() -> void:
     # Batch static cubes, crystals, pillars and foliage into a handful of
     # GPU-instanced MultiMeshes, not hundreds of individual GLES3 draw calls.
@@ -178,7 +266,7 @@ func _batch_static_boxes() -> void:
     var rendered: Array = find_children("*", "MeshInstance3D", true, false)
     for child in rendered:
         var part: MeshInstance3D = child as MeshInstance3D
-        if part == null or part.mesh == null:
+        if part == null or part.mesh == null or part.is_queued_for_deletion():
             continue
         # Batch static meshes within genuinely imported CC0 scene instances,
         # preserving embedded GLB surface materials. Godot otherwise issues
@@ -1611,6 +1699,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     exit_core.name = "RiftGate"
     # Thousands of static stage blocks are now rendered through a few
     # MultiMesh batches rather than separate draw calls per cube.
+    _merge_static_prefab_surfaces()
     _batch_static_boxes()
     _cache_visibility()
     set_graphics_preset(_performance_tier)
