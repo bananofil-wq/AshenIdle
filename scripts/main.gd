@@ -8,7 +8,7 @@ const HERO_CHIBI_MODELS = ["chibi_knight", "chibi_knight", "chibi_knight", "chib
 const HERO_ART_NAMES = ["Knight", "Rogue", "Mage", "Barbarian"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
 const BOSS_NAMES = ["THE TOMB MAW", "THE ROOTMOTHER", "THE BOG TYRANT",
-    "THE GLACIER KING", "THE CINDER LORD", "QUEEN OF SORROW",
+    "THE GLACIER KING", "THE CINDER LORD", "THE SORROW KING",
     "THE DUNE COLOSSUS", "THE THUNDER TITAN", "THE ECLIPSE ORACLE", "THE RIFT SOVEREIGN"]
 const BIOME_NAMES = ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY",
     "FROZEN CAVERN", "INFERNAL WASTES", "HAUNTED GRAVE KINGDOM",
@@ -3237,10 +3237,13 @@ func _spawn_horde() -> void:
         var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
         # Distributed entry points, with individual approach delays.
         # No clustered spawn at the chamber center.
-        var entry_angle: float = TAU * (float(i) + rng.randf_range(-0.16, 0.16)) / float(mob_count)
-        var entry_radius: float = 3.1 + float(i % 3) * 0.54
+        # Three genuinely separated entry lanes. The near/far rings and
+        # golden-angle order prevent the original shoulder-to-shoulder lineup.
+        # Keep the boss at the chamber focal point.
+        var entry_angle: float = TAU * fposmod(float(i) * 0.61803398875 + rng.randf_range(-0.028, 0.028), 1.0)
+        var entry_radius: float = 4.0 + float(i % 3) * 1.28 + rng.randf_range(-0.22, 0.22)
         var entry := Vector3(cos(entry_angle) * entry_radius, 0.0, sin(entry_angle) * entry_radius)
-        root.position = spawn_center + (Vector3(0.0, 0.0, -3.3) if elite else entry)
+        root.position = spawn_center + (Vector3(0.0, 0.0, -4.5) if elite else entry)
         if hero != null and is_instance_valid(hero):
             root.rotation.y = _heading_from_direction(hero.position - root.position)
         var variant_hp: float = BOSS_HP_SCALE[_boss_variant()]
@@ -3248,7 +3251,9 @@ func _spawn_horde() -> void:
         root.set_meta("ai_role", "boss" if elite else ai_role)
         root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
         root.set_meta("ai_state", "waiting")
-        root.set_meta("ai_decision", 0.3 + float(i % 5) * 0.48 + rng.randf_range(0.0, 0.42))
+        # Distinct arrival times: three groups enter over several seconds.
+        # A waiting enemy is visible in the distance but cannot attack yet.
+        root.set_meta("ai_decision", 0.35 + float(i % 4) * 1.05 + rng.randf_range(0.0, 0.65))
         root.set_meta("ai_cooldown", rng.randf_range(0.4, 1.3))
         root.set_meta("ai_windup", 0.0)
         root.set_meta("ai_side", -1 if rng.randf() < 0.5 else 1)
