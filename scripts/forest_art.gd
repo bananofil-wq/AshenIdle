@@ -11,6 +11,7 @@ var _root_material: StandardMaterial3D
 var _wet_material: StandardMaterial3D
 var _shade_material: StandardMaterial3D
 var _sun_material: StandardMaterial3D
+var _sunpool_material: StandardMaterial3D
 var _earth_texture: ImageTexture
 
 
@@ -69,6 +70,15 @@ func _ensure_assets() -> void:
     _fern_mesh = _make_fronds()
     _leaf_mesh = _make_leaf_litter()
     _sun_material = _make_sun_material()
+    # Soft, translucent foliage breaks in sunlight without expensive
+    # real-time shadow maps on mobile GPUs.
+    _sunpool_material = StandardMaterial3D.new()
+    _sunpool_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    _sunpool_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    _sunpool_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _sunpool_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+    _sunpool_material.vertex_color_use_as_albedo = true
+    _sunpool_material.albedo_color = Color.WHITE
 
 
 func _make_fronds() -> Mesh:
@@ -269,10 +279,44 @@ func _sun_shafts(parent: Node3D, center: Vector3, seed_value: int, room_index: i
         parent.add_child(shaft)
 
 
+func _filtered_sunlight(parent: Node3D, center: Vector3, seed_value: int, room_index: int) -> void:
+    var rng := RandomNumberGenerator.new()
+    rng.seed = seed_value + 11981
+    var geometry := SurfaceTool.new()
+    geometry.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for patch_index in range(21):
+        var pos := center + Vector3(rng.randf_range(-4.55, 4.55),
+            -0.041, rng.randf_range(-5.0, 5.0))
+        var radius_x: float = rng.randf_range(0.29, 0.96)
+        var radius_z: float = rng.randf_range(0.48, 1.21)
+        var rays: int = 11
+        var soft: float = rng.randf_range(0.055, 0.12)
+        var hue := Color(1.0, 0.84, 0.57, soft)
+        var edge := Color(1.0, 0.86, 0.63, 0.0)
+        var angle_offset: float = rng.randf_range(-PI, PI)
+        for i in range(rays):
+            var a: float = angle_offset + TAU * float(i) / float(rays)
+            var b: float = angle_offset + TAU * float(i + 1) / float(rays)
+            var p0 := pos
+            var p1 := pos + Vector3(cos(a) * radius_x, 0, sin(a) * radius_z)
+            var p2 := pos + Vector3(cos(b) * radius_x, 0, sin(b) * radius_z)
+            for vertex_index in range(3):
+                geometry.set_color(hue if vertex_index == 0 else edge)
+                geometry.add_vertex([p0, p1, p2][vertex_index])
+    geometry.generate_normals()
+    var pools := MeshInstance3D.new()
+    pools.name = "CanopySunDapples_%d" % room_index
+    pools.mesh = geometry.commit()
+    pools.material_override = _sunpool_material
+    pools.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    parent.add_child(pools)
+
+
 func decorate(parent: Node3D, center: Vector3, stage: int, room_index: int) -> void:
     _ensure_assets()
     var seed_value: int = stage * 10007 + room_index * 15013
     _scatter_foliage(parent, center, seed_value, room_index)
     _sculpt_roots(parent, center, seed_value, room_index)
     _wet_ground(parent, center, seed_value, room_index)
+    _filtered_sunlight(parent, center, seed_value, room_index)
     _sun_shafts(parent, center, seed_value, room_index)
