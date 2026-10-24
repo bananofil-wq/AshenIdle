@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, art-pbr-monster-upgrade]
   workflow_dispatch:
 
 concurrency:
@@ -177,6 +177,13 @@ jobs:
           "$RUNNER_TEMP/gltf-tools/bin/python" scripts/normalize_gltf_for_godot.py assets/models/ashen_*.glb assets/models/*_dark.glb
           ls -lh assets/models/*_dark.glb assets/models/ashen_* assets/pbr/* 2>/dev/null || true
 
+      - name: Fetch pinned high-resolution rigged PBR enemies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fetch_hd_characters.py
+          test "$(find assets/models/hd -name '*.glb' | wc -l)" -eq 4
+
       - name: Download open-licensed fantasy heading font
         shell: bash
         run: |
@@ -321,6 +328,7 @@ jobs:
       # Publishing here keeps the direct APK available even if optional video
       # capture or encoding fails on a software-rendered CI runner.
       - name: Publish direct-download Android APK
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview
@@ -360,6 +368,7 @@ jobs:
           retention-days: 30
 
       - name: Attach optional gameplay motion video
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview
