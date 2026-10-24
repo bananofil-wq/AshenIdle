@@ -107,7 +107,8 @@ func _batch_static_boxes() -> void:
         var part: MeshInstance3D = child as MeshInstance3D
         if part == null or part.mesh == null or part.material_override == null:
             continue
-        var eligible: bool = part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage or part.mesh == _unit_boulder
+        var forest_canopy: bool = part.get_parent() != null and part.get_parent().name == "ForestCanopyTree"
+        var eligible: bool = forest_canopy or part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage or part.mesh == _unit_boulder
         if not eligible:
             for unit in _unit_columns.values():
                 if part.mesh == unit:
@@ -122,7 +123,8 @@ func _batch_static_boxes() -> void:
         var chunk: int = floori(part.global_position.z / 26.0)
         var key: String = "%d-%d-%d" % [part.mesh.get_instance_id(), material.get_instance_id(), chunk]
         if not batches.has(key):
-            batches[key] = {"material": material, "mesh": part.mesh, "chunk": chunk, "transforms": []}
+            batches[key] = {"material": material, "mesh": part.mesh, "chunk": chunk,
+                "forest_canopy": forest_canopy, "transforms": []}
         (batches[key]["transforms"] as Array).append(global_transform.affine_inverse() * part.global_transform)
         unbatched_box_count += 1
         part.queue_free()
@@ -141,6 +143,7 @@ func _batch_static_boxes() -> void:
         var instance := MultiMeshInstance3D.new()
         instance.name = "BatchedEnvironment_%s" % str(key).replace("-", "_")
         instance.set_meta("spatial_chunk", int(batch["chunk"]))
+        instance.set_meta("forest_canopy", bool(batch["forest_canopy"]))
         instance.multimesh = multi
         instance.material_override = batch["material"] as Material
         instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -510,7 +513,7 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
                 _forest_understory(parent, p)
             var log := _block(parent, p + Vector3(0, 0.12, 0), Vector3(randomizer.randf_range(0.6, 1.5), 0.14, 0.21), earth)
             log.rotation.y = randomizer.randf_range(-0.9, 0.9)
-            if i % 4 == 0:
+            if i % 7 == 0:
                 _tree(parent, p + Vector3(side * 1.2, 0, 0))
         elif current_theme == 3:
             _spike(parent, p, randomizer.randf_range(0.3, 1.1), 0.18, accent_material if i % 3 == 0 else rock_material)
@@ -594,7 +597,7 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             else:
                 _cave_formation(parent, at)
         1: # Enchanted forest: giant trees and mossy rocks
-            if variant % 3 != 1:
+            if variant % 3 == 0:
                 _tree(parent, at)
             else:
                 _stone(parent, at, Vector3(1.7, 0.92, 1.5), rock_material)
@@ -1148,7 +1151,12 @@ func _decorate(parent: Node3D, at: Vector3, index: int) -> void:
                 Vector3(1.2, 0.46, 2.2), rock_material)
             _stone(parent, at + Vector3(side * 4.87, 0.14, 2.4),
                 Vector3(0.96, 0.58, 1.8), rock_material)
-    elif current_theme == 1 or current_theme == 2:
+    elif current_theme == 1:
+        # Keep one tree framing the lane, but a clear view toward the enemies.
+        _tree(parent, at + Vector3(-4.8 if index % 2 == 0 else 4.8, 0, -2.2))
+        _stone(parent, at + Vector3(5.25 if index % 2 == 0 else -5.25, 0.2, -2.0),
+            Vector3(1.15, 0.55, 1.0), rock_material)
+    elif current_theme == 2:
         for side in [-1.0, 1.0]:
             var stump := at + Vector3(side * 4.6, 0, -2.0)
             _tree(parent, stump)
