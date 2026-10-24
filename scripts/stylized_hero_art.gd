@@ -184,10 +184,10 @@ func _chibi_bone(skeleton: Skeleton3D, region: String) -> BoneAttachment3D:
     # provider-specific labels. Match hierarchy regions rather than suffixes.
     for i in range(skeleton.get_bone_count()):
         var name: String = skeleton.get_bone_name(i).to_lower()
-        if region == "head" and name.contains("head") and not name.contains("head_end"):
+        if region == "head" and (name.contains("head") or name == "def-face" or name == "face") and not name.contains("head_end"):
             first = i
             break
-        if region == "chest" and (name.contains("chest") or name.contains("spine2") or name.contains("spine_02")):
+        if region == "chest" and (name.contains("chest") or name.contains("spine2") or name.contains("spine_02") or name == "def-spine.003"):
             first = i
             break
     if first < 0:
