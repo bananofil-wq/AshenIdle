@@ -942,9 +942,11 @@ func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
             dirt.albedo_texture = forest_art.earth_texture()
             dirt.albedo_color = Color("dfcdb2")
             dirt.cull_mode = BaseMaterial3D.CULL_DISABLED
-            dirt.normal_enabled = false
-            dirt.roughness_texture = null
-            dirt.roughness = 0.86
+            dirt.normal_enabled = true
+            dirt.normal_texture = forest_art.earth_normal_texture()
+            dirt.normal_scale = 0.59
+            dirt.roughness_texture = forest_art.earth_roughness_texture()
+            dirt.roughness = 0.93
             dirt.uv1_scale = Vector3(1.45, 1.45, 1)
             _forest_trail_material = dirt
         else:
