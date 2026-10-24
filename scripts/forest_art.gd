@@ -56,13 +56,13 @@ func _ensure_assets() -> void:
     _root_material.albedo_color = Color("8c7963")
     _root_material.roughness = 1.0
     _wet_material = StandardMaterial3D.new()
-    _wet_material.albedo_color = Color(0.10, 0.15, 0.12, 0.66)
+    _wet_material.albedo_color = Color(0.22, 0.25, 0.20, 0.34)
     _wet_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     _wet_material.roughness = 0.24
     _wet_material.metallic = 0.12
     _wet_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     _shade_material = StandardMaterial3D.new()
-    _shade_material.albedo_color = Color(0.07, 0.11, 0.065, 0.18)
+    _shade_material.albedo_color = Color(0.20, 0.24, 0.17, 0.105)
     _shade_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     _shade_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     _shade_material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -158,23 +158,23 @@ func _scatter_foliage(parent: Node3D, center: Vector3, seed_value: int, room_ind
     var fern_colors: Array = []
     var leaves: Array = []
     var leaf_colors: Array = []
-    for n in range(142):
+    for n in range(104):
         # No obstacles in the hero's central auto-navigation lane.
         var side: float = -1.0 if n % 2 == 0 else 1.0
-        var x: float = center.x + side * random.randf_range(1.65, 5.8)
+        var x: float = center.x + side * random.randf_range(2.05, 5.65)
         var z: float = center.z + random.randf_range(-5.45, 5.45)
-        var size: float = random.randf_range(0.38, 1.35)
+        var size: float = random.randf_range(0.26, 0.76)
         ferns.append({"position": Vector3(x, -0.105, z),
             "angle": random.randf_range(-PI, PI), "scale": size})
         fern_colors.append([Color("a4ae8b"), Color("66865a"), Color("849d67")][n % 3])
-    for n in range(118):
+    for n in range(82):
         var x: float = center.x + random.randf_range(-4.9, 4.9)
         var z: float = center.z + random.randf_range(-5.4, 5.4)
-        leaves.append({"position": Vector3(x, -0.119, z),
+        leaves.append({"position": Vector3(x, -0.068, z),
             "angle": random.randf_range(-PI, PI),
-            "scale": random.randf_range(0.42, 1.5)})
-        leaf_colors.append([Color("d49c64"), Color("887450"), Color("be7850"),
-            Color("a2a063")][n % 4])
+            "scale": random.randf_range(0.25, 0.66)})
+        leaf_colors.append([Color("a38b68"), Color("777b58"), Color("966d50"),
+            Color("8b8758")][n % 4])
     _scatter_instance_group(parent, _fern_mesh, _fern_material, ferns, fern_colors,
         "ForestFernInstances_%d" % room_index)
     _scatter_instance_group(parent, _leaf_mesh, _leaf_material, leaves, leaf_colors,
@@ -225,13 +225,13 @@ func _wet_ground(parent: Node3D, center: Vector3, seed_value: int, room_index: i
     for is_shade in [false, true]:
         var surface := SurfaceTool.new()
         surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-        var patches: int = 12 if is_shade else 9
+        var patches: int = 9 if is_shade else 5
         for n in range(patches):
             var x: float = center.x + random.randf_range(-4.2, 4.2) if is_shade else center.x + random.randf_range(-0.85, 0.85)
             var z: float = center.z + random.randf_range(-5.1, 5.1)
-            var wide: float = random.randf_range(0.35, 1.15) if is_shade else random.randf_range(0.18, 0.60)
-            var long: float = random.randf_range(0.25, 1.20)
-            var y: float = -0.116 if is_shade else -0.128
+            var wide: float = random.randf_range(0.20, 0.65) if is_shade else random.randf_range(0.12, 0.34)
+            var long: float = random.randf_range(0.21, 0.72)
+            var y: float = -0.068 if is_shade else -0.060
             var pivot := Vector3(x, y, z)
             var edge: Array = []
             for i in range(9):
