@@ -65,6 +65,7 @@ const EVO = preload("res://scripts/evolution_rules.gd")
 const DIRECTOR = preload("res://scripts/encounter_director.gd")
 const CINEMATIC_SKILLS = preload("res://scripts/cinematic_skills.gd")
 const TREANT_ART = preload("res://scripts/treant_art.gd")
+const MOBILE_QUALITY = preload("res://scripts/mobile_quality.gd")
 
 var hero_class = 0
 var level = 1
@@ -133,6 +134,8 @@ var combat_bar: ColorRect
 var skill_buttons: Array = []
 var cinematic_skills: Node3D
 var treant_art = TREANT_ART.new()
+var quality_budget = MOBILE_QUALITY.new()
+var mobile_visibility_timer: float = 0.0
 var active_skill_zones: Array = []
 var defensive_ward_timer := 0.0
 var spawned_boss := false
@@ -223,6 +226,11 @@ var encounter_started_ms := 0
 
 
 func _ready() -> void:
+    # A 60 Hz Android display budget; the quality governor below lowers only
+    # ornamental details when the phone cannot sustain it.
+    if OS.has_feature("mobile"):
+        Engine.max_fps = 60
+        Engine.physics_ticks_per_second = 60
     rng.randomize()
     _load_game()
     _create_fx_textures()
@@ -1086,6 +1094,8 @@ func _spawn_enemy() -> void:
     dungeon_room_index = 1
     if hero != null and dungeon_points.size() > 0:
         hero.position = dungeon_points[0]
+        dungeon_map.call("set_graphics_preset", quality_budget.tier)
+        dungeon_map.call("set_lod_focus", hero.position, true)
     if camera_ref != null and hero != null:
         camera_focus = hero.position
         camera_ref.position = hero.position + Vector3(0.0, 18.0, 20.0)
@@ -1101,6 +1111,16 @@ func _process(delta: float) -> void:
         fps_sample_timer = 0.0
         var live_fps: int = int(Engine.get_frames_per_second())
         fps_label.text = "%d FPS" % live_fps
+        if OS.has_feature("mobile"):
+            var previous_tier: int = quality_budget.tier
+            var active_tier: int = quality_budget.observe(float(live_fps), 1.0)
+            if active_tier != previous_tier:
+                if dungeon_map != null:
+                    dungeon_map.call("set_graphics_preset", active_tier)
+                    if hero != null:
+                        dungeon_map.call("set_lod_focus", hero.position, true)
+                if mystic_light != null:
+                    mystic_light.visible = active_tier >= 1
         fps_label.add_theme_color_override("font_color", Color("93e4ad") if live_fps >= 50 else Color("f4bd73") if live_fps >= 30 else Color("ff7e74"))
     if not popup_shade.visible:
         mp = minf(_max_mp(), mp + _mana_regeneration() * delta)
@@ -1154,6 +1174,12 @@ func _process(delta: float) -> void:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
+    # Culling need only track meaningful steps, not process hundreds of nodes
+    # on all 60 frames. Always retain the current and next dungeon chamber.
+    mobile_visibility_timer += delta
+    if mobile_visibility_timer >= 0.20 and hero != null and dungeon_map != null:
+        mobile_visibility_timer = 0.0
+        dungeon_map.call("set_lod_focus", hero.position)
     _update_ground_pickup()
     _update_skill_zones(delta)
     defensive_ward_timer = maxf(0.0, defensive_ward_timer - delta)
