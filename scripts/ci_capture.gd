@@ -121,6 +121,27 @@ func _render_test() -> void:
             if not await _save_capture("biome-%d.png" % biome_floor):
                 quit(14)
                 return
+            if biome_floor == 11:
+                # Render the identical viewpoint in low-power mode to verify
+                # real GPU batching/culling, rather than claim 60 FPS from CI.
+                var full_draws: int = int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+                var scene_builder: Node3D = game.get("dungeon_map") as Node3D
+                var viewpoint: Node3D = game.get("hero") as Node3D
+                scene_builder.call("set_graphics_preset", 0)
+                scene_builder.call("set_lod_focus", viewpoint.position, true)
+                await create_timer(0.13).timeout
+                if not await _save_capture("biome-11-performance.png"):
+                    quit(32)
+                    return
+                var limited_draws: int = int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+                print("MOBILE RENDER QA: forest-high=", full_draws, " draw_calls, forest-low=", limited_draws, " draw_calls")
+                if limited_draws > full_draws + 12:
+                    push_error("Mobile performance tier increased forest draw calls")
+                    quit(33)
+                    return
+                scene_builder.call("set_graphics_preset", 2)
+                scene_builder.call("set_lod_focus", viewpoint.position, true)
+
         # Dedicated visual QA of the boss arena for all ten visual themes.
         # Each tenth floor includes the unique biome-specific boss sanctuary.
         for milestone in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
