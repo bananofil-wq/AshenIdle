@@ -1,0 +1,2 @@
+# Generated CI screenshots and logs, never Godot resources.
+# Prevents imported QA screenshots from increasing Android APK size.
