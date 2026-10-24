@@ -412,6 +412,16 @@ func _animate(root: Node3D, body: Node3D, beast: bool, legs: int) -> void:
                 if striking:
                     arc = [Vector3(-.8,0,phase*.08),Vector3(.96,0,-phase*.2),Vector3.ZERO]
                 _rotation(animation,"ToonVisual/%s:rotation" % pivot.name,duration,arc)
+        if walking:
+            # Grounded weight shift. Quadrupeds get a softer lateral sway,
+            # while humanoids subtly counterbalance each step.
+            _rotation(animation,"ToonVisual:position",duration,
+                [Vector3.ZERO,Vector3(0,.055 if beast else .035,0),Vector3.ZERO])
+        if beast:
+            var tail_pivot: Node3D = body.get_node_or_null("Tail") as Node3D
+            if tail_pivot != null:
+                _rotation(animation,"ToonVisual/Tail:rotation",duration,
+                    [Vector3(0,-.17,0),Vector3(0,.19,0),Vector3(0,-.17,0)])
         if clip_name == "Hit":
             _rotation(animation,"ToonVisual:rotation",duration,
                 [Vector3.ZERO,Vector3(.14,0,.12),Vector3.ZERO])
