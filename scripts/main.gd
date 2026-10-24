@@ -68,6 +68,7 @@ const TREANT_ART = preload("res://scripts/treant_art.gd")
 const FOREST_MONSTER_FACTORY = preload("res://scripts/forest_monster_factory.gd")
 const FOREST_MONSTER_DATA = preload("res://scripts/forest_monster_data.gd")
 const HD_CHARACTER_REGISTRY = preload("res://scripts/hd_character_registry.gd")
+const HD_WOLF_GAIT = preload("res://scripts/hd_wolf_gait.gd")
 const MOBILE_QUALITY = preload("res://scripts/mobile_quality.gd")
 
 var hero_class = 0
@@ -141,6 +142,7 @@ var treant_art = TREANT_ART.new()
 var forest_monsters = FOREST_MONSTER_FACTORY.new()
 var forest_monster_data = FOREST_MONSTER_DATA.new()
 var hd_characters = HD_CHARACTER_REGISTRY.new()
+var hd_wolf_gait = HD_WOLF_GAIT.new()
 var quality_budget = MOBILE_QUALITY.new()
 var mobile_visibility_timer: float = 0.0
 var active_skill_zones: Array = []
@@ -3183,6 +3185,8 @@ func _spawn_horde() -> void:
                 root.add_child(instance)
                 _fit_visual_model(instance, (3.1 + 0.17 * float(_boss_variant() % 4)) if elite else 1.63)
                 if high_detail:
+                    if hd_name == "hd_marsh_direwolf":
+                        hd_wolf_gait.attach(instance)
                     root.set_meta("hd_character", hd_name)
                 else:
                     _darken_character_materials(instance, elite)
