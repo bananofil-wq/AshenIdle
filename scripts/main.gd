@@ -10,7 +10,7 @@ const BIOME_NAMES = ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY",
     "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
 const MOB_FAMILIES = [
     ["SKELETON WARRIOR", "GOBLIN RAIDER", "CAVE BAT", "PLAGUE MUMMY", "CAVE SPIDER", "CRYPT SHAMAN", "BONE BRUTE", "WEREWOLF"],
-    ["FOREST WOLF", "THORN STALKER", "MOON ARCHER", "WILD SPIDER", "FAERIE", "ANCIENT TREANT", "SATYR", "CORRUPTED ELF"],
+    ["MOSS HOUND", "CORRUPTED SAPLING", "BROOD SPIDER", "REVENANT WANDERER", "MOSS HOUND", "BROOD SPIDER", "CORRUPTED SAPLING", "REVENANT WANDERER"],
     ["BOG SLIME", "BLIGHT TOAD", "SWAMP WITCH", "VENOM SPIDER", "ROTTING WALKER", "BOG REAPER", "ROT HAG", "SWAMP GOBLIN"],
     ["FROST WOLF", "ICE WITCH", "YETI", "CRYSTAL GOLEM", "FROST SKELETON", "ICE DEMON", "FROST SHAMAN", "FROSTMAW"],
     ["HELLHOUND", "ASH REAPER", "FLAMECALLER", "INFERNAL CRUSHER", "FIRE ELEMENTAL", "DEMON", "CULTIST", "IMP"],
@@ -20,7 +20,7 @@ const MOB_FAMILIES = [
     ["MOON CULTIST", "CORRUPTED GUARDIAN", "ARCANE BEAST", "VOID SPIRIT", "BLADE DANCER", "MOON SORCERER", "DUSK WATCHER", "ECLIPSE SHADE"],
     ["ASTRAL SENTINEL", "VOID KNIGHT", "RIFT HORROR", "STAR BEAST", "CELESTIAL MAGE", "RIFT WARDEN", "STARBORN GOLEM", "ASTRAL WRAITH"]
 ]
-const ELITE_FAMILIES = ["BONE BRUTE", "ANCIENT TREANT", "ROT HAG", "FROSTMAW",
+const ELITE_FAMILIES = ["BONE BRUTE", "THORN BRUTE", "ROT HAG", "FROSTMAW",
     "INFERNAL CRUSHER", "GRAVE KNIGHT", "DESERT GOLEM", "STORM KNIGHT",
     "CORRUPTED GUARDIAN", "RIFT WARDEN"]
 const BOSS_DAMAGE = [1.28, 1.05, 1.18, 1.12, 1.42, 1.22, 1.08, 1.35, 1.19, 1.48]
@@ -65,6 +65,8 @@ const EVO = preload("res://scripts/evolution_rules.gd")
 const DIRECTOR = preload("res://scripts/encounter_director.gd")
 const CINEMATIC_SKILLS = preload("res://scripts/cinematic_skills.gd")
 const TREANT_ART = preload("res://scripts/treant_art.gd")
+const FOREST_MONSTER_FACTORY = preload("res://scripts/forest_monster_factory.gd")
+const FOREST_MONSTER_DATA = preload("res://scripts/forest_monster_data.gd")
 const MOBILE_QUALITY = preload("res://scripts/mobile_quality.gd")
 
 var hero_class = 0
@@ -135,6 +137,8 @@ var combat_bar: ColorRect
 var skill_buttons: Array = []
 var cinematic_skills: Node3D
 var treant_art = TREANT_ART.new()
+var forest_monsters = FOREST_MONSTER_FACTORY.new()
+var forest_monster_data = FOREST_MONSTER_DATA.new()
 var quality_budget = MOBILE_QUALITY.new()
 var mobile_visibility_timer: float = 0.0
 var active_skill_zones: Array = []
@@ -1734,6 +1738,10 @@ func _actor_attack(actor: Node3D, magic: bool = false) -> void:
         return
     if Time.get_ticks_msec() < int(actor.get_meta("action_until", 0)) - 80:
         return
+    if actor.has_meta("forest_monster_id"):
+        if _play_actor_clip(actor, "Attack", 0.09, 1.25):
+            actor.set_meta("action_until", Time.get_ticks_msec() + 480)
+            return
     var clip := "Spell_Simple_Shoot" if magic else "Sword_Regular_A"
     if _play_actor_clip(actor, clip, 0.10, 1.65):
         actor.set_meta("action_until", Time.get_ticks_msec() + 390)
@@ -1806,6 +1814,9 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
         if push_direction.length_squared() > 0.02:
             target.set_meta("knockback", push_direction.normalized() * (2.4 if crit else 0.95))
         target.set_meta("stagger", 0.18 if crit else 0.08)
+    if health > 0.0 and target.has_meta("forest_monster_id"):
+        _play_actor_clip(target, "Hit", 0.04, 1.0)
+        target.set_meta("action_until", Time.get_ticks_msec() + 160)
     last_target_pos = target.global_position
     _impact(last_target_pos + Vector3(0.0, 0.75, 0.0), Color("ffc769") if crit else Color("b477ff"))
     if crit:
@@ -3132,7 +3143,17 @@ func _spawn_horde() -> void:
         var model_name: String = str(boss_models[biome]) if elite else str(role_models.get(ai_role, "skeleton_dark"))
         var root := Node3D.new()
         add_child(root)
-        var beast: bool = not elite and _beast_silhouette(root, species, _biome_fx_tint())
+        # The forest uses six purpose-built, animated organic creatures,
+        # including a unique tree colossus boss, not a reskinned humanoid.
+        var beast: bool = false
+        if biome == 1:
+            beast = forest_monsters.build(root, species, mini_elite, elite)
+            if beast:
+                var art_id: String = str(root.get_meta("forest_monster_id", ""))
+                var art_spec: Dictionary = forest_monster_data.spec(art_id)
+                ai_role = str(art_spec.get("role", ai_role))
+        else:
+            beast = not elite and _beast_silhouette(root, species, _biome_fx_tint())
         var packed: PackedScene = null if beast else _get_asset_scene(model_name)
         if packed == null and not beast:
             packed = _get_asset_scene("Skeleton_Warrior" if elite else "Skeleton_Minion")
@@ -3148,7 +3169,7 @@ func _spawn_horde() -> void:
                 if not _play_actor_clip(root, "Idle", 0.0, 1.0):
                     _pose_fantasy_skeleton(root, 0.0)
                 root.set_meta("visual_rest_position", instance.position)
-        if elite:
+        if elite and not (biome == 1 and beast):
             var aura_tint: Color = _biome_fx_tint()
             var halo := TorusMesh.new()
             halo.inner_radius = 1.07
@@ -3182,13 +3203,19 @@ func _spawn_horde() -> void:
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 2.6 if mini_elite else float(current_encounter.get("hp_factor", 1.0)))
         root.set_meta("ai_role", "boss" if elite else ai_role)
         root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
+        if biome == 1 and beast and not elite:
+            var art_info: Dictionary = forest_monster_data.spec(str(root.get_meta("forest_monster_id","")))
+            mob_health *= float(art_info.get("health",1.0))
         root.set_meta("hp", mob_health)
         root.set_meta("max_hp", mob_health)
         root.set_meta("boss", elite)
         root.set_meta("elite", elite or mini_elite)
         root.set_meta("species", species)
         root.set_meta("biome", biome)
-        root.set_meta("speed", 0.22 + rng.randf_range(0.01, 0.10))
+        var art_speed: float = 1.0
+        if biome == 1 and beast:
+            art_speed = float(forest_monster_data.spec(str(root.get_meta("forest_monster_id",""))).get("speed",1.0))
+        root.set_meta("speed", (0.22 + rng.randf_range(0.01, 0.10)) * art_speed)
         root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
     combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else BIOME_NAMES[_boss_variant()] + " - " + str(current_encounter.get("title", "HORDE APPROACHING"))
