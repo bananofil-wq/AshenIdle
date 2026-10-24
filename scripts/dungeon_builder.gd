@@ -789,11 +789,11 @@ func _forest_continuous_road() -> void:
         for col in range(lanes.size() - 1):
             var triangles: Array = [
                 [rows[i][col], col],
-                [rows[i + 1][col], col],
-                [rows[i][col + 1], col + 1],
                 [rows[i][col + 1], col + 1],
                 [rows[i + 1][col], col],
-                [rows[i + 1][col + 1], col + 1]]
+                [rows[i][col + 1], col + 1],
+                [rows[i + 1][col + 1], col + 1],
+                [rows[i + 1][col], col]]
             for pair in triangles:
                 var vertex: Vector3 = pair[0]
                 var outer: float = absf(float(lanes[int(pair[1])]))
