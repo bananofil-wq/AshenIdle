@@ -709,10 +709,23 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
     for i in range(15 if current_theme == 1 or current_theme == 2 else 25):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
-        if current_theme == 1 or current_theme == 2:
+        if current_theme == 1:
             if i % 2 == 0:
                 _forest_understory(parent, p)
-            var log := _block(parent, p + Vector3(0, 0.12, 0), Vector3(randomizer.randf_range(0.6, 1.5), 0.14, 0.21), earth)
+            # Sparse tapered limbs, rather than square brown matchsticks in
+            # every strip of grass. Roots and leaves already provide detail.
+            if i % 5 == 0:
+                var fallen := _column(parent, p + Vector3(0, -0.15, 0),
+                    randomizer.randf_range(0.65, 1.20), 0.075, earth, 7)
+                fallen.rotation.z = PI * 0.5
+                fallen.rotation.y = randomizer.randf_range(-1.1, 1.1)
+            if i % 7 == 0:
+                _tree(parent, p + Vector3(side * 1.2, 0, 0))
+        elif current_theme == 2:
+            if i % 2 == 0:
+                _forest_understory(parent, p)
+            var log := _block(parent, p + Vector3(0, 0.12, 0),
+                Vector3(randomizer.randf_range(0.6, 1.5), 0.14, 0.21), earth)
             log.rotation.y = randomizer.randf_range(-0.9, 0.9)
             if i % 7 == 0:
                 _tree(parent, p + Vector3(side * 1.2, 0, 0))
