@@ -19,7 +19,7 @@ func _noise_texture(seed_value: int, dark: Color, light: Color) -> Texture2D:
     for y in range(128):
         for x in range(128):
             var grain: float = noise.get_noise_2d(float(x), float(y) * 0.38)
-            var longitudinal: float = sin(float(x) * 0.23 + sin(float(y) * 0.052) * 1.7) * 0.18
+            var longitudinal: float = (sin(float(x) * 0.23 + sin(float(y) * 0.052) * 1.7) * 0.18) if seed_value != 41073 else 0.02
             var v: float = clampf(0.48 + grain * 0.46 + longitudinal, 0.07, 0.96)
             img.set_pixel(x, y, dark.lerp(light, v))
     var tex := ImageTexture.create_from_image(img)
@@ -57,7 +57,7 @@ func _material(key: String) -> StandardMaterial3D:
             var c: Color = Color("fa9c4f") if key == "glow_orange" else Color("a6e772") if key == "glow_venom" else Color("81dfd3")
             m.albedo_color = c
             m.emission = c
-            m.emission_energy_multiplier = 1.7
+            m.emission_energy_multiplier = 0.88
             m.roughness = 0.2
     _materials[key] = m
     return m
@@ -66,45 +66,63 @@ func _path(points: Array, radii: Array, color: Color, phase: float = 0.0) -> Dic
     return {"points": points, "radii": radii, "color": color, "phase": phase}
 
 func _tube(st: SurfaceTool, section: Dictionary) -> void:
+    # Shared rings use one continuous tangent frame. The first prototype used
+    # each segment's own frame, tearing the mesh at elbows and torso bends.
+    # Analytic radial normals give smooth shaded skin without triangle seams.
     var pts: Array = section["points"] as Array
     var radii: Array = section["radii"] as Array
     var tint: Color = section["color"] as Color
     var phase: float = float(section["phase"])
     if pts.size() < 2 or pts.size() != radii.size():
         return
-    const SIDES := 9
+    const SIDES := 16
+    const SUBDIV := 3
     for i in range(pts.size() - 1):
-        var a: Vector3 = pts[i] as Vector3
-        var b: Vector3 = pts[i + 1] as Vector3
-        var direction: Vector3 = (b - a).normalized()
-        var side: Vector3 = direction.cross(Vector3.UP)
-        if side.length_squared() < 0.002:
-            side = direction.cross(Vector3.FORWARD)
-        side = side.normalized()
-        var binormal: Vector3 = direction.cross(side).normalized()
-        for face in range(SIDES):
-            var angle0: float = TAU * float(face) / float(SIDES)
-            var angle1: float = TAU * float(face + 1) / float(SIDES)
-            var local_points: Array = []
-            for ring in range(2):
-                for angular in [angle0, angle1]:
-                    var radius: float = float(radii[i + ring])
-                    var ripple: float = 0.91 + 0.12 * sin(angular * 5.0 + phase + float(i) * 0.43)
-                    var center: Vector3 = a if ring == 0 else b
-                    local_points.append(center + (side * cos(angular) + binormal * sin(angular)) * radius * ripple)
-            var c: Color = tint.darkened(0.16) if face % 4 == 0 else tint.lightened(0.07) if face % 3 == 1 else tint
-            for idx in [0, 1, 2, 1, 3, 2]:
-                var point: Vector3 = local_points[idx] as Vector3
-                st.set_color(c)
-                st.set_uv(Vector2((angle0 if idx % 2 == 0 else angle1) / TAU * 2.0, float(i + int(idx >= 2)) * 0.39))
-                st.add_vertex(point)
+        var center0: Vector3 = pts[i] as Vector3
+        var center1: Vector3 = pts[i+1] as Vector3
+        var former: Vector3 = pts[maxi(0,i-1)] as Vector3
+        var latter: Vector3 = pts[mini(pts.size()-1,i+2)] as Vector3
+        var tangent0: Vector3 = (center1-former).normalized()
+        var tangent1: Vector3 = (latter-center0).normalized()
+        for step in range(SUBDIV):
+            var t0: float = float(step)/float(SUBDIV)
+            var t1: float = float(step+1)/float(SUBDIV)
+            for facet in range(SIDES):
+                var u0: float = float(facet)/float(SIDES)
+                var u1: float = float(facet+1)/float(SIDES)
+                var vertices: Array = []
+                var normals: Array = []
+                for f in [t0,t1]:
+                    var axis: Vector3 = tangent0.lerp(tangent1,f).normalized()
+                    var side: Vector3 = axis.cross(Vector3.UP)
+                    if side.length_squared() < 0.002:
+                        side = axis.cross(Vector3.FORWARD)
+                    side = side.normalized()
+                    var binormal: Vector3 = axis.cross(side).normalized()
+                    var center: Vector3 = center0.lerp(center1,f)
+                    var radius: float = lerpf(float(radii[i]),float(radii[i+1]),f)
+                    for u in [u0,u1]:
+                        var angle: float = TAU*u
+                        var normal: Vector3 = (side*cos(angle)+binormal*sin(angle)).normalized()
+                        var ripple: float = 0.97+0.025*sin(angle*5.0+phase+float(i)*0.4)
+                        vertices.append(center+normal*radius*ripple)
+                        normals.append(normal)
+                var surface_tone: Color = tint.darkened(0.025) if facet%4==0 else tint
+                for index in [0,1,2,1,3,2]:
+                    var normal_out: Vector3 = normals[index] as Vector3
+                    st.set_normal(normal_out)
+                    st.set_color(surface_tone)
+                    var u: float = u0 if index%2==0 else u1
+                    var v: float = float(i)+(t0 if index<2 else t1)
+                    st.set_uv(Vector2(u*2.0,v*0.39))
+                    st.add_vertex(vertices[index] as Vector3)
 
 func _skin(parent: Node3D, name: String, sections: Array, material: String) -> MeshInstance3D:
     var tool := SurfaceTool.new()
     tool.begin(Mesh.PRIMITIVE_TRIANGLES)
     for section in sections:
         _tube(tool, section as Dictionary)
-    tool.generate_normals()
+    # _tube authored smooth vertex normals per continuous organic ring.
     var part := MeshInstance3D.new()
     part.name = name
     part.mesh = tool.commit()
@@ -123,8 +141,8 @@ func _joint(visual: Node3D, name: String, pos: Vector3, sections: Array, mat: St
 func _eyes(visual: Node3D, points: Array, variant: String) -> void:
     if _cached_eye == null:
         _cached_eye = SphereMesh.new()
-        _cached_eye.radius = 0.061
-        _cached_eye.height = 0.122
+        _cached_eye.radius = 0.041
+        _cached_eye.height = 0.085
         _cached_eye.radial_segments = 9
         _cached_eye.rings = 4
     var parent := Node3D.new()
