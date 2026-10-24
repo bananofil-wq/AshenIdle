@@ -716,11 +716,16 @@ func _run() -> void:
                     "Enchanted forest needs actual branched bark-and-leaf models rather than primitive cone trees"):
                 quit(114)
                 return
-            var tree: Node3D = forest_trees[0] as Node3D
-            if not _check(tree.get_child_count() == 2 and
-                    (tree.get_child(0) as MeshInstance3D).mesh != null and
-                    (tree.get_child(1) as MeshInstance3D).mesh != null,
-                    "Forest model should use one cached bark mesh and one leaf-crown mesh"):
+            var canopy_draw_batches: int = 0
+            var canopy_instances: int = 0
+            for candidate in builder.find_children("BatchedEnvironment_*", "MultiMeshInstance3D", true, false):
+                var batch: MultiMeshInstance3D = candidate as MultiMeshInstance3D
+                if bool(batch.get_meta("forest_canopy", false)):
+                    canopy_draw_batches += 1
+                    canopy_instances += batch.multimesh.instance_count
+            if not _check(canopy_draw_batches >= 2 and
+                    canopy_instances >= forest_trees.size() * 2,
+                    "Forest bark and leaves must be real GPU MultiMesh instances, not one draw call per tree"):
                 quit(115)
                 return
             var sunlight: MeshInstance3D = builder.get_node_or_null("Chamber_1/CanopySunDapples_1") as MeshInstance3D
