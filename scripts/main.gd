@@ -67,6 +67,7 @@ const CINEMATIC_SKILLS = preload("res://scripts/cinematic_skills.gd")
 const TREANT_ART = preload("res://scripts/treant_art.gd")
 const FOREST_MONSTER_FACTORY = preload("res://scripts/forest_monster_factory.gd")
 const FOREST_MONSTER_DATA = preload("res://scripts/forest_monster_data.gd")
+const HD_CHARACTER_REGISTRY = preload("res://scripts/hd_character_registry.gd")
 const MOBILE_QUALITY = preload("res://scripts/mobile_quality.gd")
 
 var hero_class = 0
@@ -139,6 +140,7 @@ var cinematic_skills: Node3D
 var treant_art = TREANT_ART.new()
 var forest_monsters = FOREST_MONSTER_FACTORY.new()
 var forest_monster_data = FOREST_MONSTER_DATA.new()
+var hd_characters = HD_CHARACTER_REGISTRY.new()
 var quality_budget = MOBILE_QUALITY.new()
 var mobile_visibility_timer: float = 0.0
 var active_skill_zones: Array = []
@@ -1646,6 +1648,21 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
     var player: AnimationPlayer = actor.get_meta("animation_driver", null) as AnimationPlayer
     if player == null or not is_instance_valid(player):
         return false
+    # High-detail animated assets use readable clip names in their own rig.
+    if actor.has_meta("hd_character"):
+        var hd_clip: String = clip.to_lower()
+        match hd_clip:
+            "jog_fwd", "jog", "run": hd_clip = "run_forward"
+            "walk": hd_clip = "walk_forward"
+            "attack": hd_clip = "sword_slash_horizontal" if str(actor.get_meta("hd_character","")).contains("warden") else "punch_left"
+            "hit": hd_clip = "hit_reaction"
+            "death": hd_clip = "death_fall"
+        for candidate in player.get_animation_list():
+            if str(candidate).to_lower() == hd_clip:
+                if str(actor.get_meta("clip_state", "")) != str(candidate) or not player.is_playing():
+                    player.play(str(candidate), blend, rate)
+                    actor.set_meta("clip_state", str(candidate))
+                return true
     var best := ""
     for name in player.get_animation_list():
         if str(name).to_lower() == clip.to_lower():
@@ -1738,7 +1755,7 @@ func _actor_attack(actor: Node3D, magic: bool = false) -> void:
         return
     if Time.get_ticks_msec() < int(actor.get_meta("action_until", 0)) - 80:
         return
-    if actor.has_meta("forest_monster_id"):
+    if actor.has_meta("forest_monster_id") or actor.has_meta("hd_character"):
         if _play_actor_clip(actor, "Attack", 0.09, 1.25):
             actor.set_meta("action_until", Time.get_ticks_msec() + 480)
             return
@@ -1814,7 +1831,7 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
         if push_direction.length_squared() > 0.02:
             target.set_meta("knockback", push_direction.normalized() * (2.4 if crit else 0.95))
         target.set_meta("stagger", 0.18 if crit else 0.08)
-    if health > 0.0 and target.has_meta("forest_monster_id"):
+    if health > 0.0 and (target.has_meta("forest_monster_id") or target.has_meta("hd_character")):
         _play_actor_clip(target, "Hit", 0.04, 1.0)
         target.set_meta("action_until", Time.get_ticks_msec() + 160)
     last_target_pos = target.global_position
@@ -3143,18 +3160,21 @@ func _spawn_horde() -> void:
         var model_name: String = str(boss_models[biome]) if elite else str(role_models.get(ai_role, "skeleton_dark"))
         var root := Node3D.new()
         add_child(root)
-        # The forest uses six purpose-built, animated organic creatures,
-        # including a unique tree colossus boss, not a reskinned humanoid.
+        # True skinned PBR characters replace generic models in every biome.
+        # Retain the sculpted forest boss and distinct non-humanoid fallback.
+        var hd_name: String = hd_characters.model_for_enemy(species, biome, elite, mini_elite)
+        var hd_packed: PackedScene = _get_asset_scene(hd_name) if hd_name != "" else null
+        var high_detail: bool = hd_packed != null
         var beast: bool = false
-        if biome == 1:
+        if biome == 1 and not high_detail:
             beast = forest_monsters.build(root, species, mini_elite, elite)
             if beast:
                 var art_id: String = str(root.get_meta("forest_monster_id", ""))
                 var art_spec: Dictionary = forest_monster_data.spec(art_id)
                 ai_role = str(art_spec.get("role", ai_role))
-        else:
+        elif not high_detail:
             beast = not elite and _beast_silhouette(root, species, _biome_fx_tint())
-        var packed: PackedScene = null if beast else _get_asset_scene(model_name)
+        var packed: PackedScene = hd_packed if high_detail else null if beast else _get_asset_scene(model_name)
         if packed == null and not beast:
             packed = _get_asset_scene("Skeleton_Warrior" if elite else "Skeleton_Minion")
         if packed != null:
@@ -3162,14 +3182,17 @@ func _spawn_horde() -> void:
             if instance != null:
                 root.add_child(instance)
                 _fit_visual_model(instance, (3.1 + 0.17 * float(_boss_variant() % 4)) if elite else 1.63)
-                _darken_character_materials(instance, elite)
-                if model_name.begins_with("ashen_"):
+                if high_detail:
+                    root.set_meta("hd_character", hd_name)
+                else:
+                    _darken_character_materials(instance, elite)
+                if not high_detail and model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
                 _bind_motion_driver(root)
                 if not _play_actor_clip(root, "Idle", 0.0, 1.0):
                     _pose_fantasy_skeleton(root, 0.0)
                 root.set_meta("visual_rest_position", instance.position)
-        if elite and not (biome == 1 and beast):
+        if elite and not (biome == 1 and beast) and not high_detail:
             var aura_tint: Color = _biome_fx_tint()
             var halo := TorusMesh.new()
             halo.inner_radius = 1.07
@@ -3559,7 +3582,7 @@ func _sphere_part(parent: Node3D, radius: float, pos: Vector3, color: Color) -> 
 func _get_asset_scene(short_name: String) -> PackedScene:
     if cached_model_scenes.has(short_name):
         return cached_model_scenes[short_name] as PackedScene
-    var path: String = "res://assets/models/" + short_name + ".glb"
+    var path: String = ("res://assets/models/hd/" + short_name.trim_prefix("hd_") + ".glb") if short_name.begins_with("hd_") else ("res://assets/models/" + short_name + ".glb")
     if not ResourceLoader.exists(path):
         return null
     var scene: PackedScene = ResourceLoader.load(path) as PackedScene
@@ -3721,7 +3744,8 @@ func _attach_hero_clips(model: Node3D) -> void:
     donor.queue_free()
 
 func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> Node3D:
-    var dark_name := _dark_character_name(model_name, enemy)
+    var hero_hd: String = hd_characters.model_for_hero(model_name) if not enemy else ""
+    var dark_name: String = hero_hd if hero_hd != "" and _get_asset_scene(hero_hd) != null else _dark_character_name(model_name, enemy)
     var packed := _get_asset_scene(dark_name)
     if packed == null:
         packed = _get_asset_scene(model_name)
@@ -3740,7 +3764,11 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     # on the visual mesh cancels/reverses its actual movement direction.
     model.rotation.y = 0.0
     root.set_meta("visual_rest_position", model.position)
-    _darken_character_materials(model, false)
+    # Preserve original albedo/normal/roughness maps on the new PBR models.
+    if dark_name.begins_with("hd_"):
+        root.set_meta("hd_character", dark_name)
+    else:
+        _darken_character_materials(model, false)
     if not enemy:
         _attach_hero_clips(model)
     _bind_motion_driver(root)
