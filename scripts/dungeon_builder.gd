@@ -102,7 +102,7 @@ func set_lod_focus(focus: Vector3, force: bool = false) -> void:
     var batch_radius: float = chamber_radius + 16.0
     for room in _visibility_chambers:
         if is_instance_valid(room):
-            var room_z: float = room.position.z
+            var room_z: float = float(room.get_meta("route_z", room.position.z))
             room.visible = absf(room_z - focus.z) < chamber_radius
     for batch in _visibility_batches:
         if is_instance_valid(batch):
@@ -1391,6 +1391,7 @@ func generate(floor_number: int) -> PackedVector3Array:
         room.name = "Chamber_%d" % i
         add_child(room)
         var p: Vector3 = walk_points[i]
+        room.set_meta("route_z", p.z)
         _room_floor(room, p, i)
         _winding_trail(room, p, i)
         _surface_story(room, p, i)
