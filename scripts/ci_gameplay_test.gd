@@ -753,6 +753,14 @@ func _run() -> void:
                     "Forest needs instanced sunlight and foliage shadows on the path"):
                 quit(116)
                 return
+            var connected_road: MeshInstance3D = builder.get_node_or_null(
+                "ForestConnectedRoad/MuddyForestTrack") as MeshInstance3D
+            if not _check(connected_road != null and
+                    connected_road.mesh != null and
+                    connected_road.mesh.get_aabb().size.z >= 50.0,
+                    "Forest dungeon needs one uninterrupted mud road across all four chambers"):
+                quit(124)
+                return
             var forest_road: MeshInstance3D = builder.get_node_or_null("Chamber_1/WindingTrail_1") as MeshInstance3D
             var road_material: StandardMaterial3D = forest_road.material_override as StandardMaterial3D if forest_road != null else null
             if not _check(road_material != null and road_material.albedo_texture != null and
