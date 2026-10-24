@@ -5,6 +5,7 @@ extends Node3D
 # The ten acts below each span ten floors; act ten ends at floor 100.
 # Beyond floor 100 the art rotation repeats at increasing difficulty.
 const BIOME_PROFILES = preload("res://scripts/biome_profiles.gd")
+const FOREST_ART = preload("res://scripts/forest_art.gd")
 const THEMES := ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY", "FROZEN CAVERN", "INFERNAL WASTES",
     "HAUNTED GRAVE KINGDOM", "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
 const FLOOR_COLORS := ["55505a", "425e35", "423e30", "879dad", "3d3437", "3c454b", "a88759", "65737c", "514362", "334b67"]
@@ -33,6 +34,7 @@ var _material_cache: Dictionary = {}
 var _prefab_cache: Dictionary = {}
 var authentic_prop_count := 0
 var atmosphere_feature_count := 0
+var forest_art = FOREST_ART.new()
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
     var key: String = color.to_html(true) + (":glow" if emissive else ":mat")
@@ -431,6 +433,12 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
             _fungus_patch(parent, edge + Vector3(-sign * 0.6, 0, -2.0))
             _place_prefab(parent, edge + Vector3(sign * 0.5, 0, -2.4),
                 "citytree/bush", 2.2)
+            # Old forest temples, broken columns and practical firelight
+            # communicate scale without obstructing the navigation corridor.
+            _place_prefab(parent, edge + Vector3(sign * 0.25, 0, -4.3),
+                "halloween/arch_gate" if room_id % 2 == 0 else "pillar_decorated", 2.75)
+            _place_prefab(parent, center + Vector3(-sign * 4.75, 0, 2.35),
+                "halloween/post_lantern", 1.15)
         2: # Marsh pools with dead tree silhouettes, broken ruins and fungus.
             _water_feature(parent, edge + Vector3(sign * 0.65, 0, 0.6),
                 Vector2(2.7, 2.0))
@@ -536,9 +544,9 @@ func _tree(parent: Node3D, at: Vector3) -> void:
         limb.rotation.x = randomizer.randf_range(-0.3, 0.3)
     if grave:
         return
-    var leaf_dark := _solid(Color("356742") if current_theme == 1 else Color("40573a"))
-    var leaf_light := _solid(Color("80a552") if current_theme == 1 else Color("697b42"))
-    var leaf_deep := _solid(Color("274c36") if current_theme == 1 else Color("30422e"))
+    var leaf_dark := _solid(Color("345b3d") if current_theme == 1 else Color("40573a"))
+    var leaf_light := _solid(Color("678a52") if current_theme == 1 else Color("697b42"))
+    var leaf_deep := _solid(Color("254832") if current_theme == 1 else Color("30422e"))
     # Shared faceted boulder mesh gets GPU-instanced together with terrain.
     # Asymmetric lobes yield wide fantasy forest canopies with volume.
     var total_lobes: int = 4 if swamp else 8
@@ -728,6 +736,16 @@ func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
     dirt.vertex_color_use_as_albedo = true
     dirt.roughness = 0.99
     dirt.uv1_scale = Vector3(0.75, 0.75, 1)
+    if current_theme == 1:
+        # Worn, dark-brown earth stands apart from the surrounding leafy turf.
+        # Keeping its source texture separate stops the trail looking like a
+        # monochrome strip of tinted green photographic grass.
+        dirt.albedo_texture = forest_art.earth_texture()
+        dirt.albedo_color = Color("d1b9a1")
+        dirt.normal_enabled = false
+        dirt.roughness_texture = null
+        dirt.roughness = 0.87
+        dirt.uv1_scale = Vector3(1.5, 1.5, 1)
     var builder := SurfaceTool.new()
     builder.begin(Mesh.PRIMITIVE_TRIANGLES)
     var amount: int = 14
@@ -1252,6 +1270,10 @@ func generate(floor_number: int) -> PackedVector3Array:
                 _fern_rosette(room, p + Vector3(tuft_side * randomizer.randf_range(2.1, 3.6),
                     0, randomizer.randf_range(-4.3, 4.3)))
         _biome_dressing(room, p, i)
+        if current_theme == 1:
+            # Instanced ferns and leaf-litter, world-space roots, wet footprints
+            # and subtle sunbeams: genuine 3D scenery, not a baked screenshot.
+            forest_art.decorate(room, p, current_stage, i)
         if i > 0:
             _landmark(room, p, i)
         if i > 0:
