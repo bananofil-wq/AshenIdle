@@ -3769,7 +3769,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         root.set_meta("hd_character", dark_name)
     else:
         _darken_character_materials(model, false)
-    if not enemy:
+    if not enemy and not dark_name.begins_with("hd_"):
         _attach_hero_clips(model)
     _bind_motion_driver(root)
     if not _play_actor_clip(root, "Idle", 0.0, 1.0):
