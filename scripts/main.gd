@@ -1670,7 +1670,7 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
         for alias in aliases:
             for name_candidate in player.get_animation_list():
                 var spelling: String = str(name_candidate).to_lower()
-                if spelling.contains(alias) and not spelling.contains("crouchiddle") and not spelling.contains("iddle.001"):
+                if spelling.contains(alias) and not spelling.contains("crouchiddle") and not spelling.contains("iddle.001") and not spelling.contains("iddle_001"):
                     if str(actor.get_meta("clip_state", "")) != str(name_candidate) or not player.is_playing():
                         player.play(str(name_candidate), blend, rate)
                         actor.set_meta("clip_state", str(name_candidate))
