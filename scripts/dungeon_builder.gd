@@ -6,6 +6,7 @@ extends Node3D
 # Beyond floor 100 the art rotation repeats at increasing difficulty.
 const BIOME_PROFILES = preload("res://scripts/biome_profiles.gd")
 const FOREST_ART = preload("res://scripts/forest_art.gd")
+const FOREST_TREE_ART = preload("res://scripts/forest_tree_art.gd")
 const THEMES := ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY", "FROZEN CAVERN", "INFERNAL WASTES",
     "HAUNTED GRAVE KINGDOM", "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
 const FLOOR_COLORS := ["55505a", "425e35", "423e30", "879dad", "3d3437", "3c454b", "a88759", "65737c", "514362", "334b67"]
@@ -35,6 +36,7 @@ var _prefab_cache: Dictionary = {}
 var authentic_prop_count := 0
 var atmosphere_feature_count := 0
 var forest_art = FOREST_ART.new()
+var forest_trees = FOREST_TREE_ART.new()
 var _forest_trail_material: StandardMaterial3D
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
@@ -534,6 +536,11 @@ func _ground_details(parent: Node3D, center: Vector3) -> void:
             _stone(parent, p + Vector3(0, 0.06, 0), Vector3(randomizer.randf_range(0.34, 0.90), randomizer.randf_range(0.22, 0.60), randomizer.randf_range(0.44, 1.2)), rock_material)
 
 func _tree(parent: Node3D, at: Vector3) -> void:
+    if current_theme == 1:
+        # Cached organic tree anatomy is assembled into two meshes per tree.
+        # The old forest used bright cones and block-shaped canopy chunks.
+        forest_trees.plant(parent, at, randomizer.randi())
+        return
     # Warcraft-inspired broad irregular canopies: sculpted chunky leaf masses,
     # exaggerated branching and visible bark instead of Christmas-tree cones.
     var grave: bool = current_theme == 5
@@ -1141,9 +1148,22 @@ func _landmark(parent: Node3D, room: Vector3, index: int) -> void:
                 _column(structure, p, 2.7 + float(n % 2), 0.38, rock_material)
                 _stone(structure, p + Vector3(0.24, 0, 0), Vector3(1.1, 0.5, 0.92), rock_material)
             _cave_wall_mass(structure, at + Vector3(side * 1.1, 0, -0.4), side)
-        1: # Ancient grove with towering trunks and canopy
-            for n in range(3):
-                _tree(structure, at + Vector3(float(n) * side * 1.8, 0, float(n - 1) * 2.25))
+        1: # Ancient grove interlaced with a real ruined temple doorway
+            # Vertical masonry silhouettes and natural trees alternate across
+            # consecutive chambers. Each remains outside the auto-path.
+            _tree(structure, at + Vector3(side * 2.1, 0, -2.5))
+            _tree(structure, at + Vector3(-side * 0.8, 0, 2.8))
+            _place_prefab(structure, at + Vector3(side * 0.1, 0, -0.5),
+                "halloween/arch_gate", 3.7)
+            _place_prefab(structure, at + Vector3(-side * 1.6, 0, 1.85),
+                "halloween/post_lantern", 1.0)
+            for rubble in range(5):
+                var scatter: Vector3 = at + Vector3(
+                    randomizer.randf_range(-2.2, 2.2), 0.15,
+                    randomizer.randf_range(-2.5, 2.5))
+                _stone(structure, scatter, Vector3(
+                    randomizer.randf_range(0.36, 0.85), 0.35,
+                    randomizer.randf_range(0.48, 0.87)), rock_material)
             _forest_understory(structure, at + Vector3(0, 0, 1.5))
         2: # Rotting roots around a swamp cairn
             for n in range(3):
