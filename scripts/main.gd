@@ -1240,7 +1240,10 @@ func _fight() -> void:
     _hit_mob(target, damage, crit)
     if hero_class == 3 and _evolution_weight(0) > 0.0:
         hp = minf(_max_hp(), hp + damage * 0.011 * _evolution_weight(0))
-    _slash_trail(impact_point, crit)
+    # Let the character's sword animation carry the strike. A bright ring
+    # floating around the victim looked like disconnected white lines.
+    if crit:
+        _burst_particles(impact_point + Vector3(0, 0.95, 0), _biome_fx_tint(), 5, 0.55, 0.14)
     _play_audio(0)
     attack_animation_index += 1
     _actor_attack(hero, hero_class == 2)
@@ -1356,7 +1359,13 @@ func _move_hero(delta: float) -> void:
         from_target.y = 0.0
         if from_target.length_squared() < 0.03:
             from_target = Vector3.RIGHT
-        destination = target.position + from_target.normalized() * (3.45 if hero_class == 1 or hero_class == 2 else 1.45)
+        # Fixed attack standoff: do not continuously recalculate an orbiting
+        # destination from the hero's current position every frame.
+        var reach: float = 4.0 if hero_class == 1 or hero_class == 2 else 1.75
+        if hero.position.distance_to(target.position) > reach:
+            destination = target.position
+        else:
+            destination = hero.position
     if boss_cast_windup > 0.0 and boss_telegraph != null and is_instance_valid(boss_telegraph):
         var away: Vector3 = hero.position - boss_warning_center
         away.y = 0.0
@@ -1373,7 +1382,7 @@ func _move_hero(delta: float) -> void:
         speed *= 0.67
     # Acceleration, braking and directional blending keep traversal from
     # looking like rigid chess-piece movement on mobile.
-    var desired_velocity := motion.normalized() * speed if motion.length_squared() > 0.01 else Vector3.ZERO
+    var desired_velocity := motion.normalized() * speed if motion.length_squared() > 0.09 else Vector3.ZERO
     var travel_velocity: Vector3 = hero.get_meta("travel_velocity", Vector3.ZERO)
     travel_velocity = travel_velocity.move_toward(desired_velocity, 15.0 * delta)
     var travel_step: Vector3 = travel_velocity * delta
@@ -3123,8 +3132,8 @@ func _spawn_horde() -> void:
     current_encounter = encounter_director.choose(stage, dungeon_room_index, hero_class,
         grind_mode, hp / maxf(1.0, _max_hp()), rng)
     encounter_started_ms = Time.get_ticks_msec()
-    var mob_count: int = (5 + mini(int(stage / 20), 3)) if is_boss else (5 + mini(int(stage / 16), 3))
-    mob_count = clampi(mob_count + int(current_encounter.get("count_bonus", 0)), 5, 10)
+    var mob_count: int = (8 + mini(int(stage / 25), 2)) if is_boss else (8 + mini(int(stage / 18), 3))
+    mob_count = clampi(mob_count + int(current_encounter.get("count_bonus", 0)), 8, 12)
     wave_size = mob_count
     for i in range(mob_count):
         var elite: bool = is_boss and i == 0
@@ -3206,7 +3215,12 @@ func _spawn_horde() -> void:
             body.height = 1.18 if not elite else 2.1
             _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
         var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
-        root.position = spawn_center + (Vector3(0.0, 0.0, -0.90) if elite else _random_spawn())
+        # Distributed entry points, with individual approach delays.
+        # No clustered spawn at the chamber center.
+        var entry_angle: float = TAU * (float(i) + rng.randf_range(-0.16, 0.16)) / float(mob_count)
+        var entry_radius: float = 3.1 + float(i % 3) * 0.54
+        var entry := Vector3(cos(entry_angle) * entry_radius, 0.0, sin(entry_angle) * entry_radius)
+        root.position = spawn_center + (Vector3(0.0, 0.0, -3.3) if elite else entry)
         if hero != null and is_instance_valid(hero):
             root.rotation.y = _heading_from_direction(hero.position - root.position)
         var variant_hp: float = BOSS_HP_SCALE[_boss_variant()]
@@ -3214,10 +3228,11 @@ func _spawn_horde() -> void:
         root.set_meta("ai_role", "boss" if elite else ai_role)
         root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
         root.set_meta("ai_state", "waiting")
-        root.set_meta("ai_decision", rng.randf_range(0.25, 1.9))
+        root.set_meta("ai_decision", 0.3 + float(i % 5) * 0.48 + rng.randf_range(0.0, 0.42))
         root.set_meta("ai_cooldown", rng.randf_range(0.4, 1.3))
         root.set_meta("ai_windup", 0.0)
         root.set_meta("ai_side", -1 if rng.randf() < 0.5 else 1)
+        root.set_meta("ai_attack_count", 0)
         if biome == 1 and beast and not elite:
             var art_info: Dictionary = forest_monster_data.spec(str(root.get_meta("forest_monster_id","")))
             mob_health *= float(art_info.get("health",1.0))
@@ -3464,11 +3479,12 @@ func _update_chaos(delta: float) -> void:
         elif state == "waiting":
             if decision <= 0.0:
                 state = "approach"
-                decision = rng.randf_range(0.25, 0.9)
+                decision = rng.randf_range(0.4, 1.2)
         elif distance <= attack_range and cooldown <= 0.0:
             state = "windup"
             windup = 0.62 if boss else 0.52 if role == "guardian" else 0.44 if role == "caster" else 0.35
             _actor_attack(mob, role == "caster")
+            mob.set_meta("ai_attack_count", int(mob.get_meta("ai_attack_count", 0)) + 1)
         elif decision <= 0.0:
             state = "circle" if role == "flanker" or (role == "raider" and rng.randf() < 0.30) else "approach"
             decision = rng.randf_range(0.65, 1.55)
@@ -3482,6 +3498,7 @@ func _update_chaos(delta: float) -> void:
             var tangent: Vector3 = Vector3(-direction.z, 0.0, direction.x)
             var orbit: float = 1.0 if int(mob.get_meta("ai_side", 1)) >= 0 else -1.0
             var preferred: float = 4.2 if role == "caster" else 2.4 if role == "flanker" else 1.9 if boss else 1.6
+            # Approach from the spawn side, not a common destination point.
             desired = hero.position + direction * preferred
             if state == "circle":
                 desired += tangent * orbit * (2.0 if role == "flanker" else 1.1)
