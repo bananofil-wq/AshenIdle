@@ -17,6 +17,18 @@ func _choose_after_simulated_restart(game: Node, class_id: int) -> void:
     game.call("_select_class", class_id)
     game.set("startup_selection", false)
 
+func _complete_synthetic_room(game: Node) -> void:
+    # Unit tests advance rooms without killing the newly spawned wave.
+    # A random loot-convoy bonus would produce an unreachable pickup and
+    # occasionally block the next stage, making this test flaky. Natural loot
+    # and mandatory pickup are explicitly tested by the adjacent assertions.
+    game.call("_clear_ground_drops")
+    var encounter: Dictionary = game.get("current_encounter")
+    encounter["loot_bonus"] = false
+    game.set("current_encounter", encounter)
+    game.call("_complete_wave")
+
+
 func _run() -> void:
     # CI must not inherit a prior run's chosen evolution paths, offline levels
     # or class lock. The smoke/render checks use their own fresh sessions too.
@@ -208,7 +220,7 @@ func _run() -> void:
             quit(111)
             return
         game.call("_clear_ground_drops")
-    game.call("_complete_wave")
+    _complete_synthetic_room(game)
     if not _check(int(game.get("stage")) == prior and int(game.get("dungeon_room_index")) == 2, "First encounter opens the second dungeon room"):
         quit(14)
         return
@@ -218,14 +230,14 @@ func _run() -> void:
     for target_room in [3]:
         for attempt in range(3):
             game.call("_clear_ground_drops")
-            game.call("_complete_wave")
+            _complete_synthetic_room(game)
             if int(game.get("dungeon_room_index")) == target_room:
                 break
     if not _check(int(game.get("dungeon_room_index")) == 3, "Second encounter opens third room"):
         quit(55)
         return
     game.call("_clear_ground_drops")
-    game.call("_complete_wave")
+    _complete_synthetic_room(game)
     if not _check(int(game.get("stage")) == prior + 1, "Finishing all three rooms advances to next floor"):
         quit(56)
         return
@@ -244,7 +256,7 @@ func _run() -> void:
     for target_room in [2, 3]:
         for attempt in range(3):
             game.call("_clear_ground_drops")
-            game.call("_complete_wave")
+            _complete_synthetic_room(game)
             if int(game.get("dungeon_room_index")) == target_room:
                 break
     if not _check(int(game.get("dungeon_room_index")) == 3, "Boss must guard final room after two regular encounters"):
