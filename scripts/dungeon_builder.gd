@@ -80,6 +80,7 @@ func set_graphics_preset(tier: int) -> void:
         if is_instance_valid(emitter):
             emitter.amount = [4, 7, 12][_performance_tier]
             emitter.visible = _performance_tier > 0
+            emitter.emitting = _performance_tier > 0
     for shaft in _visibility_shafts:
         if is_instance_valid(shaft):
             shaft.visible = _performance_tier == 2
@@ -98,8 +99,8 @@ func set_lod_focus(focus: Vector3, force: bool = false) -> void:
     if not force and focus.distance_squared_to(_last_visibility_focus) < 1.8 * 1.8:
         return
     _last_visibility_focus = focus
-    var chamber_radius: float = [34.0, 39.0, 43.0][_performance_tier]
-    var batch_radius: float = chamber_radius + 16.0
+    var chamber_radius: float = [31.0, 36.0, 40.0][_performance_tier]
+    var batch_radius: float = chamber_radius + 15.0
     for room in _visibility_chambers:
         if is_instance_valid(room):
             var room_z: float = float(room.get_meta("route_z", room.position.z))
