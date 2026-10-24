@@ -188,6 +188,13 @@ jobs:
           python3 scripts/optimize_hd_characters.py
           test "$(find assets/models/hd -name '*.glb' | wc -l)" -eq 4
 
+      - name: Import CC0 textured 3D chibi heroes and monsters
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/fetch_chibi_characters.py
+          test "$(find assets/models/chibi -maxdepth 1 -name '*.glb' | wc -l)" -eq 5
+
       - name: Download open-licensed fantasy heading font
         shell: bash
         run: |
