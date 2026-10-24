@@ -108,8 +108,9 @@ func _run() -> void:
         return
     game.call("_animate_actor", actor, 3.0)
     var movement_clip: String = str(actor.get_meta("clip_state", "")).to_lower()
-    if not _check(movement_clip.contains("run_forward") if actor.has_meta("hd_character") else movement_clip.contains("jog"),
-            "Movement should select the imported high-detail run animation or KayKit jogging clip"):
+    var valid_walk: bool = movement_clip.contains("run") if actor.has_meta("chibi_character") else movement_clip.contains("run_forward") if actor.has_meta("hd_character") else movement_clip.contains("jog")
+    if not _check(valid_walk,
+            "Movement must drive the actual character skeleton/run animation, never move a rigid pawn"):
         quit(39)
         return
     # Regression: an actor's +Z axis must always point into real movement.
@@ -170,8 +171,9 @@ func _run() -> void:
             return
     game.call("_actor_attack", actor, false)
     var attack_clip: String = str(actor.get_meta("clip_state", "")).to_lower()
-    if not _check(attack_clip.contains("slash") if actor.has_meta("hd_character") else attack_clip.contains("sword"),
-            "Sword attacks must play the correct animated clip on the chosen character rig"):
+    var attacking: bool = attack_clip.contains("push") if actor.has_meta("chibi_character") else attack_clip.contains("slash") if actor.has_meta("hd_character") else attack_clip.contains("sword")
+    if not _check(attacking,
+            "Basic sword and spell attacks must select a real rigged action clip"):
         quit(42)
         return
     var camera: Camera3D = game.get("camera_ref")
