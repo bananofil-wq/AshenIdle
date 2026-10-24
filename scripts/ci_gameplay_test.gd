@@ -187,6 +187,14 @@ func _run() -> void:
     if not _check(enemies.size() >= 5, "Initial wave should contain several real enemies"):
         quit(11)
         return
+    game.call("_update_mob_contact_shadows")
+    var creature_shadows: MultiMeshInstance3D = game.get("mob_contact_shadows") as MultiMeshInstance3D
+    if not _check(creature_shadows != null and
+            creature_shadows.multimesh.instance_count == enemies.size() and
+            creature_shadows.multimesh.mesh != null,
+            "Mobile combat must ground every moving enemy with one GPU-batched shadow mesh"):
+        quit(123)
+        return
     for enemy in enemies:
         var actor_enemy: Node3D = enemy as Node3D
         if actor_enemy == null or not is_instance_valid(actor_enemy):
