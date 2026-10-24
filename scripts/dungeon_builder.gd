@@ -742,12 +742,9 @@ func _weather_particles(parent: Node3D, center: Vector3, area_index: int) -> voi
 
 
 func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
-    # The old landscape had a featureless photo-textured aisle through every
-    # world. A softly winding worn trail gives exterior acts a recognizable
-    # traversed route while preserving the flat, predictable navigation plane.
     if current_theme not in [1, 2, 5, 6, 7]:
         return
-    var tint: Color = [Color("ffffff"), Color("695943"), Color("655d43"),
+    var tint: Color = [Color("ffffff"), Color("ffffff"), Color("655d43"),
         Color("ffffff"), Color("ffffff"), Color("64605b"), Color("b3956b"),
         Color("707b84"), Color("ffffff"), Color("ffffff")][current_theme]
     var dirt := floor_material.duplicate() as StandardMaterial3D
@@ -756,46 +753,63 @@ func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
     dirt.roughness = 0.99
     dirt.uv1_scale = Vector3(0.75, 0.75, 1)
     if current_theme == 1:
-        # Share a real muddy-path material across all rooms AND corridors.
-        # The earlier disconnected patches exposed green rock paths between
-        # rooms and looked like scattered brown carpets instead of a road.
         if _forest_trail_material == null:
             dirt.albedo_texture = forest_art.earth_texture()
-            dirt.albedo_color = Color("d1b9a1")
+            dirt.albedo_color = Color("dfcdb2")
             dirt.cull_mode = BaseMaterial3D.CULL_DISABLED
             dirt.normal_enabled = false
             dirt.roughness_texture = null
-            dirt.roughness = 0.87
-            dirt.uv1_scale = Vector3(1.5, 1.5, 1)
+            dirt.roughness = 0.86
+            dirt.uv1_scale = Vector3(1.45, 1.45, 1)
             _forest_trail_material = dirt
         else:
             dirt = _forest_trail_material
     var builder := SurfaceTool.new()
     builder.begin(Mesh.PRIMITIVE_TRIANGLES)
-    var amount: int = 14
-    var left := PackedVector3Array()
-    var right := PackedVector3Array()
+    var amount: int = 34 if current_theme == 1 else 14
+    var lanes: Array = [-1.16, -0.89, -0.38, 0.38, 0.89, 1.16] if current_theme == 1 else [-1.0, 1.0]
+    var rows: Array = []
     for n in range(amount + 1):
         var progress: float = float(n) / float(amount)
-        var z: float = -5.5 + progress * 11.0
-        var wobble: float = sin(z * 0.46 + float(room_id) * 1.65 + float(current_stage) * 0.13) * 0.54
-        var half: float = 1.32 + 0.17 * sin(float(n) * 1.73 + float(room_id))
-        var ground_height: float = -0.065 if current_theme == 1 else -0.147
-        left.append(center + Vector3(wobble - half, ground_height, z))
-        right.append(center + Vector3(wobble + half, ground_height, z))
+        var z: float = -5.6 + progress * 11.2
+        var wobble: float = sin(z * 0.46 + float(room_id) * 1.65 + float(current_stage) * 0.13) * 0.52
+        wobble += sin(z * 1.51 + float(current_stage) * 0.77) * 0.12
+        var width: float = 1.38 + 0.19 * sin(z * 1.19 + float(room_id) * 1.13)
+        var ground_height: float = -0.059 if current_theme == 1 else -0.147
+        var row: Array = []
+        for lane in lanes:
+            var normalized: float = float(lane)
+            # Subtle irregular edges and lighter exposed soil at the center.
+            var edge_jitter: float = sin(z * 2.9 + float(room_id) * 2.7 + normalized * 1.2) * 0.045
+            row.append(center + Vector3(
+                wobble + normalized * width + edge_jitter, ground_height, z))
+        rows.append(row)
     for n in range(amount):
-        for v in [left[n], left[n+1], right[n], right[n], left[n+1], right[n+1]]:
-            var shade: float = 0.87 + 0.11 * sin(v.z * 0.75 + v.x * 1.3)
-            builder.set_color(Color(shade, shade, shade))
-            builder.set_uv(Vector2(v.x * 0.23, v.z * 0.23))
-            builder.add_vertex(v)
+        for lane_index in range(lanes.size() - 1):
+            var vertices: Array = [rows[n][lane_index], rows[n + 1][lane_index],
+                rows[n][lane_index + 1], rows[n][lane_index + 1],
+                rows[n + 1][lane_index], rows[n + 1][lane_index + 1]]
+            for vertex_index in range(vertices.size()):
+                var vertex: Vector3 = vertices[vertex_index]
+                var lane_id: int = lane_index if vertex_index in [0, 1, 4] else lane_index + 1
+                var outer: float = absf(float(lanes[lane_id]))
+                var value: float = clampf(0.87 + sin(vertex.x * 3.1 + vertex.z * 1.5) * 0.065, 0.77, 0.96)
+                var pigment: Color = Color(value, value, value)
+                if current_theme == 1:
+                    if outer > 1.0:
+                        pigment *= Color("77806b")
+                    elif outer > 0.7:
+                        pigment *= Color("a69d81")
+                builder.set_color(pigment)
+                builder.set_uv(Vector2(vertex.x * 0.30, vertex.z * 0.30))
+                builder.add_vertex(vertex)
     builder.generate_normals()
-    var strip := MeshInstance3D.new()
-    strip.name = "WindingTrail_%d" % room_id
-    strip.mesh = builder.commit()
-    strip.material_override = dirt
-    strip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    parent.add_child(strip)
+    var trail := MeshInstance3D.new()
+    trail.name = "WindingTrail_%d" % room_id
+    trail.mesh = builder.commit()
+    trail.material_override = dirt
+    trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    parent.add_child(trail)
 
 
 func _fern_rosette(parent: Node3D, at: Vector3) -> void:
@@ -815,6 +829,21 @@ func _fern_rosette(parent: Node3D, at: Vector3) -> void:
 
 
 func _surface_story(parent: Node3D, center: Vector3, room_id: int) -> void:
+    if current_theme == 1:
+        # Old broad slabs and matchstick cracks looked like wood scraps on
+        # a green floor. Off-road weathered stones support the forest story
+        # without cluttering the auto-walkable muddy trail.
+        for i in range(11):
+            var flank: float = -1.0 if i % 2 == 0 else 1.0
+            var gravel_at := center + Vector3(
+                flank * randomizer.randf_range(2.3, 5.1),
+                randomizer.randf_range(-0.06, 0.09),
+                randomizer.randf_range(-4.9, 4.9))
+            _stone(parent, gravel_at,
+                Vector3(randomizer.randf_range(0.16, 0.47),
+                    randomizer.randf_range(0.10, 0.28),
+                    randomizer.randf_range(0.22, 0.57)), rock_material)
+        return
     # Worn paving stones and fractures. Previously every room was covered
     # in identical fluorescent rings and matchstick-like luminous shards.
     var grout := _solid(Color("27282a") if current_theme == 3 else Color("33343a"))
