@@ -1642,6 +1642,28 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
     var player: AnimationPlayer = actor.get_meta("animation_driver", null) as AnimationPlayer
     if player == null or not is_instance_valid(player):
         return false
+    # Official CC0 chibi pack includes real skinning, textures and 11 native
+    # animations per character. Its two naming conventions are normalized here.
+    if actor.has_meta("chibi_character"):
+        var requested: String = clip.to_lower()
+        var token: String = "iddle"
+        if requested.contains("jog") or requested.contains("run"):
+            token = "run"
+        elif requested.contains("walk"):
+            token = "walk"
+        elif requested.contains("attack") or requested.contains("sword") or requested.contains("spell") or requested.contains("shoot"):
+            token = "push"
+        elif requested.contains("hit"):
+            token = "crouch"
+        elif requested.contains("death"):
+            token = "dying"
+        for name_candidate in player.get_animation_list():
+            var spelling: String = str(name_candidate).to_lower()
+            if spelling.contains(token) and not spelling.contains("crouchiddle") and not spelling.contains("iddle.001"):
+                if str(actor.get_meta("clip_state", "")) != str(name_candidate) or not player.is_playing():
+                    player.play(str(name_candidate),blend,rate)
+                    actor.set_meta("clip_state",str(name_candidate))
+                return true
     # High-detail animated assets use readable clip names in their own rig.
     if actor.has_meta("hd_character"):
         var hd_clip: String = clip.to_lower()
@@ -3125,6 +3147,28 @@ func _update_mob_contact_shadows() -> void:
     multi.visible_instance_count = living
 
 
+func _chibi_model_for_enemy(species: String, role: String, boss: bool) -> String:
+    var upper: String = species.to_upper()
+    # Don't force a human costume onto a true creature: those use purpose-built
+    # stylized wolf, spider, treant and golem meshes from toon_enemy_art.
+    for nonhumanoid in ["WOLF","HOUND","HYENA","BEAST","DRAKE","DRAGON",
+        "SPIDER","SCORPION","SLIME","GOLEM","TITAN","COLOSSUS",
+        "TREANT","ROOTMOTHER","SAPLING","ELEMENTAL","WYRM","BAT","FROG"]:
+        if upper.contains(nonhumanoid):
+            return ""
+    if boss:
+        if upper.contains("WITCH") or upper.contains("WRAITH") or upper.contains("MAGE") or upper.contains("PRIEST") or upper.contains("SORCER"):
+            return "chibi_merchant"
+        if upper.contains("ASSASSIN") or upper.contains("REAPER"):
+            return "chibi_ninja"
+        return "chibi_knight"
+    match role:
+        "guardian": return "chibi_knight"
+        "caster": return "chibi_merchant"
+        "flanker": return "chibi_ninja"
+        _: return "chibi_archer"
+
+
 func _spawn_horde() -> void:
     _ensure_mob_contact_shadows()
     for mob in arena_mobs:
@@ -3158,12 +3202,28 @@ func _spawn_horde() -> void:
         # fantasy style as the selectable heroes. No hidden PBR human mesh
         # underneath, no static costume glued to a walking model.
         var beast: bool = false
-        if toon_enemy_art.build_enemy(root, species, biome, elite, mini_elite, ai_role):
-            _bind_motion_driver(root)
-            _play_actor_clip(root, "Idle", 0.0, 1.0)
+        var chibi_name: String = _chibi_model_for_enemy(species,ai_role,elite)
+        var stylized_scene: PackedScene = _get_asset_scene(chibi_name) if chibi_name != "" else null
+        if stylized_scene != null:
+            var costume: Node3D = stylized_scene.instantiate() as Node3D
+            if costume != null:
+                root.add_child(costume)
+                _fit_visual_model(costume,3.15 if elite else 2.12 if mini_elite else 1.76)
+                root.set_meta("chibi_character",chibi_name)
+                root.set_meta("visual_rest_position",costume.position)
+                # Class-specific biome palette and boss masks FOLLOW the rig.
+                stylized_hero_art.decorate_enemy(costume,species,biome,elite,ai_role)
+                _bind_motion_driver(root)
+                _play_actor_clip(root,"Idle",0.0,1.0)
         else:
-            push_error("TOON ENEMY: could not create character " + species)
-        root.set_meta("visual_rest_position", Vector3.ZERO)
+            # Wolves, spiders, tree giants and elemental bosses keep their own
+            # articulated creature anatomy in the same stylized palette.
+            if toon_enemy_art.build_enemy(root,species,biome,elite,mini_elite,ai_role):
+                _bind_motion_driver(root)
+                _play_actor_clip(root,"Idle",0.0,1.0)
+            else:
+                push_error("STYLIZED ENEMY: cannot create " + species)
+            root.set_meta("visual_rest_position",Vector3.ZERO)
         var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
         # Distributed entry points, with individual approach delays.
         # No clustered spawn at the chamber center.
@@ -3567,7 +3627,7 @@ func _sphere_part(parent: Node3D, radius: float, pos: Vector3, color: Color) -> 
 func _get_asset_scene(short_name: String) -> PackedScene:
     if cached_model_scenes.has(short_name):
         return cached_model_scenes[short_name] as PackedScene
-    var path: String = ("res://assets/models/hd/" + short_name.trim_prefix("hd_") + ".glb") if short_name.begins_with("hd_") else ("res://assets/models/" + short_name + ".glb")
+    var path: String = ("res://assets/models/chibi/" + short_name.trim_prefix("chibi_") + ".glb") if short_name.begins_with("chibi_") else ("res://assets/models/hd/" + short_name.trim_prefix("hd_") + ".glb") if short_name.begins_with("hd_") else ("res://assets/models/" + short_name + ".glb")
     if not ResourceLoader.exists(path):
         return null
     var scene: PackedScene = ResourceLoader.load(path) as PackedScene
@@ -3732,6 +3792,25 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     # Player characters now use the same true chibi character architecture
     # as mobs/bosses, with independently animated limbs and oversized heads.
     # The imported realistic rig stays as a fallback if a class is unknown.
+    if not enemy:
+        # Source is independent of the reference images, with CC0 rigged,
+        # texture-painted chibi meshes from styloo's Godot pack.
+        var avatar_name: String = "chibi_knight" if model_name == "Knight" else "chibi_ninja" if model_name == "Rogue" else "chibi_merchant" if model_name == "Mage" else "chibi_archer"
+        var avatar_scene: PackedScene = _get_asset_scene(avatar_name)
+        if avatar_scene != null:
+            var avatar := Node3D.new()
+            avatar.position = at
+            add_child(avatar)
+            var costume: Node3D = avatar_scene.instantiate() as Node3D
+            if costume != null:
+                avatar.add_child(costume)
+                _fit_visual_model(costume,2.08)
+                avatar.set_meta("chibi_character",avatar_name)
+                avatar.set_meta("visual_rest_position",costume.position)
+                _bind_motion_driver(avatar)
+                if _play_actor_clip(avatar,"Idle",0.0,1.0):
+                    return avatar
+            avatar.queue_free()
     if not enemy:
         var cartoon_root := Node3D.new()
         cartoon_root.position = at
