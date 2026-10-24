@@ -34,3 +34,25 @@ jobs:
               except Exception as e:
                   print('ERROR',url,str(e))
           PY
+      - name: Download and inspect free rigged PBR creatures
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json,struct,hashlib,re
+          for name in ['gloom-stalker','marsh-direwolf','hollow-warden','ashfen-ranger','ashfen-dragon','hollow-wyrm']:
+              url='https://assetyard.dev/pack/files/'+name+'.glb'
+              try:
+                  data=urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'}),timeout=35).read()
+                  if data[:4]!=b'glTF':raise ValueError('not GLB')
+                  n=struct.unpack_from('<I',data,12)[0]
+                  doc=json.loads(data[20:20+n])
+                  tris=sum(doc['accessors'][part['indices']]['count']//3 for mesh in doc.get('meshes',[]) for part in mesh['primitives'] if 'indices' in part)
+                  print('MODEL',name,'bytes',len(data),'sha256',hashlib.sha256(data).hexdigest(),'triangles',tris,'materials',len(doc.get('materials',[])),'textures',len(doc.get('images',[])),'skins',len(doc.get('skins',[])),'animations',[a.get('name') for a in doc.get('animations',[])],'nodes',len(doc.get('nodes',[])),flush=True)
+              except Exception as e:
+                  print('DOWNLOAD ERROR',name,type(e).__name__,e,flush=True)
+          try:
+              html=urllib.request.urlopen('https://assetyard.dev/licenses/',timeout=20).read().decode('utf8','replace')
+              text=re.sub(r'<[^>]+>',' ',html)
+              print('LICENSES',re.sub(r'\\s+',' ',text)[:4500],flush=True)
+          except Exception as e:print('LICENSE FETCH ERROR',e)
+          PY
