@@ -742,6 +742,10 @@ func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
         # monochrome strip of tinted green photographic grass.
         dirt.albedo_texture = forest_art.earth_texture()
         dirt.albedo_color = Color("d1b9a1")
+        # Existing SurfaceTool winding can point away from the GLES3 camera
+        # when the route bends. Explicit double-sided rendering prevents the
+        # brown trail from disappearing and exposing the green floor beneath.
+        dirt.cull_mode = BaseMaterial3D.CULL_DISABLED
         dirt.normal_enabled = false
         dirt.roughness_texture = null
         dirt.roughness = 0.87
