@@ -3173,17 +3173,10 @@ func _chibi_model_for_enemy(species: String, role: String, boss: bool) -> String
         "TREANT","ROOTMOTHER","SAPLING","ELEMENTAL","WYRM","BAT","FROG"]:
         if upper.contains(nonhumanoid):
             return ""
-    if boss:
-        if upper.contains("WITCH") or upper.contains("WRAITH") or upper.contains("MAGE") or upper.contains("PRIEST") or upper.contains("SORCER"):
-            return "chibi_merchant"
-        if upper.contains("ASSASSIN") or upper.contains("REAPER"):
-            return "chibi_ninja"
-        return "chibi_knight"
-    match role:
-        "guardian": return "chibi_knight"
-        "caster": return "chibi_merchant"
-        "flanker": return "chibi_ninja"
-        _: return "chibi_archer"
+    # Old merchant, ninja and archer GLBs are female and clash with
+    # the male-only unified chibi fantasy art direction. Generate original
+    # biome-specific monster models for ALL enemy roles and bosses.
+    return ""
 
 
 func _spawn_horde() -> void:
