@@ -1,11 +1,13 @@
 extends SceneTree
 # Tests the REAL skinned hero models and costume bone attachments. These are
 # Godot 3D screenshots, never concept art or composited reference images.
+# All playable bodies use the single verified male chibi rig. The other
+# downloaded asset-pack characters are female and MUST NOT be playable.
 const HEROES: Array = [
     ["knight", "Knight"],
-    ["ninja", "Rogue"],
-    ["merchant", "Mage"],
-    ["archer", "Barbarian"]
+    ["knight", "Rogue"],
+    ["knight", "Mage"],
+    ["knight", "Barbarian"]
 ]
 const COSTUME = preload("res://scripts/stylized_hero_art.gd")
 
@@ -109,7 +111,7 @@ func _run() -> void:
         await process_frame
         await RenderingServer.frame_post_draw
         var shot: Image = root.get_texture().get_image()
-        if shot.is_empty() or shot.save_png("res://build/hero-style-%s.png" % hero_name) != OK:
+        if shot.is_empty() or shot.save_png("res://build/hero-style-%s.png" % hero_kind.to_lower()) != OK:
             _fail("Could not save actual hero 3D screenshot " + hero_kind)
             return
         print("MALE CHIBI HERO VERIFIED ", hero_kind, " native_movement=true, bone_costume=", decorated_count)
