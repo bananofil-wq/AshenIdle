@@ -38,6 +38,78 @@ var atmosphere_feature_count := 0
 var forest_art = FOREST_ART.new()
 var forest_trees = FOREST_TREE_ART.new()
 var _forest_trail_material: StandardMaterial3D
+# Cached visibility groups: the GPU should not draw four fully dressed rooms
+# or far-off leaf layers when the portrait camera can only see two.
+var _visibility_chambers: Array[Node3D] = []
+var _visibility_batches: Array[MultiMeshInstance3D] = []
+var _visibility_weather: Array[CPUParticles3D] = []
+var _visibility_shafts: Array[MeshInstance3D] = []
+var _visibility_flora: Array[MultiMeshInstance3D] = []
+var _visibility_dapples: Array[MeshInstance3D] = []
+var _performance_tier: int = 2
+var _last_visibility_focus: Vector3 = Vector3(9999, 0, 9999)
+
+func _cache_visibility() -> void:
+    _visibility_chambers.clear()
+    _visibility_batches.clear()
+    _visibility_weather.clear()
+    _visibility_shafts.clear()
+    _visibility_flora.clear()
+    _visibility_dapples.clear()
+    _last_visibility_focus = Vector3(9999, 0, 9999)
+    for node in get_children():
+        if node is Node3D and node.name.begins_with("Chamber_"):
+            _visibility_chambers.append(node as Node3D)
+        elif node is MultiMeshInstance3D and node.name.begins_with("BatchedEnvironment_"):
+            _visibility_batches.append(node as MultiMeshInstance3D)
+    for node in find_children("Atmosphere_*", "CPUParticles3D", true, false):
+        _visibility_weather.append(node as CPUParticles3D)
+    for node in find_children("ForestLightShaft_*", "MeshInstance3D", true, false):
+        _visibility_shafts.append(node as MeshInstance3D)
+    for node in find_children("ForestWildflowers_*", "MultiMeshInstance3D", true, false):
+        _visibility_flora.append(node as MultiMeshInstance3D)
+    for node in find_children("CanopySunDapples_*", "MeshInstance3D", true, false):
+        _visibility_dapples.append(node as MeshInstance3D)
+
+
+func set_graphics_preset(tier: int) -> void:
+    # High keeps full decoration, balanced dials back overdraw, low retains
+    # all terrain, monsters and important silhouettes but hides tiny effects.
+    _performance_tier = clampi(tier, 0, 2)
+    for emitter in _visibility_weather:
+        if is_instance_valid(emitter):
+            emitter.amount = [4, 7, 12][_performance_tier]
+            emitter.visible = _performance_tier > 0
+    for shaft in _visibility_shafts:
+        if is_instance_valid(shaft):
+            shaft.visible = _performance_tier == 2
+    for flowers in _visibility_flora:
+        if is_instance_valid(flowers):
+            flowers.visible = _performance_tier >= 1
+    for dapple in _visibility_dapples:
+        if is_instance_valid(dapple):
+            dapple.visible = _performance_tier >= 1
+    _last_visibility_focus = Vector3(9999, 0, 9999)
+
+
+func set_lod_focus(focus: Vector3, force: bool = false) -> void:
+    # A slight overdraw margin covers the forward-looking isometric camera
+    # while eliminating unseen forest geometry and imported ruin draw calls.
+    if not force and focus.distance_squared_to(_last_visibility_focus) < 1.8 * 1.8:
+        return
+    _last_visibility_focus = focus
+    var chamber_radius: float = [34.0, 39.0, 43.0][_performance_tier]
+    var batch_radius: float = chamber_radius + 16.0
+    for room in _visibility_chambers:
+        if is_instance_valid(room):
+            var room_z: float = room.position.z
+            room.visible = absf(room_z - focus.z) < chamber_radius
+    for batch in _visibility_batches:
+        if is_instance_valid(batch):
+            var chunk: int = int(batch.get_meta("spatial_chunk", 0))
+            var chunk_center_z: float = (float(chunk) + 0.5) * 26.0
+            batch.visible = absf(chunk_center_z - focus.z) < batch_radius
+
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
     var key: String = color.to_html(true) + (":glow" if emissive else ":mat")
@@ -1428,5 +1500,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     # Thousands of static stage blocks are now rendered through a few
     # MultiMesh batches rather than separate draw calls per cube.
     _batch_static_boxes()
+    _cache_visibility()
+    set_graphics_preset(_performance_tier)
     # This exit marks the destination; gameplay advances only after combat.
     return walk_points
