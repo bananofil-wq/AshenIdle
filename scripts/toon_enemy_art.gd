@@ -136,8 +136,14 @@ func _face(parent: Node3D, eyes: Color, skin: Color, big: bool) -> void:
     _egg(parent,"SnubNose",Vector3(0,-.015,.385),Vector3(.10,.085,.08),skin.darkened(.07))
 
 func _dress_humanoid(root: Node3D, species: String, biome: int,
-        boss: bool, elite: bool, role: String) -> void:
+        boss: bool, elite: bool, role: String, hero_kind: String = "") -> void:
     var colors: Array = BIOME_COLORS[clampi(biome,0,9)]
+    if hero_kind != "":
+        match hero_kind:
+            "Knight": colors = ["f6bf98","315b9d","dcecf7","28364d"]
+            "Rogue": colors = ["f4bc96","c55838","e9edf4","573570"]
+            "Mage": colors = ["f9bf8f","d35e29","f4be46","7a3031"]
+            "Barbarian": colors = ["ecd2cc","292d3f","e3cdd4","a72945"]
     var skin: Color = Color(colors[0])
     var cloth: Color = Color(colors[1])
     var accent: Color = Color(colors[2])
@@ -158,7 +164,7 @@ func _dress_humanoid(root: Node3D, species: String, biome: int,
         accent.darkened(.10),.20)
     _block(hip,"Belt",Vector3(0,-.26,.15),Vector3(.71,.14,.46),dark)
     _egg(hip,"GoldBuckle",Vector3(0,-.26,.38),Vector3(.15,.14,.06),accent,.65)
-    if role == "caster" or boss or role == "guardian":
+    if role == "caster" or boss or role == "guardian" or hero_kind == "Barbarian":
         _cape(hip,dark if not boss else cloth)
     for side in [-1.0,1.0]:
         var x: float = float(side)
@@ -192,7 +198,8 @@ func _dress_humanoid(root: Node3D, species: String, biome: int,
     _egg(head,"OversizedHead",Vector3(0,.12,.05),
         Vector3(.87 if boss else .77,.81 if boss else .73,.74),
         skin)
-    _face(head,Color("ffbb68") if biome in [0,3,9] else Color("94eeef"),skin,boss)
+    var eye_tint: Color = Color("72bbf9") if hero_kind == "Knight" else Color("84f0cf") if hero_kind == "Rogue" else Color("f7d33d") if hero_kind == "Mage" else Color("f05264") if hero_kind == "Barbarian" else Color("ffbb68") if biome in [0,3,9] else Color("94eeef")
+    _face(head,eye_tint,skin,boss)
     if role == "caster":
         _egg(head,"Hood",Vector3(0,.33,-.10),Vector3(.89,.43,.72),cloth)
         _horn(head,"HoodPeak",Vector3(0,.61,-.07),.21,.43,dark)
@@ -205,6 +212,23 @@ func _dress_humanoid(root: Node3D, species: String, biome: int,
     else:
         for i in range(3):
             _horn(head,"WildHair",Vector3(-.27+float(i)*.26,.54,-.06),.16,.35,dark)
+    if hero_kind == "Rogue":
+        # Swept-back ivory hair and violet scarf, original design vocabulary.
+        _egg(head,"SweptIvoryHair",Vector3(0,.48,-.11),Vector3(.83,.36,.71),Color("fff3d9"))
+        for side in [-1.0,1.0]:
+            _horn(head,"RoguePonytail",Vector3(float(side)*.38,.38,-.34),.18,.41,Color("fff3d9"),float(side)*.56)
+        _egg(hip,"VioletTravelScarf",Vector3(0,.28,.18),Vector3(.66,.18,.56),Color("633990"))
+    elif hero_kind == "Mage":
+        # Fiery corona is sculpted, not a flat sprite overlay.
+        for k in range(5):
+            _horn(head,"EmberCrest",Vector3(-.34+.17*float(k),.70,-.05),
+                .15,.31 + .09*float(k%2),Color("ffae2f") if k%2==0 else Color("ff6428"))
+    elif hero_kind == "Knight":
+        _horn(head,"RoyalRedPlume",Vector3(0,.74,-.10),.15,.43,Color("e64a50"))
+    elif hero_kind == "Barbarian":
+        for k in range(4):
+            _horn(head,"MoonwhiteLock",Vector3(-.32+.20*float(k),.61,-.14),
+                .13,.25,Color("f1e2e5"))
     if boss:
         # Every boss is crowned and larger, but the ten biome colorways stay
         # consistent with normal enemies of that realm.
@@ -381,6 +405,18 @@ func _animate(root: Node3D, body: Node3D, beast: bool, legs: int) -> void:
     player.add_animation_library("",library)
     root.set_meta("stylized_enemy",true)
     root.set_meta("visual_rest_position",Vector3.ZERO)
+
+func build_hero(root: Node3D, hero_kind: String) -> bool:
+    var role: String
+    match hero_kind:
+        "Knight": role = "guardian"
+        "Rogue": role = "flanker"
+        "Mage": role = "caster"
+        "Barbarian": role = "raider"
+        _: return false
+    _dress_humanoid(root,"HERO "+hero_kind.to_upper(),0,false,false,role,hero_kind)
+    root.set_meta("toon_hero",hero_kind)
+    return true
 
 func build_enemy(root: Node3D, species: String, biome: int, boss: bool,
         elite: bool, role: String) -> bool:
