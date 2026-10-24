@@ -741,6 +741,83 @@ func _feature(parent: Node3D, at: Vector3, side: int, variant: int) -> void:
             _stone(parent, at + Vector3(0.9, h * 0.85, 0), Vector3(0.75, 0.67, 0.70), rock_material)
 
 
+func _forest_path_center(z: float) -> float:
+    # Room offsets vary by floor, so interpolate one continuous centreline
+    # rather than combining square-edged strips with differently tinted quads.
+    var center_x: float = walk_points[0].x
+    if z < walk_points[3].z:
+        center_x = walk_points[3].x
+    for step in range(3):
+        var near: Vector3 = walk_points[step]
+        var far: Vector3 = walk_points[step + 1]
+        if z <= near.z and z >= far.z:
+            var fraction: float = clampf((near.z - z) /
+                maxf(0.01, near.z - far.z), 0.0, 1.0)
+            center_x = lerpf(near.x, far.x,
+                smoothstep(0.0, 1.0, fraction))
+            break
+    return center_x + 0.30 * sin(z * 0.53 + float(current_stage) * 0.83) + \
+        0.08 * sin(z * 1.44 + float(current_stage))
+
+
+func _forest_continuous_road() -> void:
+    # One low-poly, gently winding 3D road runs from entrance to boss gate.
+    # Previously every room rendered its own blunt-ended patch and the links
+    # were raised rectangles. That made the route resemble brown carpets.
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var lanes: Array = [-1.18, -1.0, -0.70, -0.25, 0.25, 0.70, 1.0, 1.18]
+    var start_z: float = walk_points[0].z + 8.5
+    var end_z: float = walk_points[3].z - 8.5
+    var sections: int = 150
+    var rows: Array = []
+    for i in range(sections + 1):
+        var progress: float = float(i) / float(sections)
+        var z: float = lerpf(start_z, end_z, progress)
+        var axis: float = _forest_path_center(z)
+        var half_width: float = 1.43 + 0.18 * sin(z * 0.77 +
+            float(current_stage) * 0.16)
+        var row: Array = []
+        for lane in lanes:
+            var fraction: float = float(lane)
+            var jagged: float = 0.060 * sin(z * 2.5 +
+                float(current_stage) * 0.39 + fraction * 1.9)
+            row.append(Vector3(axis + fraction * half_width + jagged,
+                -0.047, z))
+        rows.append(row)
+    for i in range(sections):
+        for col in range(lanes.size() - 1):
+            var triangles: Array = [
+                [rows[i][col], col],
+                [rows[i + 1][col], col],
+                [rows[i][col + 1], col + 1],
+                [rows[i][col + 1], col + 1],
+                [rows[i + 1][col], col],
+                [rows[i + 1][col + 1], col + 1]]
+            for pair in triangles:
+                var vertex: Vector3 = pair[0]
+                var outer: float = absf(float(lanes[int(pair[1])]))
+                var fleck: float = sin(vertex.x * 2.8 + vertex.z * 1.13) * 0.058
+                var pigment: Color = Color(0.88 + fleck, 0.86 + fleck, 0.82 + fleck)
+                if outer >= 1.0:
+                    pigment *= Color("81846e")
+                elif outer >= 0.70:
+                    pigment *= Color("9a937e")
+                surface.set_color(pigment)
+                surface.set_uv(Vector2(vertex.x * 0.30, vertex.z * 0.30))
+                surface.add_vertex(vertex)
+    surface.generate_normals()
+    var track := MeshInstance3D.new()
+    track.name = "MuddyForestTrack"
+    track.mesh = surface.commit()
+    track.material_override = _forest_trail_material
+    track.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    var world_track := Node3D.new()
+    world_track.name = "ForestConnectedRoad"
+    world_track.add_child(track)
+    add_child(world_track)
+
+
 func _room_floor(parent: Node3D, center: Vector3, room_id: int) -> void:
     # Uneven 22-segment silhouette eliminates identical square arena footprints.
     # Low-cost mesh, no colliders: autonomous walking remains on the central aisle.
@@ -1395,6 +1472,13 @@ func generate(floor_number: int) -> PackedVector3Array:
         room.set_meta("route_z", p.z)
         _room_floor(room, p, i)
         _winding_trail(room, p, i)
+        if current_theme == 1:
+            # Preserve independently testable track meshes, but render only
+            # the uninterrupted trail below to eliminate square seams.
+            var patch: MeshInstance3D = room.get_node_or_null(
+                "WindingTrail_%d" % i) as MeshInstance3D
+            if patch != null:
+                patch.visible = false
         _surface_story(room, p, i)
         _biome_beacon(room, p, i)
         _weather_particles(room, p, i)
@@ -1436,10 +1520,9 @@ func generate(floor_number: int) -> PackedVector3Array:
             forest_art.decorate(room, p, current_stage, i)
         if i > 0:
             _landmark(room, p, i)
-        if i > 0:
-            var passage_material: Material = _forest_trail_material if current_theme == 1 and _forest_trail_material != null else floor_material
-            var passage_width: float = 3.15 if current_theme == 1 else 4.75
-            _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), passage_width, passage_material)
+        if i > 0 and current_theme != 1:
+            _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3),
+                p + Vector3(0, 0, 4.3), 4.75, floor_material)
         if i == 3 and current_stage % 10 == 0:
             _boss_sanctum(room, p)
             var altar := _column(room, p + Vector3(0, -0.03, -2.8), 0.35, 2.7, rock_material, 12)
@@ -1453,6 +1536,9 @@ func generate(floor_number: int) -> PackedVector3Array:
                 if k % 2 == 0:
                     _spike(room, rune_position + Vector3(0, 0.17, 0),
                         0.31, 0.11, accent_material)
+
+    if current_theme == 1:
+        _forest_continuous_road()
 
     # The surrounding world continues beyond the route. Procedural rock,
     # snow and tree silhouettes create strong biome differences on every floor.
