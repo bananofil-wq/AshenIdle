@@ -1274,29 +1274,8 @@ func _fight() -> void:
     if arena_mobs.is_empty():
         _complete_wave()
         return
-    var remaining_mobs: float = float(arena_mobs.size())
-    var incoming: float = maxf(0.20, float(stage) * 0.085 + remaining_mobs * 0.075) * (1.0 - _defense_reduction())
-    if stage % BOSS_INTERVAL == 0:
-        incoming *= BOSS_DAMAGE[_boss_variant()]
-    if defensive_ward_timer > 0.0:
-        incoming *= 0.61
-    var attacker: Node3D = _choose_target()
-    if attacker != null and is_instance_valid(attacker):
-        var distance_to_attacker: float = hero.global_position.distance_to(attacker.global_position)
-        var ai_role: String = str(attacker.get_meta("ai_role", "raider"))
-        incoming *= float(current_encounter.get("damage_factor", 1.0))
-        if ai_role == "flanker":
-            incoming *= 1.11
-        elif ai_role == "guardian":
-            incoming *= 0.85
-        elif ai_role == "caster":
-            incoming *= 1.04
-        if distance_to_attacker <= (5.15 if ai_role == "caster" else 3.4 if bool(attacker.get_meta("boss", false)) else 2.55):
-            _actor_attack(attacker, ai_role == "caster")
-            # Caster foes can hurt from medium range, others need to close.
-            hp -= incoming
-        else:
-            hp -= incoming * 0.12
+    # Enemy AI resolves damage only after an actual visible windup/strike.
+    # Never deduct HP merely because the player landed a hit.
     if hp <= 0.0:
         _adaptive_defeat()
         hp = _max_hp()
@@ -1654,11 +1633,11 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
     if actor.has_meta("hd_character"):
         var hd_clip: String = clip.to_lower()
         match hd_clip:
-            "jog_fwd", "jog", "run": hd_clip = "run_forward"
-            "walk": hd_clip = "walk_forward"
-            "attack": hd_clip = "sword_slash_horizontal" if str(actor.get_meta("hd_character","")).contains("warden") else "punch_left"
-            "hit": hd_clip = "hit_reaction"
-            "death": hd_clip = "death_fall"
+            "jog_fwd", "jog", "run": hd_clip = "jog" if str(actor.get_meta("hd_character","")).contains("direwolf") else "run_forward"
+            "walk": hd_clip = "walk" if str(actor.get_meta("hd_character","")).contains("direwolf") else "walk_forward"
+            "attack": hd_clip = "attack" if str(actor.get_meta("hd_character","")).contains("direwolf") else "sword_slash_horizontal" if str(actor.get_meta("hd_character","")).contains("warden") else "punch_left"
+            "hit": hd_clip = "hit" if str(actor.get_meta("hd_character","")).contains("direwolf") else "hit_reaction"
+            "death": hd_clip = "death" if str(actor.get_meta("hd_character","")).contains("direwolf") else "death_fall"
         for candidate in player.get_animation_list():
             if str(candidate).to_lower() == hd_clip:
                 if str(actor.get_meta("clip_state", "")) != str(candidate) or not player.is_playing():
@@ -3187,6 +3166,10 @@ func _spawn_horde() -> void:
                 if high_detail:
                     if hd_name == "hd_marsh_direwolf":
                         hd_wolf_gait.attach(instance)
+                        # The source direwolf's forward axis is X, not the +Z
+                        # used by the gameplay controller. Rotate the VISUAL,
+                        # never the AI root, to prevent sideways running.
+                        instance.rotation.y = -PI * 0.5
                     root.set_meta("hd_character", hd_name)
                 else:
                     _darken_character_materials(instance, elite)
@@ -3230,6 +3213,11 @@ func _spawn_horde() -> void:
         var mob_health := (14.0 + float(stage) * 5.0 + float(level) * 0.20) * (variant_hp if elite else 2.6 if mini_elite else float(current_encounter.get("hp_factor", 1.0)))
         root.set_meta("ai_role", "boss" if elite else ai_role)
         root.set_meta("ai_next_cast", rng.randf_range(3.5, 6.5))
+        root.set_meta("ai_state", "waiting")
+        root.set_meta("ai_decision", rng.randf_range(0.25, 1.9))
+        root.set_meta("ai_cooldown", rng.randf_range(0.4, 1.3))
+        root.set_meta("ai_windup", 0.0)
+        root.set_meta("ai_side", -1 if rng.randf() < 0.5 else 1)
         if biome == 1 and beast and not elite:
             var art_info: Dictionary = forest_monster_data.spec(str(root.get_meta("forest_monster_id","")))
             mob_health *= float(art_info.get("health",1.0))
@@ -3415,95 +3403,49 @@ func _damage_popup(value: int, pos: Vector3, crit: bool) -> void:
             old["label"].queue_free()
 
 func _update_chaos(delta: float) -> void:
+    # Lightweight per-enemy finite-state AI: each foe has its own reaction
+    # delay, decision timer, windup, cooldown and stagger. No synchronized rush.
     for i in range(arena_mobs.size()):
         var mob: Node3D = arena_mobs[i] as Node3D
-        if not is_instance_valid(mob):
+        if mob == null or not is_instance_valid(mob):
             continue
         var boss: bool = bool(mob.get_meta("boss", false))
-        var phase: float = float(mob.get_meta("phase", 0))
-        var center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
-        var engaged: bool = hero != null and hero.position.distance_to(center) <= 7.6
-        # Keep the next room populated but stationary until the hero approaches.
-        # Once engaged, creatures close in, stagger and attack naturally.
-        var desired: Vector3 = mob.position
         var role: String = str(mob.get_meta("ai_role", "raider"))
-        if engaged:
-            # Each archetype has its own readable tactic:
-            # guardians occupy the front, hunters push, flankers circle,
-            # and casters maintain range instead of chess-piece marching.
-            var angle: float = float(i) * 2.40 + sin(chaos_time * 0.38 + phase) * 0.24
-            var radius: float = 1.45 if boss else 1.23 + float(i % 4) * 0.31
-            match role:
-                "flanker":
-                    angle += chaos_time * (0.32 if i % 2 == 0 else -0.32)
-                    radius = 2.0 + float(i % 3) * 0.28
-                "guardian":
-                    radius = 1.6 + float(i % 2) * 0.24
-                "caster":
-                    radius = 4.4 + 0.25 * sin(chaos_time * 0.8 + phase)
-                "raider":
-                    radius = 1.05 + float(i % 3) * 0.24
-            desired = hero.position + Vector3(cos(angle) * radius, 0, sin(angle) * radius)
-            if role == "caster":
-                # A caster backs off when the player closes in.
-                var retreat: Vector3 = mob.position - hero.position
-                retreat.y = 0.0
-                if retreat.length_squared() > 0.01 and retreat.length() < 2.0:
-                    desired = hero.position + retreat.normalized() * 4.0
-            desired.x = clampf(desired.x, center.x - 3.35, center.x + 3.35)
-            desired.z = clampf(desired.z, center.z - 4.5, center.z + 4.5)
-        var last_position: Vector3 = mob.position
-        var stagger: float = maxf(0, float(mob.get_meta("stagger", 0)) - delta)
+        var center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
+        var phase: float = float(mob.get_meta("phase", 0.0))
+        var engaged: bool = hero != null and hero.position.distance_to(center) <= 8.1
+        var distance: float = mob.position.distance_to(hero.position) if hero != null else INF
+        var attack_range: float = 5.0 if role == "caster" else 2.65 if boss else 1.85 if role == "flanker" else 2.15
+        var stagger: float = maxf(0.0, float(mob.get_meta("stagger", 0.0)) - delta)
         mob.set_meta("stagger", stagger)
+        var state: String = str(mob.get_meta("ai_state", "waiting"))
+        var cooldown: float = maxf(0.0, float(mob.get_meta("ai_cooldown", 0.0)) - delta)
+        var windup: float = maxf(0.0, float(mob.get_meta("ai_windup", 0.0)) - delta)
+        var decision: float = float(mob.get_meta("ai_decision", 0.0)) - delta
         var knockback: Vector3 = mob.get_meta("knockback", Vector3.ZERO)
         mob.position += knockback * delta
         mob.set_meta("knockback", knockback.move_toward(Vector3.ZERO, delta * 7.0))
-        var chase: Vector3 = desired - mob.position
-        chase.y = 0
-        # Natural start/stop speeds make the horde close in organically
-        # instead of sliding at a constant velocity around the player.
-        var ideal_velocity := Vector3.ZERO
-        if engaged and stagger <= 0.0 and chase.length_squared() > 0.0324:
-            var pursuit_speed: float = 1.28 + float(mob.get_meta("speed", 0.25)) * 1.35
-            pursuit_speed *= 1.38 if role == "flanker" else 0.78 if role == "guardian" else 0.92 if role == "caster" else 1.14
-            if Time.get_ticks_msec() < int(mob.get_meta("snared_until", 0)):
-                pursuit_speed *= 0.45
-            ideal_velocity = chase.normalized() * pursuit_speed
-        var pursuit_velocity: Vector3 = mob.get_meta("pursuit_velocity", Vector3.ZERO)
-        pursuit_velocity = pursuit_velocity.move_toward(ideal_velocity, delta * (7.0 if boss else 9.0))
-        var chase_step: Vector3 = pursuit_velocity * delta
-        if chase_step.length_squared() > chase.length_squared():
-            chase_step = chase
-            pursuit_velocity = Vector3.ZERO
-        mob.position += chase_step
-        mob.set_meta("pursuit_velocity", pursuit_velocity)
-        var velocity: float = mob.position.distance_to(last_position) / maxf(0.001, delta)
-        # Faraway unengaged enemies already have an Idle animation playing.
-        # Avoid repeatedly traversing and posing their full skeletons off camera.
-        if engaged or (hero != null and mob.position.distance_squared_to(hero.position) < 196.0):
-            _animate_actor(mob, velocity)
-        mob.position.y = 0
-        if engaged and hero != null:
-            var face: Vector3 = hero.position - mob.position
-            # Use the run animation only when facing the direction of travel.
-            # Face the hero at attack distance or when aiming a caster spell.
-            # Otherwise flankers looked like they were running sideways/backward.
-            var moving: Vector3 = mob.position - last_position
-            var close_enough: bool = face.length_squared() <= (3.7 * 3.7 if boss else 2.5 * 2.5)
-            var facing: Vector3 = face if close_enough or role == "caster" or moving.length_squared() < 0.0005 else moving
-            if facing.length_squared() > 0.02:
-                _turn_actor_towards(mob, facing, delta, 8.0)
-            if role == "caster" and not popup_shade.visible:
-                var cast_in: float = float(mob.get_meta("ai_next_cast", 5.0)) - delta
-                if cast_in <= 0.0 and hero.position.distance_squared_to(mob.position) < 36.0:
-                    cast_in = 5.7 + float(i % 3) * 0.7
-                    # Capped damage, clearly signalled by a directional arc.
-                    var spell_hurt: float = minf(_max_hp() * 0.022,
-                        (1.5 + float(stage) * 0.15) * float(current_encounter.get("damage_factor", 1.0)) * (1.0 - _defense_reduction()))
-                    hp -= spell_hurt
-                    _energy_arc(mob.global_position + Vector3(0, 1.3, 0),
-                        hero.global_position + Vector3(0, 1.05, 0), Color("a982e9"), 0.035)
-                    hero_hit_flash = 0.16
+        if not engaged or stagger > 0.0:
+            state = "stagger" if stagger > 0.0 else "waiting"
+            windup = 0.0
+        elif state == "windup":
+            if windup <= 0.0:
+                # The strike connects at the END of the visible animation,
+                # not as an invisible HP tax whenever the hero attacks.
+                if distance <= attack_range + 0.55:
+                    var incoming: float = (2.2 + float(stage) * 0.20) * (2.1 if boss else 1.0)
+                    incoming *= float(current_encounter.get("damage_factor", 1.0))
+                    incoming *= 1.14 if role == "flanker" else 0.88 if role == "guardian" else 1.0
+                    incoming *= (1.0 - _defense_reduction())
+                    if defensive_ward_timer > 0.0:
+                        incoming *= 0.61
+                    hp -= incoming
+                    hero_hit_flash = 0.22
+                    if role == "caster":
+                        _energy_arc(mob.global_position + Vector3(0, 1.3, 0),
+                            hero.global_position + Vector3(0, 1.05, 0), Color("a982e9"), 0.035)
+                    else:
+                        _burst_particles(hero.global_position + Vector3(0, 0.85, 0), _biome_fx_tint(), 5, 0.65, 0.15)
                     if hp <= 0.0:
                         _adaptive_defeat()
                         hp = _max_hp()
@@ -3511,11 +3453,83 @@ func _update_chaos(delta: float) -> void:
                         grind_mode = true
                         grind_cycles = 0
                         stage = maxi(1, highest - 1)
-                        combat_note = "ARCANE AMBUSH - FARMING SAFER FLOOR"
+                        combat_note = "DEFEATED — AUTO-GRINDING PREVIOUS STAGE"
                         _spawn_enemy()
-                        _refresh()
                         return
-                mob.set_meta("ai_next_cast", cast_in)
+                state = "recover"
+                cooldown = 1.0 + 0.18 * float(i % 4) + rng.randf_range(0.0, 0.45)
+        elif state == "recover":
+            if cooldown <= 0.0:
+                state = "approach"
+        elif state == "waiting":
+            if decision <= 0.0:
+                state = "approach"
+                decision = rng.randf_range(0.25, 0.9)
+        elif distance <= attack_range and cooldown <= 0.0:
+            state = "windup"
+            windup = 0.62 if boss else 0.52 if role == "guardian" else 0.44 if role == "caster" else 0.35
+            _actor_attack(mob, role == "caster")
+        elif decision <= 0.0:
+            state = "circle" if role == "flanker" or (role == "raider" and rng.randf() < 0.30) else "approach"
+            decision = rng.randf_range(0.65, 1.55)
+        var desired: Vector3 = mob.position
+        if engaged and state in ["approach", "circle"]:
+            var direction: Vector3 = mob.position - hero.position
+            direction.y = 0.0
+            if direction.length_squared() < 0.02:
+                direction = Vector3(cos(phase), 0.0, sin(phase))
+            direction = direction.normalized()
+            var tangent: Vector3 = Vector3(-direction.z, 0.0, direction.x)
+            var orbit: float = 1.0 if int(mob.get_meta("ai_side", 1)) >= 0 else -1.0
+            var preferred: float = 4.2 if role == "caster" else 2.4 if role == "flanker" else 1.9 if boss else 1.6
+            desired = hero.position + direction * preferred
+            if state == "circle":
+                desired += tangent * orbit * (2.0 if role == "flanker" else 1.1)
+            elif role == "caster" and distance < 3.1:
+                desired = hero.position + direction * 4.7
+            # Separate neighbours locally; cheap O(n^2) for <=10 monsters.
+            var separation := Vector3.ZERO
+            for other in arena_mobs:
+                if other == mob or not is_instance_valid(other):
+                    continue
+                var away: Vector3 = mob.position - (other as Node3D).position
+                away.y = 0.0
+                var squared: float = away.length_squared()
+                if squared > 0.01 and squared < 2.25:
+                    separation += away.normalized() * (1.5 - sqrt(squared)) * 0.9
+            desired += separation
+            desired.x = clampf(desired.x, center.x - 3.35, center.x + 3.35)
+            desired.z = clampf(desired.z, center.z - 4.5, center.z + 4.5)
+        var previous: Vector3 = mob.position
+        var velocity: Vector3 = mob.get_meta("pursuit_velocity", Vector3.ZERO)
+        var wanted := Vector3.ZERO
+        var to_goal: Vector3 = desired - mob.position
+        to_goal.y = 0.0
+        if engaged and state in ["approach", "circle"] and to_goal.length_squared() > 0.09:
+            var speed: float = 1.05 + float(mob.get_meta("speed", 0.25)) * 1.3
+            speed *= 1.27 if role == "flanker" else 0.75 if role == "guardian" else 0.90 if role == "caster" else 1.0
+            if Time.get_ticks_msec() < int(mob.get_meta("snared_until", 0)):
+                speed *= 0.45
+            wanted = to_goal.normalized() * speed
+        velocity = velocity.move_toward(wanted, delta * (5.0 if boss else 6.5))
+        var movement: Vector3 = velocity * delta
+        if movement.length_squared() > to_goal.length_squared() and state in ["approach", "circle"]:
+            movement = to_goal
+            velocity = Vector3.ZERO
+        mob.position += movement
+        mob.position.y = 0.0
+        mob.set_meta("pursuit_velocity", velocity)
+        var move_speed: float = mob.position.distance_to(previous) / maxf(0.001, delta)
+        if engaged or distance < 13.0:
+            _animate_actor(mob, move_speed)
+        if engaged:
+            var facing: Vector3 = hero.position - mob.position if state in ["windup", "recover"] or distance <= attack_range + 0.5 else movement
+            if facing.length_squared() > 0.001:
+                _turn_actor_towards(mob, facing, delta, 7.5 if boss else 10.0)
+        mob.set_meta("ai_state", state)
+        mob.set_meta("ai_cooldown", cooldown)
+        mob.set_meta("ai_windup", windup)
+        mob.set_meta("ai_decision", decision)
     for i in range(spell_fx.size() - 1, -1, -1):
         var fx: Dictionary = spell_fx[i]
         fx["time"] = float(fx["time"]) - delta
