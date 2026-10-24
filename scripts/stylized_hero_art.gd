@@ -172,3 +172,95 @@ func decorate_creature(visual: Node3D, species: String, biome: int, boss: bool) 
         _ball(visual, Vector3(float(side) * 0.20, 0.89 * scale_factor, 0.78), 0.08 * scale_factor, accent)
     if boss:
         _ball(visual, Vector3(0, 1.4 * scale_factor, 0), 0.24, accent)
+
+
+# Reference-driven costume silhouettes for the four male playable heroes.
+# The source GLB's skinned body, facial materials and native animations remain
+# intact. Lightweight accessories attach to real animated bones, not the floor
+# or an independently bobbing mannequin.
+func _chibi_bone(skeleton: Skeleton3D, region: String) -> BoneAttachment3D:
+    var first: int = -1
+    for i in range(skeleton.get_bone_count()):
+        var name: String = skeleton.get_bone_name(i).to_lower()
+        if region == "head" and (name.ends_with("head") or name == "head"):
+            first = i
+            break
+        if region == "chest" and (name.contains("chest") or name.ends_with("spine2") or name.ends_with("spine_02")):
+            first = i
+            break
+    if first < 0 and region == "chest":
+        for i in range(skeleton.get_bone_count()):
+            if skeleton.get_bone_name(i).to_lower().contains("spine"):
+                first = i
+                break
+    if first < 0:
+        return null
+    var attachment := BoneAttachment3D.new()
+    attachment.name = "HeroCostume" + region.capitalize()
+    skeleton.add_child(attachment)
+    attachment.bone_idx = first
+    return attachment
+
+func decorate_chibi(model: Node3D, kind: String) -> bool:
+    if model == null:
+        return false
+    if model.has_meta("male_chibi_costume"):
+        return str(model.get_meta("male_chibi_costume")) == kind
+    if not kind in ["Knight", "Rogue", "Mage", "Barbarian"]:
+        return false
+    var skeleton: Skeleton3D
+    for node in model.find_children("*", "Skeleton3D", true, false):
+        skeleton = node as Skeleton3D
+        break
+    if skeleton == null:
+        return false
+    var head: BoneAttachment3D = _chibi_bone(skeleton, "head")
+    var chest: BoneAttachment3D = _chibi_bone(skeleton, "chest")
+    if head == null or chest == null:
+        return false
+    var silver := Color("d8e8f1")
+    var gold := Color("f6bf52")
+    var blue := Color("285bad")
+    var red := Color("d53b3a")
+    if kind == "Knight":
+        # Silver armored guardian, blue mantle and upright crimson crest.
+        _block(chest, Vector3(0, 0.0, 0.16), Vector3(0.32, 0.27, 0.075), silver, 0.65)
+        _ball(chest, Vector3(0, 0.04, 0.22), 0.061, gold)
+        _ball(head, Vector3(0, 0.24, -0.02), 0.085, red, Vector3(0.78, 1.85, 0.85))
+        _cone(head, Vector3(0, 0.36, -0.05), 0.055, 0.23, red)
+        for side in [-1.0, 1.0]:
+            _ball(chest, Vector3(float(side) * 0.24, 0.12, 0), 0.105, silver)
+        _block(chest, Vector3(0, -0.15, -0.15), Vector3(0.34, 0.31, 0.055), blue)
+    elif kind == "Rogue":
+        # White ponytail, orange leather and purple scarf: clear at phone scale.
+        _ball(head, Vector3(0, 0.19, -0.025), 0.21, Color("f7e6ca"), Vector3(1.15, 0.43, 0.97))
+        _ball(head, Vector3(-0.17, 0.24, -0.13), 0.115, Color("f7e6ca"), Vector3(1.12, 1.26, 0.91))
+        _block(chest, Vector3(0, -0.05, 0.15), Vector3(0.32, 0.27, 0.075), Color("dc653a"))
+        _ball(chest, Vector3(0, 0.15, 0.12), 0.16, Color("5b397e"), Vector3(1.54, 0.27, 1.13))
+        _ball(chest, Vector3(0, -0.20, 0.19), 0.052, silver)
+    elif kind == "Mage":
+        # Male infernal pyromancer: paired horns, ember crown and fiery wings.
+        for side in [-1.0, 1.0]:
+            var x: float = float(side)
+            _cone(head, Vector3(x * 0.17, 0.25, -0.04), 0.075, 0.24, Color("8c281a"))
+            var wing := _ball(chest, Vector3(x * 0.39, 0.13, -0.20), 0.18,
+                Color("f77a16"), Vector3(0.58, 1.9, 0.34))
+            wing.rotation.z = x * -0.45
+            _ball(chest, Vector3(x * 0.31, 0.10, -0.17), 0.10, gold)
+        _cone(head, Vector3(0, 0.34, -0.01), 0.105, 0.36, Color("f15a17"))
+        _cone(head, Vector3(0, 0.42, 0.02), 0.052, 0.24, Color("fff078"))
+        _block(chest, Vector3(0, 0.0, 0.14), Vector3(0.34, 0.33, 0.09), red)
+        _ball(chest, Vector3(0, 0.01, 0.22), 0.09, gold)
+    else:
+        # White-haired reaper with angular dark armor, red-black cape, ruby.
+        _ball(head, Vector3(0, 0.20, -0.05), 0.22, silver, Vector3(1.12, 0.42, 1.05))
+        for side in [-1.0, 1.0]:
+            _ball(head, Vector3(float(side) * 0.18, 0.0, -0.075), 0.11, silver,
+                Vector3(0.61, 1.63, 0.68))
+            _ball(chest, Vector3(float(side) * 0.26, 0.11, 0.01), 0.105, Color("292b36"))
+        _block(chest, Vector3(0, 0.0, 0.14), Vector3(0.35, 0.32, 0.085), Color("272633"), 0.43)
+        _ball(chest, Vector3(0, 0.09, 0.23), 0.068, red)
+        _block(chest, Vector3(0, -0.08, -0.16), Vector3(0.48, 0.40, 0.054), red)
+        _block(chest, Vector3(0, -0.02, -0.20), Vector3(0.25, 0.32, 0.04), Color("2a2029"))
+    model.set_meta("male_chibi_costume", kind)
+    return true
