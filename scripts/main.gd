@@ -110,6 +110,7 @@ var camera_shake := 0.0
 var camera_time := 0.0
 var cinematic_camera := true
 var arena_mobs: Array = []
+var mob_contact_shadows: MultiMeshInstance3D
 var spell_fx: Array = []
 var loot_beams: Array = []
 var hit_texts: Array = []
@@ -1170,6 +1171,7 @@ func _process(delta: float) -> void:
         foe_body.scale = Vector3.ONE * (1.0 + attack_flash * 0.13)
     attack_flash = maxf(0.0, attack_flash - delta * 4.0)
     _update_chaos(delta)
+    _update_mob_contact_shadows()
     if screen_flash != null and screen_flash_fade > 0.0:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
@@ -3046,7 +3048,57 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
     return true
 
 
+func _ensure_mob_contact_shadows() -> void:
+    if mob_contact_shadows != null and is_instance_valid(mob_contact_shadows):
+        return
+    # One draw call for every moving creature's grounding shadow. Real-time
+    # 3D shadow maps stay disabled so the mobile render budget goes to models.
+    var image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+    for y in range(64):
+        for x in range(64):
+            var r: float = Vector2(float(x) - 31.5, float(y) - 31.5).length() / 31.5
+            var fade: float = 0.28 * pow(maxf(0.0, 1.0 - smoothstep(0.14, 1.0, r)), 1.6)
+            image.set_pixel(x, y, Color(0.035, 0.028, 0.021, fade))
+    var material := StandardMaterial3D.new()
+    material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+    material.albedo_texture = ImageTexture.create_from_image(image)
+    var ground_quad := PlaneMesh.new()
+    ground_quad.size = Vector2(1.65, 1.65)
+    var instances := MultiMesh.new()
+    instances.transform_format = MultiMesh.TRANSFORM_3D
+    instances.mesh = ground_quad
+    instances.instance_count = 0
+    mob_contact_shadows = MultiMeshInstance3D.new()
+    mob_contact_shadows.name = "MovingCreatureContactShadows"
+    mob_contact_shadows.multimesh = instances
+    mob_contact_shadows.material_override = material
+    mob_contact_shadows.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(mob_contact_shadows)
+
+
+func _update_mob_contact_shadows() -> void:
+    if mob_contact_shadows == null or not is_instance_valid(mob_contact_shadows):
+        return
+    var multi: MultiMesh = mob_contact_shadows.multimesh
+    var living: int = arena_mobs.size()
+    if multi.instance_count != living:
+        multi.instance_count = living
+    for index in range(living):
+        var enemy: Node3D = arena_mobs[index] as Node3D
+        if enemy == null or not is_instance_valid(enemy):
+            continue
+        var bigger: float = 1.75 if bool(enemy.get_meta("boss", false)) else 1.14 if bool(enemy.get_meta("elite", false)) else 0.92
+        var basis := Basis.IDENTITY.scaled(Vector3(bigger, bigger, bigger))
+        multi.set_instance_transform(index,
+            Transform3D(basis, enemy.position + Vector3(0, 0.036, 0)))
+    multi.visible_instance_count = living
+
+
 func _spawn_horde() -> void:
+    _ensure_mob_contact_shadows()
     for mob in arena_mobs:
         if is_instance_valid(mob):
             mob.queue_free()
