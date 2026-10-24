@@ -269,6 +269,14 @@ jobs:
             file build/gameplay-preview.png
           fi
 
+      - name: Render six real forest monster art previews
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --resolution 720x1280 --path . --rendering-driver opengl3 --script res://scripts/ci_monster_gallery.gd 2>&1 | tee build/monster-gallery.log
+          grep -q "MONSTER GALLERY PASS" build/monster-gallery.log
+          test "$(find build -maxdepth 1 -name 'forest-monster-*.png' | wc -l)" -eq 6
+
       - name: Upload actual gameplay preview
         if: always()
         uses: actions/upload-artifact@v4
@@ -277,6 +285,7 @@ jobs:
           path: |
             build/gameplay-preview*.png
             build/biome-*.png
+            build/forest-monster-*.png
             build/boss-preview.png
             build/boss-biome-*.png
             build/hero-selection-preview.png
