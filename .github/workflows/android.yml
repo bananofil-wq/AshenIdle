@@ -216,6 +216,14 @@ jobs:
           grep -q "RELEASE CONTENT PASS" build/release-test.log
           if grep -E 'SCRIPT ERROR|Parse Error|RELEASE CHECK FAILED|Invalid call|Invalid access' build/release-test.log; then exit 1; fi
 
+      - name: Verify Android 60 FPS quality adaptation
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --script res://scripts/ci_mobile_quality_test.gd 2>&1 | tee build/mobile-quality.log
+          grep -q "MOBILE QUALITY PASS" build/mobile-quality.log
+          if grep -E 'SCRIPT ERROR|Parse Error|MOBILE QUALITY FAIL|Invalid call|Invalid access' build/mobile-quality.log; then exit 1; fi
+
       - name: Validate offline adaptive encounter AI
         shell: bash
         run: |
