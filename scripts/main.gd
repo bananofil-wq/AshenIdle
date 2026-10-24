@@ -379,7 +379,9 @@ func _label(t: String, font_size: int, color: Color = Color("e8d8c1")) -> Label:
     var l = Label.new()
     l.text = t
     l.add_theme_font_size_override("font_size", font_size)
-    if font_size >= 24 or t == "CINDER RECKONING" or t == "THE LOST LANDS" or t.contains("LEGENDARY EQUIPMENT"):
+    # Cinzel gives the character, act and biome headers the same restrained
+    # medieval typography as the target art, without changing body copy.
+    if font_size >= 19 or t.contains("ASHEN IDLE") or t == "THE LOST LANDS" or t.contains("LEGENDARY EQUIPMENT"):
         if ResourceLoader.exists("res://assets/fonts/Cinzel.ttf"):
             var display_font := load("res://assets/fonts/Cinzel.ttf") as Font
             if display_font != null:
@@ -437,7 +439,7 @@ func _build_ui() -> void:
     var portrait := PanelContainer.new()
     portrait.position = Vector2(14, 18)
     portrait.size = Vector2(280, 171)
-    portrait.add_theme_stylebox_override("panel", _skin(Color("0a0c12ed"), Color("65594d")))
+    portrait.add_theme_stylebox_override("panel", _skin(Color("080c14f1"), Color("ac8058")))
     overlay.add_child(portrait)
     var portrait_box := VBoxContainer.new()
     portrait.add_child(portrait_box)
@@ -462,7 +464,7 @@ func _build_ui() -> void:
     var map_panel := PanelContainer.new()
     map_panel.position = Vector2(512, 18)
     map_panel.size = Vector2(192, 177)
-    map_panel.add_theme_stylebox_override("panel", _skin(Color("0a0c12ed"), Color("65594d")))
+    map_panel.add_theme_stylebox_override("panel", _skin(Color("080c14f1"), Color("ac8058")))
     overlay.add_child(map_panel)
     var map_column := VBoxContainer.new()
     map_panel.add_child(map_column)
@@ -502,7 +504,7 @@ func _build_ui() -> void:
     var banner := PanelContainer.new()
     banner.position = Vector2(168, 260)
     banner.size = Vector2(384, 52)
-    banner.add_theme_stylebox_override("panel", _skin(Color("090a10ba"), Color("5e4e4b")))
+    banner.add_theme_stylebox_override("panel", _skin(Color("080c14db"), Color("be8b56")))
     overlay.add_child(banner)
     var banner_column := VBoxContainer.new()
     banner.add_child(banner_column)
@@ -2538,7 +2540,11 @@ func _ornate_button(title: String, callback: Callable, dims: Vector2) -> Button:
     b.clip_text = true
     b.custom_minimum_size = dims
     b.add_theme_font_size_override("font_size", 15)
-    b.add_theme_stylebox_override("normal", _skin(Color("101016ed"), Color("68605f")))
+    if title.length() <= 11 and ResourceLoader.exists("res://assets/fonts/Cinzel.ttf"):
+        var fantasy_font := load("res://assets/fonts/Cinzel.ttf") as Font
+        if fantasy_font != null:
+            b.add_theme_font_override("font", fantasy_font)
+    b.add_theme_stylebox_override("normal", _skin(Color("0b0e15f3"), Color("94714e")))
     b.add_theme_stylebox_override("hover", _skin(Color("26212be9"), Color("e4a568")))
     b.add_theme_stylebox_override("pressed", _skin(Color("51382ce9"), Color("f4bc77")))
     b.add_theme_stylebox_override("focus", _skin(Color("382c38d8"), Color("e4b676")))
