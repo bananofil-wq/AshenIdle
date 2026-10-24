@@ -107,7 +107,9 @@ func _run() -> void:
         quit(38)
         return
     game.call("_animate_actor", actor, 3.0)
-    if not _check(str(actor.get_meta("clip_state", "")).contains("Jog"), "Movement should select run clip"):
+    var movement_clip: String = str(actor.get_meta("clip_state", "")).to_lower()
+    if not _check(movement_clip.contains("run_forward") if actor.has_meta("hd_character") else movement_clip.contains("jog"),
+            "Movement should select the imported high-detail run animation or KayKit jogging clip"):
         quit(39)
         return
     # Regression: an actor's +Z axis must always point into real movement.
@@ -147,7 +149,9 @@ func _run() -> void:
         quit(41)
         return
     game.call("_actor_attack", actor, false)
-    if not _check(str(actor.get_meta("clip_state", "")).contains("Sword"), "Sword attacks should animate"):
+    var attack_clip: String = str(actor.get_meta("clip_state", "")).to_lower()
+    if not _check(attack_clip.contains("slash") if actor.has_meta("hd_character") else attack_clip.contains("sword"),
+            "Sword attacks must play the correct animated clip on the chosen character rig"):
         quit(42)
         return
     var camera: Camera3D = game.get("camera_ref")
