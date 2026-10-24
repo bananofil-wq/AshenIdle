@@ -69,6 +69,7 @@ const FOREST_MONSTER_FACTORY = preload("res://scripts/forest_monster_factory.gd"
 const FOREST_MONSTER_DATA = preload("res://scripts/forest_monster_data.gd")
 const HD_CHARACTER_REGISTRY = preload("res://scripts/hd_character_registry.gd")
 const HD_WOLF_GAIT = preload("res://scripts/hd_wolf_gait.gd")
+const STYLIZED_HERO_ART = preload("res://scripts/stylized_hero_art.gd")
 const MOBILE_QUALITY = preload("res://scripts/mobile_quality.gd")
 
 var hero_class = 0
@@ -143,6 +144,7 @@ var forest_monsters = FOREST_MONSTER_FACTORY.new()
 var forest_monster_data = FOREST_MONSTER_DATA.new()
 var hd_characters = HD_CHARACTER_REGISTRY.new()
 var hd_wolf_gait = HD_WOLF_GAIT.new()
+var stylized_hero_art = STYLIZED_HERO_ART.new()
 var quality_budget = MOBILE_QUALITY.new()
 var mobile_visibility_timer: float = 0.0
 var active_skill_zones: Array = []
@@ -3806,6 +3808,9 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         _darken_character_materials(model, false)
     if not enemy and not dark_name.begins_with("hd_"):
         _attach_hero_clips(model)
+    if not enemy:
+        stylized_hero_art.decorate(model, model_name)
+        root.set_meta("stylized_hero", model_name)
     _bind_motion_driver(root)
     if not _play_actor_clip(root, "Idle", 0.0, 1.0):
         _pose_fantasy_skeleton(root, 0.0)
