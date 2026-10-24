@@ -64,6 +64,7 @@ const BIOME_PROFILES = preload("res://scripts/biome_profiles.gd")
 const EVO = preload("res://scripts/evolution_rules.gd")
 const DIRECTOR = preload("res://scripts/encounter_director.gd")
 const CINEMATIC_SKILLS = preload("res://scripts/cinematic_skills.gd")
+const TREANT_ART = preload("res://scripts/treant_art.gd")
 
 var hero_class = 0
 var level = 1
@@ -131,6 +132,7 @@ var hero_mana_label: Label
 var combat_bar: ColorRect
 var skill_buttons: Array = []
 var cinematic_skills: Node3D
+var treant_art = TREANT_ART.new()
 var active_skill_zones: Array = []
 var defensive_ward_timer := 0.0
 var spawned_boss := false
@@ -1665,7 +1667,11 @@ func _animate_actor(actor: Node3D, speed: float) -> void:
     var wanted: String = "Jog_Fwd" if speed > 1.55 else "Walk" if speed > 0.22 else "Idle"
     var has_motion: bool = _play_actor_clip(actor, wanted, 0.16, 1.04 if speed > 0.22 else 1.0)
     if not has_motion and speed > 0.22:
-        has_motion = _play_actor_clip(actor, "Run", 0.14, 1.0)
+        # Procedural beasts expose Jog rather than imported Jog_Fwd. Without
+        # this their legs/roots only bobbed in place while sliding forward.
+        has_motion = _play_actor_clip(actor, "Jog", 0.14, 1.0)
+        if not has_motion:
+            has_motion = _play_actor_clip(actor, "Run", 0.14, 1.0)
     if not has_motion:
         _play_actor_clip(actor, "Idle", 0.16)
     var model: Node3D = actor.get_child(0) as Node3D if actor.get_child_count() > 0 else null
@@ -2945,22 +2951,9 @@ func _beast_silhouette(root: Node3D, species: String, tint: Color) -> bool:
             for sign in [-1.0, 1.0]:
                 _sphere_part(visual, 0.12, Vector3(sign * 0.23, 0.66, 0.48), shade)
         "treant":
-            # Actual bark-colored torso and branching crown. Previously this
-            # was literally a bright green pill with no readable tree anatomy.
-            var bark := Color("4e3724")
-            var canopy := Color("426c36")
-            _cone(visual, 0.55, 0.34, 2.10, Vector3(0, 1.08, 0), bark)
-            _sphere_part(visual, 0.50, Vector3(0, 1.79, 0), bark.darkened(0.15))
-            for sign in [-1.0, 1.0]:
-                var branch := _cone(visual, 0.27, 0.07, 1.48,
-                    Vector3(sign * 0.62, 1.47, 0), bark)
-                branch.rotation.z = sign * 0.78
-                var tree_root := _cone(visual, 0.36, 0.10, 1.05,
-                    Vector3(sign * 0.34, 0.39, 0), bark.darkened(0.15))
-                tree_root.rotation.z = sign * 0.43
-                _sphere_part(visual, 0.42, Vector3(sign * 0.88, 2.07, 0.12), canopy)
-                _sphere_part(visual, 0.12, Vector3(sign * 0.19, 1.92, 0.45), Color("ffbe65"))
-            _sphere_part(visual, 0.52, Vector3(0, 2.32, -0.10), canopy.lightened(0.14))
+            # Sculpted bark, root legs and claws in two shared materials,
+            # instead of bright conical bodies and toy-like eyes.
+            treant_art.build(visual, tint)
         "golem":
             # Huge interlocking rock masses read better on a small screen than
             # the old flat rectangular robot/chess-piece proportions.
