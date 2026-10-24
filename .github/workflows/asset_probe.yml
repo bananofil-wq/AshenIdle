@@ -1,0 +1,36 @@
+name: Discover free high-detail monster assets
+on:
+  push:
+    branches: [art-pbr-monster-upgrade]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probe publicly free model URLs and asset licensing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re,urllib.request,html,urllib.parse,json
+          pages=['https://assetyard.dev/samples/','https://assetyard.dev/pack/','https://assetyard.dev/docs/']
+          for url in pages:
+              try:
+                  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+                  resp=urllib.request.urlopen(req,timeout=25)
+                  data=resp.read().decode('utf-8','replace')
+                  print('PAGE',url,'status',resp.status,'html_size',len(data),flush=True)
+                  for term in ['gloom-stalker','marsh-direwolf','marsh-wraith','hollowreach','\.glb','\.zip','manifest\.json']:
+                      print('TERM',term,'hits',len(re.findall(term,data,re.I)))
+                      for m in list(re.finditer(term,data,re.I))[:8]:
+                          print('CTX',html.unescape(data[max(0,m.start()-180):m.end()+280]).replace('\\n',' ')[:500])
+                  seen=set()
+                  for match in re.findall(r'(?:href|src|url|download|file)[=:\\s"\\\x27]+([^"\\\x27\s<>]+)',data,re.I):
+                      u=html.unescape(match)
+                      if ('.glb' in u or '.zip' in u or 'pack' in u or 'manifest' in u) and u not in seen:
+                          seen.add(u);print('LINK',u[:260])
+              except Exception as e:
+                  print('ERROR',url,str(e))
+          PY
