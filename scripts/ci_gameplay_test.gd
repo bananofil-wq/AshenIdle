@@ -128,26 +128,46 @@ func _run() -> void:
     if not _check(hero_visual.position.distance_to(actor.get_meta("visual_rest_position", Vector3.INF)) < 0.02, "Jogging must preserve the fitted visual's ground position"):
         quit(106)
         return
-    var skeleton: Skeleton3D
-    for part in actor.find_children("*", "Skeleton3D", true, false):
-        skeleton = part as Skeleton3D
-        break
-    if not _check(skeleton != null, "Hero must have skeleton for motion"):
-        quit(40)
-        return
-    player.advance(0.21)
-    var first_pose: Array[Quaternion] = []
-    for bone_id in range(skeleton.get_bone_count()):
-        first_pose.append(skeleton.get_bone_pose_rotation(bone_id))
-    player.advance(0.25)
-    var moving_bones := false
-    for bone_id in range(skeleton.get_bone_count()):
-        if first_pose[bone_id].angle_to(skeleton.get_bone_pose_rotation(bone_id)) > 0.004:
-            moving_bones = true
+    # The original characters used imported Skeleton3D skins. The redesigned
+    # chibi cast uses equally real but lighter articulated pivot rigs; test
+    # motion on the actual legs rather than requiring an unused GLB skeleton.
+    if actor.has_meta("toon_hero"):
+        var left_leg: Node3D = actor.get_node_or_null("ToonVisual/LegLeft") as Node3D
+        var right_leg: Node3D = actor.get_node_or_null("ToonVisual/LegRight") as Node3D
+        if not _check(left_leg != null and right_leg != null, "Chibi hero must have independently rigged legs"):
+            quit(40)
+            return
+        player.advance(0.21)
+        var first_leg_pose: Vector3 = left_leg.rotation
+        var first_opposite_pose: Vector3 = right_leg.rotation
+        player.advance(0.25)
+        if not _check(left_leg.rotation.distance_to(first_leg_pose) > 0.05
+                and right_leg.rotation.distance_to(first_opposite_pose) > 0.05
+                and left_leg.rotation.x * right_leg.rotation.x < 0.0,
+                "Chibi locomotion must articulate opposing legs; no sliding or full-body bounce"):
+            quit(41)
+            return
+    else:
+        var skeleton: Skeleton3D
+        for part in actor.find_children("*", "Skeleton3D", true, false):
+            skeleton = part as Skeleton3D
             break
-    if not _check(moving_bones, "Skeletal animation should articulate the character"):
-        quit(41)
-        return
+        if not _check(skeleton != null, "Hero must have skeleton for motion"):
+            quit(40)
+            return
+        player.advance(0.21)
+        var first_pose: Array[Quaternion] = []
+        for bone_id in range(skeleton.get_bone_count()):
+            first_pose.append(skeleton.get_bone_pose_rotation(bone_id))
+        player.advance(0.25)
+        var moving_bones := false
+        for bone_id in range(skeleton.get_bone_count()):
+            if first_pose[bone_id].angle_to(skeleton.get_bone_pose_rotation(bone_id)) > 0.004:
+                moving_bones = true
+                break
+        if not _check(moving_bones, "Skeletal animation should articulate the character"):
+            quit(41)
+            return
     game.call("_actor_attack", actor, false)
     var attack_clip: String = str(actor.get_meta("clip_state", "")).to_lower()
     if not _check(attack_clip.contains("slash") if actor.has_meta("hd_character") else attack_clip.contains("sword"),
