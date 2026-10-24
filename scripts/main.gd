@@ -3186,6 +3186,12 @@ func _spawn_horde() -> void:
                     _darken_character_materials(instance, elite)
                 if not high_detail and model_name.begins_with("ashen_"):
                     _attach_hero_clips(instance)
+                # Same cartoon-fantasy language as the selectable heroes:
+                # distinct palette, expressive mask and animated gear.
+                if not stylized_hero_art.decorate_enemy(instance, species, biome, elite, ai_role):
+                    if high_detail and hd_name == "hd_marsh_direwolf":
+                        # Creature accents follow the rig's model transform.
+                        stylized_hero_art.decorate_creature(instance, species, biome, elite)
                 _bind_motion_driver(root)
                 if not _play_actor_clip(root, "Idle", 0.0, 1.0):
                     _pose_fantasy_skeleton(root, 0.0)
