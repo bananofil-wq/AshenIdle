@@ -445,6 +445,16 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
                 "halloween/arch_gate" if room_id % 2 == 0 else "pillar_decorated", 2.75)
             _place_prefab(parent, center + Vector3(-sign * 4.75, 0, 2.35),
                 "halloween/post_lantern", 1.15)
+            if room_id == 1 or room_id == 3:
+                # Stone temple boundary close enough to read on a portrait
+                # phone without obscuring the central hero route.
+                for entry_side in [-1.0, 1.0]:
+                    var ruin_at: Vector3 = center + Vector3(entry_side * 4.20, 0, -2.8)
+                    _column(parent, ruin_at, 2.30, 0.37, rock_material, 8)
+                    _stone(parent, ruin_at + Vector3(0, 2.36, 0),
+                        Vector3(0.71, 0.26, 0.73), rock_material)
+                    _stone(parent, ruin_at + Vector3(entry_side * 0.52, 0.15, 0.27),
+                        Vector3(0.92, 0.34, 0.73), rock_material)
         2: # Marsh pools with dead tree silhouettes, broken ruins and fungus.
             _water_feature(parent, edge + Vector3(sign * 0.65, 0, 0.6),
                 Vector2(2.7, 2.0))
@@ -908,8 +918,8 @@ func _biome_beacon(parent: Node3D, center: Vector3, room_id: int) -> void:
     var glow := OmniLight3D.new()
     glow.name = "WorldLight_%d" % room_id
     glow.position = at + Vector3(0, 1.65, 0)
-    glow.light_color = Color("ffca8b") if current_theme == 3 else Color(ACCENTS[current_theme]).lerp(Color("f1dcc3"), 0.36)
-    glow.light_energy = 1.13 if current_theme == 0 or current_theme == 5 else 1.05 if current_theme == 3 else 0.72
+    glow.light_color = Color("ffbb77") if current_theme == 1 else Color("ffca8b") if current_theme == 3 else Color(ACCENTS[current_theme]).lerp(Color("f1dcc3"), 0.36)
+    glow.light_energy = 1.13 if current_theme == 0 or current_theme == 5 else 1.06 if current_theme == 1 or current_theme == 3 else 0.72
     glow.omni_range = 8.0
     glow.shadow_enabled = false
     parent.add_child(glow)
