@@ -53,7 +53,7 @@ func _make_materials() -> void:
     leaves.albedo_texture = _foliage_texture()
     leaves.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     leaves.vertex_color_use_as_albedo = true
-    leaves.albedo_color = Color("b2c59d")
+    leaves.albedo_color = Color("9cae8e")
     leaves.roughness = 0.95
     leaves.cull_mode = BaseMaterial3D.CULL_DISABLED
 
@@ -94,18 +94,18 @@ func _leaf_cluster(st: SurfaceTool, center: Vector3, size: float,
         rng: RandomNumberGenerator, color: Color) -> void:
     # Numerous curved, overlapping lanceolate leaves form a rounded and
     # naturally irregular crown instead of a handful of giant triangular cones.
-    for n in range(13):
-        var a: float = TAU * float(n) / 13.0 + rng.randf_range(-0.12, 0.12)
+    for n in range(9):
+        var a: float = TAU * float(n) / 9.0 + rng.randf_range(-0.12, 0.12)
         var axis := Vector3(cos(a), rng.randf_range(-0.12, 0.24), sin(a)).normalized()
         var side := Vector3(-axis.z, 0, axis.x).normalized()
-        var length: float = size * rng.randf_range(0.43, 0.91)
+        var length: float = size * rng.randf_range(0.37, 0.72)
         var base: Vector3 = center + Vector3(
             rng.randf_range(-0.32, 0.32),
             rng.randf_range(-0.23, 0.23),
             rng.randf_range(-0.32, 0.32))
         var tip: Vector3 = base + axis * length
         var shoulder: Vector3 = base + axis * length * 0.42 + Vector3(0, length * 0.16, 0)
-        var width: float = length * rng.randf_range(0.18, 0.28)
+        var width: float = length * rng.randf_range(0.14, 0.22)
         var left: Vector3 = shoulder + side * width
         var right: Vector3 = shoulder - side * width
         var highlight: Color = color.lightened(0.12) if n % 4 == 0 else color.darkened(0.10) if n % 5 == 0 else color
@@ -130,32 +130,32 @@ func _build_variant(variant: int) -> Dictionary:
         _tube(trunk, Vector3(cos(angle) * 0.84, 0.02, sin(angle) * 0.80),
             Vector3(cos(angle) * 0.18, 0.70, sin(angle) * 0.18),
             0.085, 0.21, rng, trunk_color.darkened(0.12))
-    for arm in range(7):
-        var theta: float = TAU * float(arm) / 7.0 + float(variant) * 0.25
+    for arm in range(6):
+        var theta: float = TAU * float(arm) / 6.0 + float(variant) * 0.25
         var level: float = high * rng.randf_range(0.68, 0.87)
         var origin := Vector3(shift * 0.7, level, 0.05)
         var direction := Vector3(cos(theta), 0, sin(theta))
-        var length: float = rng.randf_range(1.5, 2.9)
+        var length: float = rng.randf_range(1.25, 2.20)
         var tip: Vector3 = origin + direction * length + Vector3(0, rng.randf_range(0.65, 1.35), 0)
         _tube(trunk, origin, tip, 0.21, 0.045, rng, trunk_color)
         if arm % 2 == 0:
             _tube(trunk, origin.lerp(tip, 0.64),
                 tip + direction * 0.34 + Vector3(0, 0.68, 0),
                 0.075, 0.018, rng, trunk_color)
-        var greens := [Color("526d41"), Color("6d884b"), Color("405d39"), Color("8da060")]
-        for bunch in range(3):
+        var greens := [Color("435b38"), Color("617a46"), Color("354b32"), Color("738652")]
+        for bunch in range(2):
             var leaf_origin: Vector3 = tip + Vector3(
                 rng.randf_range(-0.68, 0.68),
                 rng.randf_range(-0.12, 0.63),
                 rng.randf_range(-0.68, 0.68))
             _leaf_cluster(crown, leaf_origin,
-                rng.randf_range(0.78, 1.14), rng, greens[(arm + bunch + variant) % 4])
-    for tuft in range(5):
+                rng.randf_range(0.63, 0.92), rng, greens[(arm + bunch + variant) % 4])
+    for tuft in range(3):
         var center := Vector3(shift + rng.randf_range(-0.85, 0.85),
             high + rng.randf_range(0.28, 1.3),
             rng.randf_range(-0.90, 0.90))
         _leaf_cluster(crown, center, rng.randf_range(0.8, 1.1), rng,
-            Color("506d3d") if tuft % 2 == 0 else Color("7e9853"))
+            Color("455e3a") if tuft % 2 == 0 else Color("6d8150"))
     trunk.generate_normals()
     crown.generate_normals()
     return {"trunk": trunk.commit(), "leaves": crown.commit()}
@@ -179,7 +179,7 @@ func plant(parent: Node3D, position: Vector3, seed_value: int) -> void:
     tree.name = "ForestCanopyTree"
     tree.position = position
     tree.rotation.y = rng.randf_range(-PI, PI)
-    var size: float = rng.randf_range(0.84, 1.13)
+    var size: float = rng.randf_range(0.72, 0.94)
     tree.scale = Vector3(size, size * rng.randf_range(0.91, 1.15), size)
     parent.add_child(tree)
     var stem := MeshInstance3D.new()
