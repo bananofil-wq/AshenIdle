@@ -1,6 +1,9 @@
 extends Node3D
 # Ashen Idle v0.2 — portrait mobile prototype, offline-safe save and auto combat.
 const CLASSES = ["Cinder Knight", "Ash Ranger", "Ember Mage", "Dusk Reaper"]
+# Keep runtime, class-select portraits and combat rigs on the SAME male chibi models.
+const HERO_CHIBI_MODELS = ["chibi_knight", "chibi_ninja", "chibi_merchant", "chibi_archer"]
+const HERO_ART_NAMES = ["Knight", "Rogue", "Mage", "Barbarian"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
 const BOSS_NAMES = ["THE TOMB MAW", "THE ROOTMOTHER", "THE BOG TYRANT",
     "THE GLACIER KING", "THE CINDER LORD", "QUEEN OF SORROW",
@@ -892,8 +895,7 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
     holder.custom_minimum_size = Vector2(108, 149)
     holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
     frame.add_child(holder)
-    var portraits: Array = ["ashen_armored_knight", "ashen_ranger", "ashen_mage", "ashen_shadow_knight"]
-    var packed: PackedScene = _get_asset_scene(str(portraits[class_id]))
+    var packed: PackedScene = _get_asset_scene(str(HERO_CHIBI_MODELS[class_id]))
     if packed != null:
         var viewport_holder := SubViewportContainer.new()
         viewport_holder.position = Vector2(0, 0)
@@ -922,6 +924,7 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
         var preview_model: Node3D = packed.instantiate() as Node3D
         if preview_model != null:
             preview_viewport.add_child(preview_model)
+            preview_model.set_meta("hero_art_name", str(HERO_ART_NAMES[class_id]))
             # The selection card is not in the scene tree until _build_ui()
             # finishes. Transform3D and look_at before that point return
             # default transforms and silently produce blank 3D previews.
@@ -963,12 +966,15 @@ func _finish_hero_preview(model: Node3D, camera: Camera3D) -> void:
     if not is_instance_valid(model) or not model.is_inside_tree() or not is_instance_valid(camera) or not camera.is_inside_tree():
         return
     _fit_visual_model(model, 2.6)
-    _attach_hero_clips(model)
+    # Use the same class costume and original chibi animations as gameplay.
+    var art_name: String = str(model.get_meta("hero_art_name", ""))
+    if art_name != "":
+        stylized_hero_art.decorate_chibi(model, art_name)
     for clip_node in model.find_children("*", "AnimationPlayer", true, false):
         var player: AnimationPlayer = clip_node as AnimationPlayer
         if player != null:
             for clip_name in player.get_animation_list():
-                if str(clip_name).to_lower().contains("idle"):
+                if str(clip_name).to_lower().contains("idle") or str(clip_name).to_lower().contains("iddle"):
                     player.play(str(clip_name))
                     break
     camera.look_at(Vector3(0, 1.35, 0), Vector3.UP)
@@ -1646,24 +1652,32 @@ func _play_actor_clip(actor: Node3D, clip: String, blend: float = 0.16, rate: fl
     # animations per character. Its two naming conventions are normalized here.
     if actor.has_meta("chibi_character"):
         var requested: String = clip.to_lower()
-        var token: String = "iddle"
+        var aliases: Array[String] = ["idle", "iddle"]
         if requested.contains("jog") or requested.contains("run"):
-            token = "run"
+            aliases = ["run", "jog", "sprint"]
         elif requested.contains("walk"):
-            token = "walk"
-        elif requested.contains("attack") or requested.contains("sword") or requested.contains("spell") or requested.contains("shoot"):
-            token = "push"
+            aliases = ["walk", "walking"]
+        elif requested.contains("attack") or requested.contains("sword"):
+            aliases = ["attack", "slash", "sword", "punch", "push", "kick"]
+        elif requested.contains("spell") or requested.contains("shoot"):
+            aliases = ["cast", "spell", "shoot", "throw", "push"]
         elif requested.contains("hit"):
-            token = "crouch"
+            aliases = ["hit", "hurt", "react", "crouch"]
         elif requested.contains("death"):
-            token = "dying"
-        for name_candidate in player.get_animation_list():
-            var spelling: String = str(name_candidate).to_lower()
-            if spelling.contains(token) and not spelling.contains("crouchiddle") and not spelling.contains("iddle.001"):
-                if str(actor.get_meta("clip_state", "")) != str(name_candidate) or not player.is_playing():
-                    player.play(str(name_candidate),blend,rate)
-                    actor.set_meta("clip_state",str(name_candidate))
-                return true
+            aliases = ["death", "dying", "die"]
+        # Prefer the most suitable available native rig clip. Do not map
+        # every sword swing, cast and hit to the same 'push' animation.
+        for alias in aliases:
+            for name_candidate in player.get_animation_list():
+                var spelling: String = str(name_candidate).to_lower()
+                if spelling.contains(alias) and not spelling.contains("crouchiddle") and not spelling.contains("iddle.001"):
+                    if str(actor.get_meta("clip_state", "")) != str(name_candidate) or not player.is_playing():
+                        player.play(str(name_candidate), blend, rate)
+                        actor.set_meta("clip_state", str(name_candidate))
+                    else:
+                        # Continuously calibrate the gait to actual travel speed.
+                        player.speed_scale = rate
+                    return true
     # High-detail animated assets use readable clip names in their own rig.
     if actor.has_meta("hd_character"):
         var hd_clip: String = clip.to_lower()
@@ -1738,7 +1752,8 @@ func _animate_actor(actor: Node3D, speed: float) -> void:
     if now < int(actor.get_meta("action_until", 0)):
         return
     var wanted: String = "Jog_Fwd" if speed > 1.55 else "Walk" if speed > 0.22 else "Idle"
-    var has_motion: bool = _play_actor_clip(actor, wanted, 0.16, 1.04 if speed > 0.22 else 1.0)
+    var stride_rate: float = clampf(speed / (3.0 if speed > 1.55 else 1.65), 0.72, 1.30) if speed > 0.22 else 1.0
+    var has_motion: bool = _play_actor_clip(actor, wanted, 0.19, stride_rate)
     if not has_motion and speed > 0.22:
         # Procedural beasts expose Jog rather than imported Jog_Fwd. Without
         # this their legs/roots only bobbed in place while sliding forward.
@@ -1771,7 +1786,7 @@ func _actor_attack(actor: Node3D, magic: bool = false) -> void:
         return
     if Time.get_ticks_msec() < int(actor.get_meta("action_until", 0)) - 80:
         return
-    if actor.has_meta("forest_monster_id") or actor.has_meta("hd_character"):
+    if actor.has_meta("forest_monster_id") or actor.has_meta("hd_character") or actor.has_meta("chibi_character"):
         if _play_actor_clip(actor, "Attack", 0.09, 1.25):
             actor.set_meta("action_until", Time.get_ticks_msec() + 480)
             return
@@ -1847,7 +1862,7 @@ func _hit_mob(target: Node3D, damage: float, crit: bool) -> void:
         if push_direction.length_squared() > 0.02:
             target.set_meta("knockback", push_direction.normalized() * (2.4 if crit else 0.95))
         target.set_meta("stagger", 0.18 if crit else 0.08)
-    if health > 0.0 and (target.has_meta("forest_monster_id") or target.has_meta("hd_character")):
+    if health > 0.0 and (target.has_meta("forest_monster_id") or target.has_meta("hd_character") or target.has_meta("chibi_character")):
         _play_actor_clip(target, "Hit", 0.04, 1.0)
         target.set_meta("action_until", Time.get_ticks_msec() + 160)
     last_target_pos = target.global_position
@@ -3795,7 +3810,8 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     if not enemy:
         # Source is independent of the reference images, with CC0 rigged,
         # texture-painted chibi meshes from styloo's Godot pack.
-        var avatar_name: String = "chibi_knight" if model_name == "Knight" else "chibi_ninja" if model_name == "Rogue" else "chibi_merchant" if model_name == "Mage" else "chibi_archer"
+        var class_art_index: int = HERO_ART_NAMES.find(model_name)
+        var avatar_name: String = str(HERO_CHIBI_MODELS[maxi(0, class_art_index)])
         var avatar_scene: PackedScene = _get_asset_scene(avatar_name)
         if avatar_scene != null:
             var avatar := Node3D.new()
@@ -3805,6 +3821,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
             if costume != null:
                 avatar.add_child(costume)
                 _fit_visual_model(costume,2.08)
+                stylized_hero_art.decorate_chibi(costume, model_name)
                 avatar.set_meta("chibi_character",avatar_name)
                 avatar.set_meta("visual_rest_position",costume.position)
                 _bind_motion_driver(avatar)
