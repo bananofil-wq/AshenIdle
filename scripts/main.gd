@@ -3802,27 +3802,8 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     # Player characters now use the same true chibi character architecture
     # as mobs/bosses, with independently animated limbs and oversized heads.
     # The imported realistic rig stays as a fallback if a class is unknown.
-    if not enemy:
-        # Source is independent of the reference images, with CC0 rigged,
-        # texture-painted chibi meshes from styloo's Godot pack.
-        var class_art_index: int = HERO_ART_NAMES.find(model_name)
-        var avatar_name: String = str(HERO_CHIBI_MODELS[maxi(0, class_art_index)])
-        var avatar_scene: PackedScene = _get_asset_scene(avatar_name)
-        if avatar_scene != null:
-            var avatar := Node3D.new()
-            avatar.position = at
-            add_child(avatar)
-            var costume: Node3D = avatar_scene.instantiate() as Node3D
-            if costume != null:
-                avatar.add_child(costume)
-                _fit_visual_model(costume,2.08)
-                stylized_hero_art.decorate_chibi(costume, model_name)
-                avatar.set_meta("chibi_character",avatar_name)
-                avatar.set_meta("visual_rest_position",costume.position)
-                _bind_motion_driver(avatar)
-                if _play_actor_clip(avatar,"Idle",0.0,1.0):
-                    return avatar
-            avatar.queue_free()
+    # Four distinct original chibi silhouettes, not the same imported knight
+    # reused with four tints. The procedural rig carries real limb animation.
     if not enemy:
         var cartoon_root := Node3D.new()
         cartoon_root.position = at
