@@ -2,7 +2,9 @@ extends Node3D
 # Ashen Idle v0.2 — portrait mobile prototype, offline-safe save and auto combat.
 const CLASSES = ["Cinder Knight", "Ash Ranger", "Ember Mage", "Dusk Reaper"]
 # Keep runtime, class-select portraits and combat rigs on the SAME male chibi models.
-const HERO_CHIBI_MODELS = ["chibi_knight", "chibi_ninja", "chibi_merchant", "chibi_archer"]
+# The imported ninja, merchant and archer are female. Only the verified male
+# knight rig may be a PLAYABLE hero; distinct costumes define the four classes.
+const HERO_CHIBI_MODELS = ["chibi_knight", "chibi_knight", "chibi_knight", "chibi_knight"]
 const HERO_ART_NAMES = ["Knight", "Rogue", "Mage", "Barbarian"]
 const SETS = ["Cinderborn", "Gravewarden", "Ashen Crown"]
 const BOSS_NAMES = ["THE TOMB MAW", "THE ROOTMOTHER", "THE BOG TYRANT",
@@ -930,8 +932,8 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
             # default transforms and silently produce blank 3D previews.
             preview_model.rotation.y = -0.38
             var camera := Camera3D.new()
-            camera.position = Vector3(2.65, 2.18, 4.65)
-            camera.fov = 37.0
+            camera.position = Vector3(1.75, 2.02, 3.35)
+            camera.fov = 35.0
             preview_viewport.add_child(camera)
             camera.current = true
             call_deferred("_finish_hero_preview", preview_model, camera)
@@ -954,7 +956,7 @@ func _create_hero_preview(class_id: int) -> PanelContainer:
         # which cannot show secondary 3D viewports (some mobile GL drivers).
         emblem.position = Vector2.ZERO
         emblem.size = Vector2(108, 149)
-        emblem.modulate.a = 0.60
+        emblem.visible = false
     else:
         emblem.size = Vector2(108, 149)
     emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
