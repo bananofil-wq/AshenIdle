@@ -9,12 +9,31 @@ var eyes_material: StandardMaterial3D
 var eye_mesh: SphereMesh
 
 
+func _tree_bark_texture() -> Texture2D:
+    # Warm irregular bark fissures; unlike the previous uniform brown shell,
+    # this shared 128px surface makes animated creatures read as old wood.
+    var image := Image.create(128, 128, false, Image.FORMAT_RGB8)
+    var noise := FastNoiseLite.new()
+    noise.seed = 73128
+    noise.frequency = 0.088
+    for y in range(128):
+        for x in range(128):
+            var vertical: float = sin(float(x) * 0.40 +
+                sin(float(y) * 0.052) * 1.7) * 0.10
+            var grain: float = noise.get_noise_2d(float(x) * 0.79, float(y) * 0.30)
+            var n: float = clampf(0.52 + vertical + grain * 0.22, 0.09, 0.93)
+            image.set_pixel(x, y, Color("2b231f").lerp(Color("94745a"), n))
+    return ImageTexture.create_from_image(image)
+
+
 func _ensure_materials() -> void:
     if bark_material != null:
         return
     bark_material = StandardMaterial3D.new()
     bark_material.vertex_color_use_as_albedo = true
-    bark_material.albedo_color = Color("a69478")
+    bark_material.albedo_texture = _tree_bark_texture()
+    bark_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+    bark_material.albedo_color = Color("c0b39b")
     bark_material.roughness = 0.98
     foliage_material = StandardMaterial3D.new()
     foliage_material.vertex_color_use_as_albedo = true
