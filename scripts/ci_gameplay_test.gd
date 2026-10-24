@@ -752,6 +752,36 @@ func _run() -> void:
                     "Winding forest road must use real dirt texture and remain visible from the mobile camera"):
                 quit(117)
                 return
+        if floor_id == 11:
+            var route: PackedVector3Array = builder.get("walk_points")
+            if not _check(route.size() == 4, "Mobile culling requires four route anchors"):
+                quit(118)
+                return
+            builder.call("set_graphics_preset", 0)
+            builder.call("set_lod_focus", route[0], true)
+            var start_room: Node3D = builder.get_node_or_null("Chamber_0") as Node3D
+            var end_room: Node3D = builder.get_node_or_null("Chamber_3") as Node3D
+            if not _check(start_room != null and end_room != null and
+                    start_room.visible and not end_room.visible,
+                    "Low-tier 60 FPS mode must cull distant rooms, never the current room"):
+                quit(119)
+                return
+            var flower_qa: MultiMeshInstance3D = builder.get_node_or_null("Chamber_1/ForestWildflowers_1") as MultiMeshInstance3D
+            if not _check(flower_qa != null and not flower_qa.visible,
+                    "Low-tier mode must disable only small decorative plants"):
+                quit(120)
+                return
+            builder.call("set_lod_focus", route[3], true)
+            if not _check(end_room.visible and not start_room.visible,
+                    "The stage renderer must reveal destination chambers as the hero travels"):
+                quit(121)
+                return
+            builder.call("set_graphics_preset", 2)
+            builder.call("set_lod_focus", route[0], true)
+            if not _check(flower_qa.visible,
+                    "High-tier mode must recover all forest artwork"):
+                quit(122)
+                return
         var original_primitives: int = int(builder.get("unbatched_box_count"))
         var new_batches: int = int(builder.get("box_batch_count"))
         if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
