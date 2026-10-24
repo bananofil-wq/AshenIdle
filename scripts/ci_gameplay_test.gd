@@ -710,6 +710,31 @@ func _run() -> void:
                     "Exterior biomes must render a winding walkable trail rather than one flat empty textured floor"):
                 quit(113)
                 return
+        if floor_id == 11:
+            var forest_trees: Array[Node] = builder.find_children("ForestCanopyTree", "Node3D", true, false)
+            if not _check(forest_trees.size() >= 4,
+                    "Enchanted forest needs actual branched bark-and-leaf models rather than primitive cone trees"):
+                quit(114)
+                return
+            var tree: Node3D = forest_trees[0] as Node3D
+            if not _check(tree.get_child_count() == 2 and
+                    (tree.get_child(0) as MeshInstance3D).mesh != null and
+                    (tree.get_child(1) as MeshInstance3D).mesh != null,
+                    "Forest model should use one cached bark mesh and one leaf-crown mesh"):
+                quit(115)
+                return
+            var sunlight: MeshInstance3D = builder.get_node_or_null("Chamber_1/CanopySunDapples_1") as MeshInstance3D
+            if not _check(sunlight != null and sunlight.mesh != null,
+                    "Forest needs instanced sunlight and foliage shadows on the path"):
+                quit(116)
+                return
+            var forest_road: MeshInstance3D = builder.get_node_or_null("Chamber_1/WindingTrail_1") as MeshInstance3D
+            var road_material: StandardMaterial3D = forest_road.material_override as StandardMaterial3D if forest_road != null else null
+            if not _check(road_material != null and road_material.albedo_texture != null and
+                    road_material.cull_mode == BaseMaterial3D.CULL_DISABLED,
+                    "Winding forest road must use real dirt texture and remain visible from the mobile camera"):
+                quit(117)
+                return
         var original_primitives: int = int(builder.get("unbatched_box_count"))
         var new_batches: int = int(builder.get("box_batch_count"))
         if not _check(original_primitives > 140 and new_batches > 0 and original_primitives > new_batches * 3, "Environment geometry must use GPU instancing rather than hundreds of individual primitive draw calls"):
