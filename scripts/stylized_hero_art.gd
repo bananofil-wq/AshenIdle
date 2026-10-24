@@ -98,3 +98,62 @@ func decorate(actor: Node3D, kind: String) -> bool:
     # The actual body, walk and attack are still skinned and animated by Godot.
     actor.set_meta("stylized_hero", kind)
     return true
+
+
+func decorate_enemy(model: Node3D, species: String, biome: int, boss: bool, role: String) -> bool:
+    # Reuse the same bold, toy-fantasy visual language as the player heroes.
+    # Costume meshes are attached to animated bones so enemies still fight.
+    var palettes: Array = [
+        [Color("d97856"), Color("512837"), Color("ffcb59")],
+        [Color("80bda0"), Color("304d42"), Color("e8e5ac")],
+        [Color("b8c7f2"), Color("414c89"), Color("e9f4ff")],
+        [Color("e5b471"), Color("725142"), Color("f3d992")],
+        [Color("dca1dd"), Color("533660"), Color("f6d1ff")],
+        [Color("b6c0cb"), Color("43434d"), Color("e5f3ff")],
+        [Color("82c5c9"), Color("254a5c"), Color("c4f6ff")],
+        [Color("b3cf8a"), Color("4a5e36"), Color("fff2a5")],
+        [Color("d68b71"), Color("5c3539"), Color("ffdb94")],
+        [Color("d48a62"), Color("612d2c"), Color("ffbd66")]
+    ]
+    var colors: Array = palettes[clampi(biome, 0, palettes.size()-1)]
+    var skeleton: Skeleton3D
+    for node in model.find_children("*", "Skeleton3D", true, false):
+        skeleton = node as Skeleton3D
+        break
+    if skeleton == null:
+        return false
+    var head := _attachment(skeleton, ["Head", "head", "mixamorig:Head", "DEF-head"])
+    if head != null:
+        # Oversized expressive masks and recognizable class-specific headgear.
+        _ball(head, Vector3(0, 0.11, 0.04), 0.24 if boss else 0.18, colors[0])
+        for side in [-1.0, 1.0]:
+            var x: float = float(side)
+            _ball(head, Vector3(x * 0.085, 0.14, 0.21), 0.045 if boss else 0.036, colors[2])
+            if boss or role == "guardian":
+                _cone(head, Vector3(x * 0.17, 0.35, -0.02), 0.10, 0.36 if boss else 0.23, colors[1])
+        if role == "caster":
+            _cone(head, Vector3(0, 0.37, 0), 0.21, 0.40, colors[1])
+        elif role == "flanker":
+            _cone(head, Vector3(0, 0.31, -0.1), 0.12, 0.23, colors[2])
+    var chest := _attachment(skeleton, ["Spine2", "Chest", "spine_02", "mixamorig:Spine2", "Spine1"])
+    if chest != null:
+        _block(chest, Vector3(0, 0, 0.14), Vector3(0.46, 0.39, 0.13), colors[1], 0.15)
+        _ball(chest, Vector3(0, 0.04, 0.24), 0.095 if boss else 0.065, colors[2])
+        if boss:
+            for side in [-1.0, 1.0]:
+                _ball(chest, Vector3(float(side)*0.37, 0.17, 0), 0.22, colors[0])
+    model.set_meta("stylized_enemy", species)
+    model.set_meta("stylized_boss", boss)
+    return true
+
+func decorate_creature(visual: Node3D, species: String, biome: int, boss: bool) -> void:
+    # For non-humanoid animals, preserve the four-legged rig and layer readable
+    # fantasy accents rather than putting a humanoid helmet on a wolf.
+    var fur: Color = Color("f4ca82") if biome in [0,3,9] else Color("d4e9ff") if biome in [2,5,6] else Color("c7d8a0")
+    var accent: Color = Color("f38d54") if biome in [0,9] else Color("74b7df")
+    var scale_factor: float = 1.45 if boss else 1.0
+    for side in [-1.0, 1.0]:
+        _cone(visual, Vector3(float(side) * 0.19, 1.15 * scale_factor, 0.48), 0.11 * scale_factor, 0.28 * scale_factor, fur)
+        _ball(visual, Vector3(float(side) * 0.20, 0.89 * scale_factor, 0.78), 0.08 * scale_factor, accent)
+    if boss:
+        _ball(visual, Vector3(0, 1.4 * scale_factor, 0), 0.24, accent)
