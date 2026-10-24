@@ -35,6 +35,7 @@ var _prefab_cache: Dictionary = {}
 var authentic_prop_count := 0
 var atmosphere_feature_count := 0
 var forest_art = FOREST_ART.new()
+var _forest_trail_material: StandardMaterial3D
 
 func _solid(color: Color, emissive: bool = false) -> StandardMaterial3D:
     var key: String = color.to_html(true) + (":glow" if emissive else ":mat")
@@ -488,6 +489,17 @@ func _biome_dressing(parent: Node3D, center: Vector3, room_id: int) -> void:
 func _ground_details(parent: Node3D, center: Vector3) -> void:
     # Rocks, roots, fallen trunks and crystals hug path edges without blocking it.
     var earth := _solid(Color("463c39") if current_theme == 1 or current_theme == 2 else Color("343438") if current_theme == 8 else Color("51505a"))
+    if current_theme == 1:
+        # Real pebble geometry breaks up the flat muddy road. Shared boulder
+        # mesh + existing spatial batching keep draw calls small on Android.
+        for pebble in range(26):
+            var gravel_position: Vector3 = center + Vector3(
+                randomizer.randf_range(-1.29, 1.29), -0.044,
+                randomizer.randf_range(-5.1, 5.1))
+            _stone(parent, gravel_position, Vector3(
+                randomizer.randf_range(0.10, 0.27),
+                randomizer.randf_range(0.055, 0.11),
+                randomizer.randf_range(0.14, 0.31)), rock_material)
     for i in range(15 if current_theme == 1 or current_theme == 2 else 25):
         var side: float = -1.0 if i % 2 == 0 else 1.0
         var p: Vector3 = center + Vector3(side * randomizer.randf_range(3.0, 4.7), 0, randomizer.randf_range(-4.2, 4.2))
@@ -737,19 +749,20 @@ func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
     dirt.roughness = 0.99
     dirt.uv1_scale = Vector3(0.75, 0.75, 1)
     if current_theme == 1:
-        # Worn, dark-brown earth stands apart from the surrounding leafy turf.
-        # Keeping its source texture separate stops the trail looking like a
-        # monochrome strip of tinted green photographic grass.
-        dirt.albedo_texture = forest_art.earth_texture()
-        dirt.albedo_color = Color("d1b9a1")
-        # Existing SurfaceTool winding can point away from the GLES3 camera
-        # when the route bends. Explicit double-sided rendering prevents the
-        # brown trail from disappearing and exposing the green floor beneath.
-        dirt.cull_mode = BaseMaterial3D.CULL_DISABLED
-        dirt.normal_enabled = false
-        dirt.roughness_texture = null
-        dirt.roughness = 0.87
-        dirt.uv1_scale = Vector3(1.5, 1.5, 1)
+        # Share a real muddy-path material across all rooms AND corridors.
+        # The earlier disconnected patches exposed green rock paths between
+        # rooms and looked like scattered brown carpets instead of a road.
+        if _forest_trail_material == null:
+            dirt.albedo_texture = forest_art.earth_texture()
+            dirt.albedo_color = Color("d1b9a1")
+            dirt.cull_mode = BaseMaterial3D.CULL_DISABLED
+            dirt.normal_enabled = false
+            dirt.roughness_texture = null
+            dirt.roughness = 0.87
+            dirt.uv1_scale = Vector3(1.5, 1.5, 1)
+            _forest_trail_material = dirt
+        else:
+            dirt = _forest_trail_material
     var builder := SurfaceTool.new()
     builder.begin(Mesh.PRIMITIVE_TRIANGLES)
     var amount: int = 14
@@ -1186,6 +1199,7 @@ func generate(floor_number: int) -> PackedVector3Array:
     box_batch_count = 0
     unbatched_box_count = 0
     _material_cache.clear()
+    _forest_trail_material = null
     authentic_prop_count = 0
     atmosphere_feature_count = 0
     if _unit_boulder == null:
@@ -1282,7 +1296,9 @@ func generate(floor_number: int) -> PackedVector3Array:
         if i > 0:
             _landmark(room, p, i)
         if i > 0:
-            _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), 4.75, floor_material)
+            var passage_material: Material = _forest_trail_material if current_theme == 1 and _forest_trail_material != null else floor_material
+            var passage_width: float = 3.15 if current_theme == 1 else 4.75
+            _connect(room, walk_points[i-1] + Vector3(0, 0, -4.3), p + Vector3(0, 0, 4.3), passage_width, passage_material)
         if i == 3 and current_stage % 10 == 0:
             _boss_sanctum(room, p)
             var altar := _column(room, p + Vector3(0, -0.03, -2.8), 0.35, 2.7, rock_material, 12)
