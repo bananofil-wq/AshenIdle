@@ -5,8 +5,10 @@ extends RefCounted
 
 var _fern_mesh: Mesh
 var _leaf_mesh: Mesh
+var _flower_mesh: Mesh
 var _fern_material: StandardMaterial3D
 var _leaf_material: StandardMaterial3D
+var _flower_material: StandardMaterial3D
 var _root_material: StandardMaterial3D
 var _wet_material: StandardMaterial3D
 var _shade_material: StandardMaterial3D
@@ -52,6 +54,11 @@ func _ensure_assets() -> void:
     _leaf_material.albedo_color = Color("d8c8a8")
     _leaf_material.roughness = 1.0
     _leaf_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _flower_material = StandardMaterial3D.new()
+    _flower_material.vertex_color_use_as_albedo = true
+    _flower_material.albedo_color = Color("f0e8d5")
+    _flower_material.roughness = 1.0
+    _flower_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     _root_material = StandardMaterial3D.new()
     _root_material.vertex_color_use_as_albedo = true
     _root_material.albedo_color = Color("8c7963")
@@ -69,6 +76,7 @@ func _ensure_assets() -> void:
     _shade_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     _fern_mesh = _make_fronds()
     _leaf_mesh = _make_leaf_litter()
+    _flower_mesh = _make_flower_meadow()
     _sun_material = _make_sun_material()
     # Soft, translucent foliage breaks in sunlight without expensive
     # real-time shadow maps on mobile GPUs.
@@ -116,6 +124,37 @@ func _make_leaf_litter() -> Mesh:
         var shade: Color = Color("9f683e") if leaf == 0 else Color("bf994f") if leaf == 1 else Color("69563b")
         for vertex in [root, left, tip, root, tip, right]:
             surface.set_color(shade)
+            surface.add_vertex(vertex)
+    surface.generate_normals()
+    return surface.commit()
+
+
+func _make_flower_meadow() -> Mesh:
+    # Tiny white/purple forest flowers, merged into one instanced mesh instead
+    # of dozens of individual sprite or particle draw calls.
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for face in range(4):
+        var theta: float = TAU * float(face) / 4.0
+        var across := Vector3(cos(theta), 0, sin(theta))
+        var stalk_a := Vector3(-across.x * 0.025, 0.0, -across.z * 0.025)
+        var stalk_b := Vector3(across.x * 0.025, 0.0, across.z * 0.025)
+        var crown_a: Vector3 = stalk_a + Vector3(0, 0.27, 0)
+        var crown_b: Vector3 = stalk_b + Vector3(0, 0.27, 0)
+        for vertex in [stalk_a, stalk_b, crown_a, stalk_b, crown_b, crown_a]:
+            surface.set_color(Color("4e7650"))
+            surface.add_vertex(vertex)
+    for petal in range(6):
+        var angle: float = TAU * float(petal) / 6.0
+        var forward := Vector3(cos(angle), 0, sin(angle))
+        var across := Vector3(-sin(angle), 0, cos(angle))
+        var center := Vector3(0, 0.29, 0)
+        var tip: Vector3 = center + forward * 0.19 + Vector3(0, 0.028, 0)
+        var wide: Vector3 = center + forward * 0.08
+        var left: Vector3 = wide + across * 0.11
+        var right: Vector3 = wide - across * 0.11
+        for vertex in [center, left, tip, center, tip, right]:
+            surface.set_color(Color("fcf8ef") if petal % 3 != 0 else Color("c8beda"))
             surface.add_vertex(vertex)
     surface.generate_normals()
     return surface.commit()
@@ -189,6 +228,19 @@ func _scatter_foliage(parent: Node3D, center: Vector3, seed_value: int, room_ind
         "ForestFernInstances_%d" % room_index)
     _scatter_instance_group(parent, _leaf_mesh, _leaf_material, leaves, leaf_colors,
         "ForestLeafLitter_%d" % room_index)
+    var flower_positions: Array = []
+    var flower_colors: Array = []
+    for n in range(34):
+        var flank: float = -1.0 if n % 2 == 0 else 1.0
+        flower_positions.append({"position": center + Vector3(
+            flank * random.randf_range(2.35, 5.25), -0.09,
+            random.randf_range(-5.0, 5.0)),
+            "angle": random.randf_range(-PI, PI),
+            "scale": random.randf_range(0.72, 1.25)})
+        flower_colors.append([Color("f7f1e7"), Color("b8abc9"),
+            Color("f4d6a1"), Color("e5c7c4")][n % 4])
+    _scatter_instance_group(parent, _flower_mesh, _flower_material,
+        flower_positions, flower_colors, "ForestWildflowers_%d" % room_index)
 
 
 func _sculpt_roots(parent: Node3D, center: Vector3, seed_value: int, room_index: int) -> void:
