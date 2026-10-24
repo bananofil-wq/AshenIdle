@@ -296,6 +296,15 @@ jobs:
           grep -q "HD CHARACTER QA PASS" build/hd-character-qa.log
           test "$(find build -maxdepth 1 -name 'hd-*.png' | wc -l)" -eq 4
 
+      - name: Render ten distinct animated chibi enemies and bosses
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --resolution 720x1280 --path . --rendering-driver opengl3 --script res://scripts/ci_toon_enemy_qa.gd 2>&1 | tee build/toon-enemy-qa.log
+          grep -q "TOON ENEMY QA PASS" build/toon-enemy-qa.log
+          test "$(find build -maxdepth 1 -name 'toon-*.png' | wc -l)" -eq 10
+          if grep -E 'SCRIPT ERROR|Parse Error|TOON ENEMY QA FAIL|Invalid call|Invalid access' build/toon-enemy-qa.log; then exit 1; fi
+
       - name: Upload actual gameplay preview
         if: always()
         uses: actions/upload-artifact@v4
@@ -306,6 +315,7 @@ jobs:
             build/biome-*.png
             build/forest-monster-*.png
             build/hd-*.png
+            build/toon-*.png
             build/boss-preview.png
             build/boss-biome-*.png
             build/hero-selection-preview.png
