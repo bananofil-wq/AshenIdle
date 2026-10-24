@@ -94,6 +94,14 @@ func set_graphics_preset(tier: int) -> void:
     for dapple in _visibility_dapples:
         if is_instance_valid(dapple):
             dapple.visible = _performance_tier >= 1
+    # Distant vista props are optional once render time drops below 16.7ms.
+    # Keep the real sculpted landscape and near-path vegetation in every tier.
+    var wilderness: Node3D = get_node_or_null("ExteriorLandscape") as Node3D
+    if wilderness != null:
+        wilderness.visible = _performance_tier == 2
+    var ridgeline: Node3D = get_node_or_null("MountainHorizon") as Node3D
+    if ridgeline != null:
+        ridgeline.visible = _performance_tier >= 1
     _last_visibility_focus = Vector3(9999, 0, 9999)
 
 
@@ -103,8 +111,8 @@ func set_lod_focus(focus: Vector3, force: bool = false) -> void:
     if not force and focus.distance_squared_to(_last_visibility_focus) < 1.8 * 1.8:
         return
     _last_visibility_focus = focus
-    var chamber_radius: float = [31.0, 36.0, 40.0][_performance_tier]
-    var batch_radius: float = chamber_radius + 15.0
+    var chamber_radius: float = [23.5, 32.0, 40.0][_performance_tier]
+    var batch_radius: float = [34.0, 43.0, 55.0][_performance_tier]
     for room in _visibility_chambers:
         if is_instance_valid(room):
             var room_z: float = float(room.get_meta("route_z", room.position.z))
