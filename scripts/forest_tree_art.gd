@@ -28,6 +28,20 @@ func _bark_texture() -> Texture2D:
     return ImageTexture.create_from_image(image)
 
 
+func _foliage_texture() -> Texture2D:
+    var image := Image.create(128, 128, false, Image.FORMAT_RGB8)
+    var noise := FastNoiseLite.new()
+    noise.seed = 719872
+    noise.frequency = 0.095
+    for y in range(128):
+        for x in range(128):
+            var speck: float = noise.get_noise_2d(float(x), float(y))
+            var vein: float = sin(float(x) * 0.53 + float(y) * 0.31) * 0.04
+            var brightness: float = clampf(0.84 + speck * 0.24 + vein, 0.65, 1.0)
+            image.set_pixel(x, y, Color(brightness, brightness, brightness))
+    return ImageTexture.create_from_image(image)
+
+
 func _make_materials() -> void:
     bark = StandardMaterial3D.new()
     bark.albedo_texture = _bark_texture()
@@ -36,6 +50,8 @@ func _make_materials() -> void:
     bark.roughness = 0.97
     bark.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     leaves = StandardMaterial3D.new()
+    leaves.albedo_texture = _foliage_texture()
+    leaves.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     leaves.vertex_color_use_as_albedo = true
     leaves.albedo_color = Color("b2c59d")
     leaves.roughness = 0.95
