@@ -756,8 +756,9 @@ func _winding_trail(parent: Node3D, center: Vector3, room_id: int) -> void:
         var z: float = -5.5 + progress * 11.0
         var wobble: float = sin(z * 0.46 + float(room_id) * 1.65 + float(current_stage) * 0.13) * 0.54
         var half: float = 1.32 + 0.17 * sin(float(n) * 1.73 + float(room_id))
-        left.append(center + Vector3(wobble - half, -0.147, z))
-        right.append(center + Vector3(wobble + half, -0.147, z))
+        var ground_height: float = -0.065 if current_theme == 1 else -0.147
+        left.append(center + Vector3(wobble - half, ground_height, z))
+        right.append(center + Vector3(wobble + half, ground_height, z))
     for n in range(amount):
         for v in [left[n], left[n+1], right[n], right[n], left[n+1], right[n+1]]:
             var shade: float = 0.87 + 0.11 * sin(v.z * 0.75 + v.x * 1.3)
