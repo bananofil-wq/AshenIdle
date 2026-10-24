@@ -211,6 +211,31 @@ func _chibi_bone(skeleton: Skeleton3D, region: String) -> BoneAttachment3D:
     attachment.bone_idx = first
     return attachment
 
+func _tint_chibi_armor(model: Node3D, kind: String) -> void:
+    # Duplicate imported GLB materials per actor. Keep painted albedo maps and
+    # normal detail but give all-male shared rig four unmistakable class palettes.
+    var tint: Color = Color.WHITE
+    match kind:
+        "Rogue":
+            tint = Color(1.0, 0.79, 0.64)
+        "Mage":
+            tint = Color(1.0, 0.54, 0.39)
+        "Barbarian":
+            tint = Color(0.49, 0.42, 0.54)
+    if tint == Color.WHITE:
+        return
+    for item in model.find_children("*", "MeshInstance3D", true, false):
+        var piece: MeshInstance3D = item as MeshInstance3D
+        if piece.mesh == null:
+            continue
+        for surface in range(piece.mesh.get_surface_count()):
+            var source: BaseMaterial3D = piece.get_active_material(surface) as BaseMaterial3D
+            if source == null:
+                continue
+            var material: BaseMaterial3D = source.duplicate() as BaseMaterial3D
+            material.albedo_color = source.albedo_color * tint
+            piece.set_surface_override_material(surface, material)
+
 func decorate_chibi(model: Node3D, kind: String) -> bool:
     if model == null:
         return false
@@ -228,6 +253,7 @@ func decorate_chibi(model: Node3D, kind: String) -> bool:
     var chest: BoneAttachment3D = _chibi_bone(skeleton, "chest")
     if head == null or chest == null:
         return false
+    _tint_chibi_armor(model, kind)
     var silver := Color("d8e8f1")
     var gold := Color("f6bf52")
     var blue := Color("285bad")
