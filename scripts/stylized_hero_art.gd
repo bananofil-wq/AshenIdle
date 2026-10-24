@@ -95,6 +95,21 @@ func decorate(actor: Node3D, kind: String) -> bool:
         _ball(chest, Vector3(0, 0.0, 0.23), 0.075, c[2])
         for side in [-1, 1]:
             _ball(chest, Vector3(float(side) * 0.33, 0.12, 0.0), 0.16, c[0])
+    # Expressive male chibi faces attached to the animated head bone.
+    if head != null:
+        var skin := Color("f6bd83") if kind in ["Knight", "Rogue"] else Color("f79a35") if kind == "Mage" else Color("eee6e1")
+        _ball(head, Vector3(0, -0.035, 0.16), 0.17, skin, Vector3(1.08, 0.90, 0.45))
+        var eye := Color("1b2634") if kind == "Rogue" else Color("168cdb") if kind == "Knight" else Color("ffe55b") if kind == "Mage" else Color("e3293b")
+        for side in [-1.0, 1.0]:
+            var x: float = float(side)
+            _ball(head, Vector3(x * 0.075, -0.018, 0.239), 0.031, eye, Vector3(0.72, 1.35, 0.42))
+            var brow := _block(head, Vector3(x * 0.075, 0.046, 0.239), Vector3(0.09, 0.021, 0.022), Color("332a30"))
+            brow.rotation.z = x * 0.27
+        if kind == "Mage":
+            for side in [-1.0, 1.0]:
+                _cone(head, Vector3(float(side) * 0.18, 0.25, 0), 0.07, 0.24, Color("8f2c1c"))
+        elif kind == "Barbarian":
+            _ball(head, Vector3(0, 0.21, -0.05), 0.19, c[0], Vector3(1.28, 0.43, 0.83))
     # The actual body, walk and attack are still skinned and animated by Godot.
     actor.set_meta("stylized_hero", kind)
     return true
