@@ -70,6 +70,7 @@ const FOREST_MONSTER_DATA = preload("res://scripts/forest_monster_data.gd")
 const HD_CHARACTER_REGISTRY = preload("res://scripts/hd_character_registry.gd")
 const HD_WOLF_GAIT = preload("res://scripts/hd_wolf_gait.gd")
 const STYLIZED_HERO_ART = preload("res://scripts/stylized_hero_art.gd")
+const TOON_ENEMY_ART = preload("res://scripts/toon_enemy_art.gd")
 const MOBILE_QUALITY = preload("res://scripts/mobile_quality.gd")
 
 var hero_class = 0
@@ -145,6 +146,7 @@ var forest_monster_data = FOREST_MONSTER_DATA.new()
 var hd_characters = HD_CHARACTER_REGISTRY.new()
 var hd_wolf_gait = HD_WOLF_GAIT.new()
 var stylized_hero_art = STYLIZED_HERO_ART.new()
+var toon_enemy_art = TOON_ENEMY_ART.new()
 var quality_budget = MOBILE_QUALITY.new()
 var mobile_visibility_timer: float = 0.0
 var active_skill_zones: Array = []
@@ -3152,76 +3154,16 @@ func _spawn_horde() -> void:
         var model_name: String = str(boss_models[biome]) if elite else str(role_models.get(ai_role, "skeleton_dark"))
         var root := Node3D.new()
         add_child(root)
-        # True skinned PBR characters replace generic models in every biome.
-        # Retain the sculpted forest boss and distinct non-humanoid fallback.
-        var hd_name: String = hd_characters.model_for_enemy(species, biome, elite, mini_elite)
-        var hd_packed: PackedScene = _get_asset_scene(hd_name) if hd_name != "" else null
-        var high_detail: bool = hd_packed != null
+        # All enemies and bosses now use the same original vibrant chibi
+        # fantasy style as the selectable heroes. No hidden PBR human mesh
+        # underneath, no static costume glued to a walking model.
         var beast: bool = false
-        if biome == 1 and not high_detail:
-            beast = forest_monsters.build(root, species, mini_elite, elite)
-            if beast:
-                var art_id: String = str(root.get_meta("forest_monster_id", ""))
-                var art_spec: Dictionary = forest_monster_data.spec(art_id)
-                ai_role = str(art_spec.get("role", ai_role))
-        elif not high_detail:
-            beast = not elite and _beast_silhouette(root, species, _biome_fx_tint())
-        var packed: PackedScene = hd_packed if high_detail else null if beast else _get_asset_scene(model_name)
-        if packed == null and not beast:
-            packed = _get_asset_scene("Skeleton_Warrior" if elite else "Skeleton_Minion")
-        if packed != null:
-            var instance: Node3D = packed.instantiate() as Node3D
-            if instance != null:
-                root.add_child(instance)
-                _fit_visual_model(instance, (3.1 + 0.17 * float(_boss_variant() % 4)) if elite else 1.63)
-                if high_detail:
-                    if hd_name == "hd_marsh_direwolf":
-                        hd_wolf_gait.attach(instance)
-                        # The source direwolf's forward axis is X, not the +Z
-                        # used by the gameplay controller. Rotate the VISUAL,
-                        # never the AI root, to prevent sideways running.
-                        instance.rotation.y = -PI * 0.5
-                    root.set_meta("hd_character", hd_name)
-                else:
-                    _darken_character_materials(instance, elite)
-                if not high_detail and model_name.begins_with("ashen_"):
-                    _attach_hero_clips(instance)
-                # Same cartoon-fantasy language as the selectable heroes:
-                # distinct palette, expressive mask and animated gear.
-                if not stylized_hero_art.decorate_enemy(instance, species, biome, elite, ai_role):
-                    if high_detail and hd_name == "hd_marsh_direwolf":
-                        # Creature accents follow the rig's model transform.
-                        stylized_hero_art.decorate_creature(instance, species, biome, elite)
-                _bind_motion_driver(root)
-                if not _play_actor_clip(root, "Idle", 0.0, 1.0):
-                    _pose_fantasy_skeleton(root, 0.0)
-                root.set_meta("visual_rest_position", instance.position)
-        if elite and not (biome == 1 and beast) and not high_detail:
-            var aura_tint: Color = _biome_fx_tint()
-            var halo := TorusMesh.new()
-            halo.inner_radius = 1.07
-            halo.outer_radius = 1.12
-            _mesh(root, halo, Vector3(0, 0.11, 0), _mat(aura_tint.darkened(0.40), 0.0, true))
-            # The boss silhouette must be recognizable from a zoomed-out phone
-            # camera, not only a scaled-up player GLB.
-            for sign in [-1.0, 1.0]:
-                var horn := _cone(root, 0.22, 0.01, 1.17, Vector3(sign * 0.61, 2.78, 0.1), aura_tint.darkened(0.42))
-                horn.rotation.z = sign * -0.30
-            var crown_glow := _sphere_part(root, 0.21, Vector3(0, 3.19, 0.0), aura_tint.lightened(0.25))
-            crown_glow.material_override = _bright(aura_tint)
-            for rune_i in range(5 + _boss_variant()):
-                var angle := TAU * float(rune_i) / float(5 + _boss_variant())
-                var shard_height := 0.30 + float(rune_i % 3) * 0.19
-                var shard := _cone(root, 0.13, 0.012, shard_height, Vector3(cos(angle) * 0.91, 0.22 + shard_height * 0.5, sin(angle) * 0.91), aura_tint.darkened(0.15))
-                shard.rotation.z = sin(angle) * 0.14
-        if beast:
+        if toon_enemy_art.build_enemy(root, species, biome, elite, mini_elite, ai_role):
             _bind_motion_driver(root)
             _play_actor_clip(root, "Idle", 0.0, 1.0)
-        if root.get_child_count() == 0:
-            var body := CapsuleMesh.new()
-            body.radius = 0.38 if not elite else 0.67
-            body.height = 1.18 if not elite else 2.1
-            _mesh(root, body, Vector3(0, 0.8, 0), _mat(Color("80404f")))
+        else:
+            push_error("TOON ENEMY: could not create character " + species)
+        root.set_meta("visual_rest_position", Vector3.ZERO)
         var spawn_center: Vector3 = dungeon_points[dungeon_room_index] if dungeon_points.size() > dungeon_room_index else Vector3.ZERO
         # Distributed entry points, with individual approach delays.
         # No clustered spawn at the chamber center.
