@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, art-pbr-monster-upgrade]
+    branches: [main, art-pbr-monster-upgrade, male-chibi-hero-polish]
   workflow_dispatch:
 
 concurrency:
@@ -321,6 +321,15 @@ jobs:
           test "$(find build -maxdepth 1 -name 'chibi-*.png' | wc -l)" -eq 5
           if grep -E 'SCRIPT ERROR|Parse Error|CHIBI IMPORT QA FAIL|Invalid call|Invalid access' build/chibi-import.log; then exit 1; fi
 
+      - name: Validate four male chibi hero costumes and movement
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --resolution 720x1280 --path . --rendering-driver opengl3 --script res://scripts/ci_male_chibi_hero_qa.gd 2>&1 | tee build/male-chibi-heroes.log
+          grep -q "MALE CHIBI HERO QA PASS" build/male-chibi-heroes.log
+          test "$(find build -maxdepth 1 -name 'hero-style-*.png' | wc -l)" -eq 4
+          if grep -E 'SCRIPT ERROR|Parse Error|MALE CHIBI HERO QA FAIL|Invalid call|Invalid access' build/male-chibi-heroes.log; then exit 1; fi
+
       - name: Upload actual gameplay preview
         if: always()
         uses: actions/upload-artifact@v4
@@ -333,6 +342,7 @@ jobs:
             build/hd-*.png
             build/toon-*.png
             build/chibi-*.png
+            build/hero-style-*.png
             build/boss-preview.png
             build/boss-biome-*.png
             build/hero-selection-preview.png
