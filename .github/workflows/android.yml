@@ -312,6 +312,15 @@ jobs:
           test "$(find build -maxdepth 1 -name 'toon-*.png' | wc -l)" -eq 10
           if grep -E 'SCRIPT ERROR|Parse Error|TOON ENEMY QA FAIL|Invalid call|Invalid access' build/toon-enemy-qa.log; then exit 1; fi
 
+      - name: Validate imported high-quality CC0 chibi characters
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --resolution 720x1280 --path . --rendering-driver opengl3 --script res://scripts/ci_chibi_import_qa.gd 2>&1 | tee build/chibi-import.log
+          grep -q "CHIBI IMPORT QA PASS" build/chibi-import.log
+          test "$(find build -maxdepth 1 -name 'chibi-*.png' | wc -l)" -eq 5
+          if grep -E 'SCRIPT ERROR|Parse Error|CHIBI IMPORT QA FAIL|Invalid call|Invalid access' build/chibi-import.log; then exit 1; fi
+
       - name: Upload actual gameplay preview
         if: always()
         uses: actions/upload-artifact@v4
@@ -323,6 +332,7 @@ jobs:
             build/forest-monster-*.png
             build/hd-*.png
             build/toon-*.png
+            build/chibi-*.png
             build/boss-preview.png
             build/boss-biome-*.png
             build/hero-selection-preview.png
