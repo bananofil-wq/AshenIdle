@@ -178,10 +178,27 @@ func _batch_static_boxes() -> void:
     var rendered: Array = find_children("*", "MeshInstance3D", true, false)
     for child in rendered:
         var part: MeshInstance3D = child as MeshInstance3D
-        if part == null or part.mesh == null or part.material_override == null:
+        if part == null or part.mesh == null:
             continue
+        # Batch static meshes within genuinely imported CC0 scene instances,
+        # preserving embedded GLB surface materials. Godot otherwise issues
+        # separate draw calls for every repeated tree/arch/ruin mesh.
+        var imported_mesh: bool = false
+        var ancestor: Node = part.get_parent()
+        while ancestor != null and ancestor != self:
+            if ancestor.name.begins_with("Authentic_"):
+                imported_mesh = true
+                break
+            ancestor = ancestor.get_parent()
+        if imported_mesh:
+            if part.skin != null or part.skeleton != NodePath(""):
+                imported_mesh = false
+            for surface_index in range(part.mesh.get_surface_count()):
+                if part.get_surface_override_material(surface_index) != null:
+                    imported_mesh = false
+                    break
         var forest_canopy: bool = part.get_parent() != null and part.get_parent().name == "ForestCanopyTree"
-        var eligible: bool = forest_canopy or part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage or part.mesh == _unit_boulder
+        var eligible: bool = imported_mesh or forest_canopy or part.mesh == _unit_box or part.mesh == _unit_spike or part.mesh == _unit_foliage or part.mesh == _unit_boulder
         if not eligible:
             for unit in _unit_columns.values():
                 if part.mesh == unit:
@@ -190,14 +207,18 @@ func _batch_static_boxes() -> void:
         if not eligible or part.name == "BossDais" or part.name == "RiftGate":
             continue
         var material: Material = part.material_override
+        if material == null and not imported_mesh:
+            continue
         # Each batch belongs to a short section of the route. A stage-wide
         # MultiMesh has an enormous AABB and defeats Godot frustum culling:
         # walking in room 1 still draws ruins from room 4 and the distant forest.
         var chunk: int = floori(part.global_position.z / 26.0)
-        var key: String = "%d-%d-%d" % [part.mesh.get_instance_id(), material.get_instance_id(), chunk]
+        var material_id: int = material.get_instance_id() if material != null else 0
+        var key: String = "%d-%d-%d" % [part.mesh.get_instance_id(), material_id, chunk]
         if not batches.has(key):
             batches[key] = {"material": material, "mesh": part.mesh, "chunk": chunk,
-                "forest_canopy": forest_canopy, "transforms": []}
+                "forest_canopy": forest_canopy, "imported_mesh": imported_mesh,
+                "transforms": []}
         (batches[key]["transforms"] as Array).append(global_transform.affine_inverse() * part.global_transform)
         unbatched_box_count += 1
         part.queue_free()
@@ -217,6 +238,7 @@ func _batch_static_boxes() -> void:
         instance.name = "BatchedEnvironment_%s" % str(key).replace("-", "_")
         instance.set_meta("spatial_chunk", int(batch["chunk"]))
         instance.set_meta("forest_canopy", bool(batch["forest_canopy"]))
+        instance.set_meta("imported_mesh", bool(batch["imported_mesh"]))
         instance.multimesh = multi
         instance.material_override = batch["material"] as Material
         instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
