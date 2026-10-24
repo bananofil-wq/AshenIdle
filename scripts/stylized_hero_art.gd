@@ -180,20 +180,30 @@ func decorate_creature(visual: Node3D, species: String, biome: int, boss: bool) 
 # or an independently bobbing mannequin.
 func _chibi_bone(skeleton: Skeleton3D, region: String) -> BoneAttachment3D:
     var first: int = -1
+    # Imported GLBs can use Head, DEF-head.001, mixamorig:Head or
+    # provider-specific labels. Match hierarchy regions rather than suffixes.
     for i in range(skeleton.get_bone_count()):
         var name: String = skeleton.get_bone_name(i).to_lower()
-        if region == "head" and (name.ends_with("head") or name == "head"):
+        if region == "head" and name.contains("head") and not name.contains("head_end"):
             first = i
             break
-        if region == "chest" and (name.contains("chest") or name.ends_with("spine2") or name.ends_with("spine_02")):
+        if region == "chest" and (name.contains("chest") or name.contains("spine2") or name.contains("spine_02")):
             first = i
             break
-    if first < 0 and region == "chest":
+    if first < 0:
         for i in range(skeleton.get_bone_count()):
-            if skeleton.get_bone_name(i).to_lower().contains("spine"):
+            var label: String = skeleton.get_bone_name(i).to_lower()
+            if region == "head" and label.contains("neck"):
+                first = i
+                break
+            if region == "chest" and (label.contains("spine") or label.contains("torso") or label.contains("body")):
                 first = i
                 break
     if first < 0:
+        var names: Array[String] = []
+        for i in range(skeleton.get_bone_count()):
+            names.append(skeleton.get_bone_name(i))
+        push_warning("Missing male chibi " + region + " bone: " + str(names))
         return null
     var attachment := BoneAttachment3D.new()
     attachment.name = "HeroCostume" + region.capitalize()
