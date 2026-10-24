@@ -15,6 +15,46 @@ var _shade_material: StandardMaterial3D
 var _sun_material: StandardMaterial3D
 var _sunpool_material: StandardMaterial3D
 var _earth_texture: ImageTexture
+var _earth_normal: ImageTexture
+var _earth_roughness: ImageTexture
+
+func earth_normal_texture() -> ImageTexture:
+    if _earth_normal != null:
+        return _earth_normal
+    var source: Image = earth_texture().get_image()
+    var width: int = source.get_width()
+    var height: int = source.get_height()
+    var output := Image.create(width, height, false, Image.FORMAT_RGB8)
+    for y in range(height):
+        for x in range(width):
+            var l: float = source.get_pixel(posmod(x - 1, width), y).get_luminance()
+            var r: float = source.get_pixel((x + 1) % width, y).get_luminance()
+            var u: float = source.get_pixel(x, posmod(y - 1, height)).get_luminance()
+            var d: float = source.get_pixel(x, (y + 1) % height).get_luminance()
+            var direction := Vector3((l - r) * 1.8, (u - d) * 1.8, 1.0).normalized()
+            output.set_pixel(x, y, Color(direction.x * 0.5 + 0.5,
+                direction.y * 0.5 + 0.5, direction.z * 0.5 + 0.5))
+    _earth_normal = ImageTexture.create_from_image(output)
+    return _earth_normal
+
+
+func earth_roughness_texture() -> ImageTexture:
+    if _earth_roughness != null:
+        return _earth_roughness
+    var source: Image = earth_texture().get_image()
+    var result := Image.create(source.get_width(), source.get_height(),
+        false, Image.FORMAT_RGB8)
+    for y in range(source.get_height()):
+        for x in range(source.get_width()):
+            # Damp, darker depressions are a little more reflective than
+            # sun-baked sandy bumps; no real-time reflections are required.
+            var lightness: float = source.get_pixel(x, y).get_luminance()
+            var roughness: float = clampf(0.73 + lightness * 0.36, 0.74, 0.97)
+            result.set_pixel(x, y, Color(roughness, roughness, roughness))
+    _earth_roughness = ImageTexture.create_from_image(result)
+    return _earth_roughness
+
+
 
 
 func earth_texture() -> ImageTexture:
