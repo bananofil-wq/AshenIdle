@@ -232,6 +232,9 @@ func _ready() -> void:
     if OS.has_feature("mobile"):
         Engine.max_fps = 60
         Engine.physics_ticks_per_second = 60
+        # Godot 4.3 Compatibility supports per-viewport 3D scaling. Begin
+        # crisp; scale down only after sustained frame-time pressure.
+        get_viewport().scaling_3d_scale = 1.0
     rng.randomize()
     _load_game()
     _create_fx_textures()
@@ -1116,6 +1119,9 @@ func _process(delta: float) -> void:
             var previous_tier: int = quality_budget.tier
             var active_tier: int = quality_budget.observe(float(live_fps), 1.0)
             if active_tier != previous_tier:
+                # Lowering 3D resolution is much cheaper than removing
+                # gameplay geometry. 2D HUD stays in its native layout.
+                get_viewport().scaling_3d_scale = [0.76, 0.87, 1.0][active_tier]
                 if dungeon_map != null:
                     dungeon_map.call("set_graphics_preset", active_tier)
                     if hero != null:
