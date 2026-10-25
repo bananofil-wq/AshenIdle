@@ -324,6 +324,47 @@ func _hero_signature(head: BoneAttachment3D, chest: BoneAttachment3D, kind: Stri
             _ball(chest, Vector3(0, 0.07, 0.31), 0.13,
                 Color("eb4560"), Vector3(0.8, 0.9, 0.42))
 
+# Oversized forged warhammer is rigged to the actual weapon hand.
+# The chest fallback prevents a missing imported bone label from hiding it.
+func _equip_cinder_hammer(skeleton: Skeleton3D, chest: BoneAttachment3D) -> void:
+    var hand_index: int = -1
+    for i in range(skeleton.get_bone_count()):
+        var bone_name: String = skeleton.get_bone_name(i).to_lower()
+        if (bone_name.contains("hand") or bone_name.contains("wrist")) and (bone_name.contains("right") or bone_name.contains("_r") or bone_name.ends_with(".r") or bone_name.ends_with("r")):
+            hand_index = i
+            break
+    var mount: Node3D = chest
+    if hand_index >= 0:
+        var grip := BoneAttachment3D.new()
+        grip.name = "CinderHammerHandMount"
+        grip.bone_idx = hand_index
+        skeleton.add_child(grip)
+        mount = grip
+    var hammer := Node3D.new()
+    hammer.name = "CinderWarhammer"
+    mount.add_child(hammer)
+    if hand_index >= 0:
+        hammer.position = Vector3(0.02, -0.44, 0.12)
+        hammer.rotation = Vector3(0.0, 0.0, 0.13)
+    else:
+        hammer.position = Vector3(0.54, -0.02, 0.24)
+        hammer.rotation.z = -0.28
+    # Long wrapped grip, iron pommel, reinforced socket and chunky hammer head.
+    _block(hammer, Vector3(0, 0.02, 0), Vector3(0.105, 1.48, 0.105), Color("533527"), 0.15)
+    for band in range(6):
+        _block(hammer, Vector3(0, -0.53 + float(band) * 0.10, 0), Vector3(0.123, 0.033, 0.127), Color("c2924c"), 0.56)
+    _ball(hammer, Vector3(0, -0.76, 0), 0.12, Color("737b83"))
+    _block(hammer, Vector3(0, 0.57, 0), Vector3(0.22, 0.29, 0.21), Color("a3a9b1"), 0.75)
+    _block(hammer, Vector3(0, 0.76, 0), Vector3(0.74, 0.41, 0.43), Color("414b59"), 0.76)
+    for side in [-1.0, 1.0]:
+        var x: float = float(side)
+        _block(hammer, Vector3(x * 0.41, 0.76, 0), Vector3(0.13, 0.47, 0.48), Color("c3ccd0"), 0.79)
+        _block(hammer, Vector3(x * 0.28, 0.76, 0.23), Vector3(0.12, 0.26, 0.045), Color("e9a94f"), 0.46)
+    _block(hammer, Vector3(0, 0.77, 0.255), Vector3(0.31, 0.15, 0.048), Color("ff772a"), 0.2)
+    _block(hammer, Vector3(0, 0.77, -0.255), Vector3(0.31, 0.15, 0.048), Color("ff772a"), 0.2)
+    var fire_core := _ball(hammer, Vector3(0, 0.82, 0.0), 0.13, Color("ffab42"), Vector3(1.10, 0.72, 1.10))
+    fire_core.material_override = _material(Color("ff8a2a"), 0.10, true)
+
 func decorate_chibi(model: Node3D, kind: String) -> bool:
     if model == null:
         return false
@@ -390,6 +431,8 @@ func decorate_chibi(model: Node3D, kind: String) -> bool:
         _block(chest, Vector3(0, -0.08, -0.16), Vector3(0.48, 0.40, 0.054), red)
         _block(chest, Vector3(0, -0.02, -0.20), Vector3(0.25, 0.32, 0.04), Color("2a2029"))
     _hero_signature(head, chest, kind)
+    if kind == "Knight":
+        _equip_cinder_hammer(skeleton, chest)
     model.set_meta("male_chibi_costume", kind)
     model.set_meta("class_signature", kind)
     return true
