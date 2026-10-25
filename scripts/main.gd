@@ -470,6 +470,24 @@ func _fit_hud() -> void:
             popup.position = Vector2((720.0 - popup.size.x) * 0.5, (height - popup.size.y) * 0.5)
 
 
+func _premium_trim(widget: Control, motif: String) -> void:
+    var frame: Control = preload("res://scripts/fantasy_ornament.gd").new() as Control
+    frame.name = "PremiumFantasyFrame"
+    frame.set("mode", motif)
+    frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    widget.add_child(frame)
+    frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+    frame.offset_left = 0
+    frame.offset_right = 0
+    frame.offset_top = 0
+    frame.offset_bottom = 0
+    widget.move_child(frame, 0)
+    if widget is PanelContainer or widget is Panel:
+        widget.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+    elif widget is Button:
+        for key in ["normal", "hover", "pressed", "focus", "disabled"]:
+            widget.add_theme_stylebox_override(key, StyleBoxEmpty.new())
+
 func _build_ui() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
@@ -487,6 +505,7 @@ func _build_ui() -> void:
     portrait.size = Vector2(402, 181)
     portrait.add_theme_stylebox_override("panel", _hud_plate(Color("0a111ef4"), Color("bb8550"), 18))
     overlay.add_child(portrait)
+    _premium_trim(portrait, "hero")
     var hud_hero_row := HBoxContainer.new()
     hud_hero_row.add_theme_constant_override("separation", 11)
     portrait.add_child(hud_hero_row)
@@ -538,6 +557,7 @@ func _build_ui() -> void:
     map_panel.size = Vector2(229, 181)
     map_panel.add_theme_stylebox_override("panel", _hud_plate(Color("0b1120f2"), Color("bb8550"), 17))
     overlay.add_child(map_panel)
+    _premium_trim(map_panel, "journey")
     var map_column := VBoxContainer.new()
     map_column.add_theme_constant_override("separation", 2)
     map_panel.add_child(map_column)
@@ -557,7 +577,7 @@ func _build_ui() -> void:
     fps_label.position = Vector2(612, 202)
     fps_label.size = Vector2(90, 24)
     fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-    fps_label.visible = OS.has_feature("editor")
+    fps_label.visible = false
     overlay.add_child(fps_label)
 
     var banner := PanelContainer.new()
@@ -566,6 +586,7 @@ func _build_ui() -> void:
     banner.size = Vector2(386, 65)
     banner.add_theme_stylebox_override("panel", _hud_plate(Color("080e1cda"), Color("d69a60"), 15))
     overlay.add_child(banner)
+    _premium_trim(banner, "banner")
     var banner_column := VBoxContainer.new()
     banner_column.add_theme_constant_override("separation", 0)
     banner.add_child(banner_column)
@@ -599,6 +620,7 @@ func _build_ui() -> void:
     bottom.size = Vector2(696, 186)
     bottom.add_theme_stylebox_override("panel", _hud_plate(Color("090f20f5"), Color("bd8754"), 24))
     overlay.add_child(bottom)
+    _premium_trim(bottom, "dock")
     var dock_title := _label("✦      ASHEN POWERS      ✦", 12, Color("a67b54"))
     dock_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     dock_title.position = Vector2(180, 3)
@@ -620,15 +642,16 @@ func _build_ui() -> void:
         ability.add_theme_stylebox_override("pressed", _hud_plate(Color("54402b"), Color("ffd37b"), 56))
         ability.add_theme_stylebox_override("disabled", _hud_plate(Color("161b29dd"), Color("656574"), 56))
         skill_bar.add_child(ability)
+        _premium_trim(ability, "skill")
         skill_buttons.append(ability)
-        var glyph_script: Script = preload("res://scripts/ability_icon.gd")
+        var glyph_script: Script = preload("res://scripts/fantasy_glyph.gd")
         var glyph: Control = glyph_script.new() as Control
         glyph.name = "AbilityGlyph"
         glyph.set("class_id", hero_class)
         glyph.set("ability_id", slot_index)
-        glyph.position = Vector2(29, 6)
-        glyph.size = Vector2(34, 34)
-        glyph.scale = Vector2(2.30, 2.30)
+        glyph.position = Vector2(28, 10)
+        glyph.size = Vector2(78, 78)
+        glyph.scale = Vector2.ONE
         glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
         ability.add_child(glyph)
         var caption := _label(str(spell_name), 13, Color("ffe6c8"))
