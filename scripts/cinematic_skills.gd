@@ -248,13 +248,33 @@ func _inferno_columns(at: Vector3, count: int, spread: float) -> void:
             node.rotation.x = 0.12 * sin(theta)
 
 
+func _flame_volume(at: Vector3, radius: float, life: float) -> void:
+    # Actual glowing bodies of flame, not a stack of floor strokes.
+    # Shared low-detail sphere geometry and short lifetime suit mobile.
+    var core := SphereMesh.new()
+    core.radius = 0.5
+    core.height = 1.0
+    core.radial_segments = 10
+    core.rings = 6
+    for i in range(9):
+        var angle: float = TAU * float(i) / 9.0
+        var distance: float = radius * (0.18 + float(i % 3) * 0.27)
+        var pos := at + Vector3(cos(angle) * distance,
+            0.47 + float(i % 4) * 0.23, sin(angle) * distance)
+        var warm := Color("fff0a0") if i % 3 == 0 else Color("ff9b29") if i % 2 == 0 else Color("e94319")
+        var flame := _spawn(core, pos, warm, 0.82, life, "flame_column")
+        if flame != null:
+            flame.scale = Vector3(0.65, 1.25 + float(i % 3) * 0.30, 0.65)
+
+
 func _inferno_impact(at: Vector3) -> void:
     # Silhouette, incandescent core and darker smoke have distinct roles.
     # Three separated heights and a hot center make Inferno readable
     # through the zoomed-out Android camera, not only in an FX close-up.
     _inferno_fan(at, 2.65, 0.82)
     _inferno_fan(at + Vector3(0, 0.22, 0), 3.2, 0.70)
-    _inferno_columns(at, 10, 2.1)
+    _inferno_columns(at, 6, 2.1)
+    _flame_volume(at, 2.2, 0.62)
     _ring(at, 1.10, 0.26, Color("fff3c8"), 0.20, "shock", 0.95)
     _ring(at, 1.75, 0.30, Color("ff6a16"), 0.60, "shock", 0.84)
     _smoke(at, 3.2, 1.2)
@@ -279,6 +299,15 @@ func _bolts(origin: Vector3, destination: Vector3, tint: Color, forks: int = 3) 
     var sideways: Vector3 = axis.cross(Vector3.UP).normalized()
     if sideways.length_squared() < 0.01:
         sideways = Vector3.RIGHT
+    # A luminous hit mass reads as lightning energy at phone scale.
+    var orb_mesh := SphereMesh.new()
+    orb_mesh.radius = 0.5
+    orb_mesh.height = 1.0
+    orb_mesh.radial_segments = 10
+    orb_mesh.rings = 6
+    var burst := _spawn(orb_mesh, destination, tint.lightened(0.55), 0.90, 0.25, "orb")
+    if burst != null:
+        burst.scale = Vector3.ONE * 0.42
     for j in range(6):
         var fraction: float = float(j + 1) / 6.0
         var finish: Vector3 = origin.lerp(destination, fraction)
