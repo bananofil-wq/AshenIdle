@@ -398,7 +398,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" \
             godot --resolution 720x1280 --path . --rendering-driver opengl3 \
             --script res://scripts/ci_motion.gd 2>&1 | tee build/motion.log
-          test "$(find build/motion -name '*.jpg' | wc -l)" -eq 96
+          test "$(find build/motion -name '*.jpg' | wc -l)" -eq 210
           if ! command -v ffmpeg >/dev/null 2>&1; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg
@@ -409,6 +409,9 @@ jobs:
           test -s build/gameplay-motion.mp4
           ffprobe -v error -show_entries format=duration \
             -of default=noprint_wrappers=1 build/gameplay-motion.mp4
+          # 210 authentic Godot frames encoded at 30 FPS must be ~7 seconds.
+          duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 build/gameplay-motion.mp4)"
+          awk -v d="$duration" 'BEGIN { exit !(d >= 6.95 && d <= 7.05) }'
 
       - name: Upload real moving gameplay preview
         uses: actions/upload-artifact@v4
