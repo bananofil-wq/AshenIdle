@@ -18,6 +18,9 @@ var sparks_total := 0
 var total_casts := 0
 var randomizer := RandomNumberGenerator.new()
 var haze_texture: ImageTexture
+# Timed, class-specific attack beats. No 4-color version of one generic nova.
+var signature_cues: Array = []
+var signature_casts: Dictionary = {"inferno": 0, "arrowfall": 0, "chain_lightning": 0, "nightfall": 0}
 
 func _ready() -> void:
     randomizer.seed = 41773
@@ -34,6 +37,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
     elapsed += delta
+    for cue_index in range(signature_cues.size() - 1, -1, -1):
+        var cue: Dictionary = signature_cues[cue_index]
+        if float(cue["at"]) <= elapsed:
+            signature_cues.remove_at(cue_index)
+            _play_signature_beat(cue)
     for i in range(effects.size() - 1, -1, -1):
         var effect: Dictionary = effects[i]
         var node: MeshInstance3D = effect["node"] as MeshInstance3D
@@ -322,6 +330,145 @@ func clear_all() -> void:
         if is_instance_valid(node):
             node.queue_free()
     effects.clear()
+    signature_cues.clear()
+
+
+func _queue_signature(kind: String, delay: float, start: Vector3,
+        destination: Vector3, targets: Array, rank: int) -> void:
+    signature_cues.append({
+        "kind": kind, "at": elapsed + delay, "start": start,
+        "destination": destination, "targets": targets.duplicate(), "rank": rank
+    })
+
+
+func _scythe_sweep(at: Vector3, radius: float) -> void:
+    # A curved, wide violet arc, not a stack of straight neon rays.
+    var path: Array = []
+    var old: Vector3 = Vector3(cos(-1.25), 0.95, sin(-1.25)) * radius
+    for n in range(1, 19):
+        var angle: float = -1.25 + 2.65 * float(n) / 18.0
+        var next: Vector3 = Vector3(cos(angle) * radius, 0.96, sin(angle) * radius)
+        path.append([old, next, 0.42 * (1.0 - float(n) / 27.0)])
+        old = next
+    _spawn(_mesh_from_strokes(path, 0.30), at,
+        Color("b86aff"), 0.88, 0.54, "beam")
+    _ring(at, radius * 0.76, 0.095, Color("672f9c"), 0.36)
+
+
+func _play_signature_beat(cue: Dictionary) -> void:
+    var kind: String = str(cue["kind"])
+    var start: Vector3 = cue["start"]
+    var target: Vector3 = cue["destination"]
+    var targets: Array = cue["targets"]
+    var rank: int = int(cue["rank"])
+    match kind:
+        "inferno":
+            # Ground-shattering mace slam: incandescent deep fissures, a
+            # three-layer expanding fire blast, then free embers rising.
+            var center: Vector3 = start + Vector3(0, 0.03, 0)
+            _fractures(center, 2.85 + float(rank) * 0.06,
+                Color("ff511b"), 1.38, 12)
+            _ring(center, 1.25, 0.23, Color("ffedaf"), 0.33, "shock", 0.92)
+            _ring(center, 1.80, 0.32, Color("ff9c29"), 0.59, "shock", 0.87)
+            _ring(center, 2.40, 0.19, Color("d63714"), 0.78, "shock", 0.76)
+            _embers(center, Color("ffb94a"), 9)
+            for i in range(7):
+                var angle: float = TAU * float(i) / 7.0
+                var offset := Vector3(cos(angle), 0, sin(angle)) * 1.3
+                _beam(center + offset + Vector3(0, 0.20, 0),
+                    center + offset * 1.17 + Vector3(0, 1.05 + float(i % 3) * 0.22, 0),
+                    0.10, Color("ff9a32"), 0.42)
+        "arrowfall":
+            # A rapid airborne shot resolves into real downward TRAVELING
+            # arrows, with slanting paths and staggered impact timing.
+            var number: int = mini(18, 12 + rank)
+            for i in range(number):
+                if effects.size() >= MAX_EFFECTS - 4:
+                    break
+                var x: float = float((i * 7) % number) / float(number - 1) - 0.5
+                var z: float = float((i * 11) % number) / float(number - 1) - 0.5
+                var landing: Vector3 = target + Vector3(x * 5.6, 0.12, z * 5.3)
+                var launch: Vector3 = landing + Vector3(-2.2, 5.2 + float(i % 4) * 0.26, -1.1)
+                var bolt := CylinderMesh.new()
+                bolt.top_radius = 0.018
+                bolt.bottom_radius = 0.065
+                bolt.height = 0.94
+                bolt.radial_segments = 5
+                var arrow: MeshInstance3D = _spawn(bolt, launch,
+                    Color("ffe8aa"), 0.94, 0.27 + float(i % 4) * 0.065, "travel")
+                if arrow != null:
+                    arrow.quaternion = Quaternion(Vector3.UP, (landing - launch).normalized())
+                    var effect: Dictionary = effects.back()
+                    effect["from"] = launch
+                    effect["to"] = landing
+                    # Short tracer stabs clarify descending arrows at camera distance.
+                    if i % 3 == 0:
+                        _beam(launch, launch.lerp(landing, 0.42), 0.028,
+                            Color("a8eaff"), 0.29, 0.58)
+            _sigil(target, 2.35, Color("d9d7a3"), 0.65, 16)
+        "chain_lightning":
+            var current: Vector3 = start + Vector3(0, 1.42, 0)
+            if not targets.is_empty():
+                current = targets[0] as Vector3 + Vector3(0, 1.0, 0)
+            var finish: Vector3 = target + Vector3(0, 1.0, 0)
+            # Wide icy bolt / hot white core and independent forks.
+            _bolts(current, finish, Color("60baff"), 4)
+            _bolts(current + Vector3(0.05, 0.09, 0),
+                finish, Color("f1fcff"), 2)
+            _ring(target, 0.42, 0.11, Color("b6dcff"), 0.23)
+            _embers(target, Color("8ee8ff"), 4)
+        "nightfall":
+            # Black smoke dash leaves a curving violet reaper blade and a
+            # reverse-flow blood-red tether returning to the caster.
+            _smoke(start, 2.3, 0.66)
+            _smoke(target, 3.1, 0.92)
+            _scythe_sweep(target, 2.20)
+            _fractures(target, 1.92, Color("71339c"), 1.18, 6)
+            for n in range(mini(4, maxi(1, targets.size()))):
+                var victim: Vector3 = targets[n] as Vector3 if not targets.is_empty() else target
+                _whip(victim + Vector3(0, 0.95, 0),
+                    start + Vector3(0, 1.15, 0), Color("e94168"),
+                    0.075, 0.72)
+            _ring(start, 0.7, 0.10, Color("e8406e"), 0.48)
+            _embers(start, Color("ec4167"), 6)
+
+
+func _cast_signature(hero_class: int, skill: int, rank: int, start: Vector3,
+        destination: Vector3, targets: Array) -> bool:
+    if hero_class == 0 and skill == 2:
+        signature_casts["inferno"] = int(signature_casts["inferno"]) + 1
+        _sigil(start, 1.1, Color("ffb35a"), 0.32, 16)
+        _embers(start, Color("ffac59"), 4)
+        _queue_signature("inferno", 0.24, start, destination, targets, rank)
+        return true
+    if hero_class == 1 and skill == 2:
+        signature_casts["arrowfall"] = int(signature_casts["arrowfall"]) + 1
+        _smoke(start, 1.65, 0.42)
+        _whip(start + Vector3(0, 1.2, 0), start + Vector3(0, 5.8, 0),
+            Color("ffe9a0"), 0.12, 0.56)
+        _queue_signature("arrowfall", 0.30, start, destination, targets, rank)
+        return true
+    if hero_class == 2 and skill == 1:
+        signature_casts["chain_lightning"] = int(signature_casts["chain_lightning"]) + 1
+        _sigil(start, 0.83, Color("87d5ff"), 0.63, 14)
+        _embers(start + Vector3(0, 0.7, 0), Color("aaddff"), 7)
+        var bounce_start: Vector3 = start
+        for hop in range(mini(targets.size(), mini(6, 2 + rank))):
+            var bounce_destination: Vector3 = targets[hop] as Vector3
+            _queue_signature("chain_lightning", 0.10 + 0.11 * float(hop),
+                bounce_start, bounce_destination, [bounce_start], rank)
+            bounce_start = bounce_destination
+        if targets.is_empty():
+            _queue_signature("chain_lightning", 0.12, start, destination,
+                [start], rank)
+        return true
+    if hero_class == 3 and skill == 2:
+        signature_casts["nightfall"] = int(signature_casts["nightfall"]) + 1
+        _smoke(start, 2.5, 0.64)
+        _sigil(start, 1.14, Color("7834b4"), 0.56, 18)
+        _queue_signature("nightfall", 0.19, start, destination, targets, rank)
+        return true
+    return false
 
 
 func cast(hero_class: int, slot: int, rank: int, start: Vector3,
@@ -334,6 +481,8 @@ func cast(hero_class: int, slot: int, rank: int, start: Vector3,
     var scale_bonus: float = minf(0.55, float(maxi(0, rank - 1)) * 0.045)
     var origin: Vector3 = start + Vector3(0, 1.0, 0)
     var impact: Vector3 = destination + Vector3(0, 0.14, 0)
+    if _cast_signature(cls, skill, rank, start, destination, targets):
+        return
     match skill:
         0:
             # Basic: fast directional slash/arc and short-lived impact.
