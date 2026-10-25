@@ -86,10 +86,25 @@ func _run() -> void:
         if gait == null:
             _fail("No independently moving legs for "+str(item[0]))
             return
+        var opposite: Node3D = body.get_node_or_null("LegRight") as Node3D
+        if opposite == null:
+            opposite = body.get_node_or_null("Leg1") as Node3D
+        if opposite == null:
+            _fail("No opposite foot for articulated gait: "+str(item[0]))
+            return
+        var rest_foot: Vector3 = gait.position
+        var opposite_rest: Vector3 = opposite.position
         player.play("Jog_Fwd")
         player.advance(.14)
         if gait.rotation.length_squared() <= 0.0005:
             _fail("Character glides without actual 3D limb rotation: " + str(item[0]))
+            return
+        var raised: float = gait.position.y - rest_foot.y
+        var planted: float = opposite.position.y - opposite_rest.y
+        if raised < .035 or planted > .025:
+            _fail("Gait must lift one foot while planting the other: "
+                + str(item[0]) + " raised=" + str(raised)
+                + " planted=" + str(planted))
             return
         var attack: Animation = player.get_animation("Sword_Regular_A")
         if attack.get_track_count() < 2:
