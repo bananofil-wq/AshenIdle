@@ -52,10 +52,10 @@ func _capture() -> void:
         return
     var survivors: Array = []
     var offsets := [
-        Vector3(-1.45, 0, 3.20),
-        Vector3(1.30, 0, 3.60),
-        Vector3(-0.65, 0, 4.30),
-        Vector3(0.55, 0, 4.65)
+        Vector3(-1.90, 0, 1.10),
+        Vector3(1.90, 0, 1.10),
+        Vector3(-1.45, 0, 3.40),
+        Vector3(1.45, 0, 3.80)
     ]
     for i in range(mobs.size()):
         var enemy: Node3D = mobs[i] as Node3D
@@ -84,7 +84,7 @@ func _capture() -> void:
             game.set("skill_cooldowns", [999.0, 999.0, 0.0])
             game.call("_use_skill", 2)
         # Without game._process, update only the actual signature body pose.
-        game.call("_update_signature_pose", 1.0 / 30.0)
+        game.call("_update_signature_pose", game.get_process_delta_time())
         await RenderingServer.frame_post_draw
         var shot: Image = root.get_texture().get_image()
         if shot.is_empty() or shot.save_jpg("res://build/knight-motion/%03d.jpg" % frame, 0.90) != OK:
