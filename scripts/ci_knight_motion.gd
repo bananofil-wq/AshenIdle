@@ -83,8 +83,12 @@ func _capture() -> void:
             game.set("mp", game.call("_max_mp"))
             game.set("skill_cooldowns", [999.0, 999.0, 0.0])
             game.call("_use_skill", 2)
-        # Without game._process, update only the actual signature body pose.
-        game.call("_update_signature_pose", game.get_process_delta_time())
+        # The showcase deliberately pauses game AI. Advance both real
+        # attack controllers manually at the exported video's 30 FPS.
+        game.call("_update_signature_pose", 1.0 / 30.0)
+        var driver: Node = game.get("knight_combat_driver") as Node
+        if driver != null:
+            driver.call("advance", 1.0 / 30.0)
         await RenderingServer.frame_post_draw
         var shot: Image = root.get_texture().get_image()
         if shot.is_empty() or shot.save_jpg("res://build/knight-motion/%03d.jpg" % frame, 0.90) != OK:
