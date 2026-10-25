@@ -455,6 +455,10 @@ func _fit_hud() -> void:
         abilities.position.y = height - 183.0
     if quick_menu != null:
         quick_menu.position.y = height - 720.0
+    if auto_gear_button != null:
+        auto_gear_button.position.y = height - 149.0
+    if quick_menu_button != null:
+        quick_menu_button.position.y = height - 149.0
     if popup_shade != null:
         popup_shade.size = overlay.size
     for panel in [legendary_overlay, skill_overlay, hero_overlay, evolution_overlay, inventory_overlay, drop_prompt]:
@@ -480,13 +484,13 @@ func _build_ui() -> void:
     portrait.size = Vector2(402, 181)
     portrait.add_theme_stylebox_override("panel", _hud_plate(Color("0a111ef4"), Color("bb8550"), 18))
     overlay.add_child(portrait)
-    var hero_row := HBoxContainer.new()
-    hero_row.add_theme_constant_override("separation", 11)
-    portrait.add_child(hero_row)
+    var hud_hero_row := HBoxContainer.new()
+    hud_hero_row.add_theme_constant_override("separation", 11)
+    portrait.add_child(hud_hero_row)
     var hero_portrait := PanelContainer.new()
     hero_portrait.custom_minimum_size = Vector2(89, 89)
     hero_portrait.add_theme_stylebox_override("panel", _hud_plate(Color("121b2c"), Color("dba354"), 44))
-    hero_row.add_child(hero_portrait)
+    hud_hero_row.add_child(hero_portrait)
     var emblem_script: Script = preload("res://scripts/class_emblem.gd")
     var hero_emblem: Control = emblem_script.new() as Control
     hero_emblem.set("class_id", hero_class)
@@ -496,7 +500,7 @@ func _build_ui() -> void:
     var hero_lines := VBoxContainer.new()
     hero_lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     hero_lines.add_theme_constant_override("separation", 3)
-    hero_row.add_child(hero_lines)
+    hud_hero_row.add_child(hero_lines)
     hero_lines.add_child(_label("✦  ASHEN IDLE", 19, Color("f2c487")))
     status = _label("", 17, Color("fff1d7"))
     hero_lines.add_child(status)
