@@ -76,6 +76,8 @@ func _capture() -> void:
     camera.look_at(knight.global_position + Vector3(0, 0.95, 2.1), Vector3.UP)
     game.call("_refresh")
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/knight-motion"))
+    var animation_samples := 0
+    var previous_hammer_rotation := Vector3.ZERO
     for frame in range(270):
         if frame in [45, 65, 85]:
             game.call("_fight")
@@ -89,6 +91,11 @@ func _capture() -> void:
         var driver: Node = game.get("knight_combat_driver") as Node
         if driver != null:
             driver.call("advance", 1.0 / 30.0)
+            var hammer: Node3D = driver.get("hammer") as Node3D
+            if is_instance_valid(hammer):
+                if hammer.rotation.distance_to(previous_hammer_rotation) > 0.05:
+                    animation_samples += 1
+                previous_hammer_rotation = hammer.rotation
         await RenderingServer.frame_post_draw
         var shot: Image = root.get_texture().get_image()
         if shot.is_empty() or shot.save_jpg("res://build/knight-motion/%03d.jpg" % frame, 0.90) != OK:
@@ -98,6 +105,10 @@ func _capture() -> void:
     var counts: Dictionary = vfx.get("signature_casts")
     var swings: int = int(vfx.get("hammer_basic_casts"))
     var impacts: int = int(vfx.get("hammer_basic_impacts"))
+    if animation_samples < 10:
+        push_error("KNIGHT QA FAIL: missing visible hammer movement")
+        quit(8)
+        return
     if survivors.size() < 4 or swings < 3 or impacts < 3 or int(counts.get("inferno", 0)) < 2:
         push_error("KNIGHT QA FAIL: survivors=%d basics=%d contacts=%d infernos=%d" %
             [survivors.size(), swings, impacts, int(counts.get("inferno", 0))])
