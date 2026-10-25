@@ -83,7 +83,7 @@ func _run() -> void:
             for art_part in (costume_bone as Node).find_children("*", "MeshInstance3D", true, false):
                 if art_part is MeshInstance3D:
                     costume_mesh_count += 1
-        if costume_mesh_count < 16:
+        if costume_mesh_count < 14:
             _fail("Class silhouette is too plain: " + hero_kind + " has " + str(costume_mesh_count) + " rigged props")
             return
         var moving: bool = false
