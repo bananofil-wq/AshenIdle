@@ -3810,14 +3810,36 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     # Four distinct original chibi silhouettes, not the same imported knight
     # reused with four tints. The procedural rig carries real limb animation.
     if not enemy:
-        var cartoon_root := Node3D.new()
-        cartoon_root.position = at
-        add_child(cartoon_root)
-        if toon_enemy_art.build_hero(cartoon_root,model_name):
-            _bind_motion_driver(cartoon_root)
-            _play_actor_clip(cartoon_root,"Idle",0.0,1.0)
-            return cartoon_root
-        cartoon_root.queue_free()
+        # The playable hero MUST be the same male rig and per-class costume
+        # displayed in the character-selection portrait, not a separate
+        # procedural mannequin with different body proportions and motion.
+        var male_scene: PackedScene = _get_asset_scene("chibi_knight")
+        if male_scene != null:
+            var cartoon_root := Node3D.new()
+            cartoon_root.position = at
+            add_child(cartoon_root)
+            var male_model: Node3D = male_scene.instantiate() as Node3D
+            if male_model != null:
+                cartoon_root.add_child(male_model)
+                _fit_visual_model(male_model, 2.15)
+                if stylized_hero_art.decorate_chibi(male_model, model_name):
+                    cartoon_root.set_meta("chibi_character", "knight")
+                    cartoon_root.set_meta("male_chibi_costume", model_name)
+                    cartoon_root.set_meta("visual_rest_position", male_model.position)
+                    _bind_motion_driver(cartoon_root)
+                    _play_actor_clip(cartoon_root, "Idle", 0.0, 1.0)
+                    return cartoon_root
+            cartoon_root.queue_free()
+        # Keep the original procedural male hero as an asset-free fallback
+        # for local Godot edits without the CI-downloaded CC0 GLB.
+        var fallback_root := Node3D.new()
+        fallback_root.position = at
+        add_child(fallback_root)
+        if toon_enemy_art.build_hero(fallback_root, model_name):
+            _bind_motion_driver(fallback_root)
+            _play_actor_clip(fallback_root, "Idle", 0.0, 1.0)
+            return fallback_root
+        fallback_root.queue_free()
     var hero_hd: String = hd_characters.model_for_hero(model_name) if not enemy else ""
     var dark_name: String = hero_hd if hero_hd != "" and _get_asset_scene(hero_hd) != null else _dark_character_name(model_name, enemy)
     var packed := _get_asset_scene(dark_name)
