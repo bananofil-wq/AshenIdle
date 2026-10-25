@@ -236,6 +236,94 @@ func _tint_chibi_armor(model: Node3D, kind: String) -> void:
             material.albedo_color = source.albedo_color * tint
             piece.set_surface_override_material(surface, material)
 
+# High-contrast silhouette pieces are anchored to the same rig as the hero.
+# Their proportions deliberately read from the zoomed-out dungeon camera.
+func _hero_signature(head: BoneAttachment3D, chest: BoneAttachment3D, kind: String) -> void:
+    var steel := Color("d9e9f2")
+    var brass := Color("e6aa43")
+    var ivory := Color("fff0cc")
+    var crimson := Color("c82b38")
+    match kind:
+        "Knight":
+            # Tall scarlet knight crest, broad engraved shoulders, shield and
+            # a central royal insignia instead of just recolored body armor.
+            for side in [-1.0, 1.0]:
+                var x: float = float(side)
+                _ball(chest, Vector3(x * 0.39, 0.15, -0.01), 0.23,
+                    steel, Vector3(1.25, 0.65, 1.1))
+                _block(chest, Vector3(x * 0.39, 0.23, 0.13),
+                    Vector3(0.26, 0.055, 0.20), brass, 0.55)
+            _block(chest, Vector3(-0.54, -0.11, 0.02),
+                Vector3(0.14, 0.63, 0.53), Color("245998"), 0.45)
+            _ball(chest, Vector3(-0.62, -0.10, 0.31), 0.15,
+                brass, Vector3(0.35, 1.0, 1.0))
+            _ball(head, Vector3(0.0, 0.42, -0.08), 0.17,
+                crimson, Vector3(0.55, 2.05, 0.80))
+            _cone(head, Vector3(0, 0.75, -0.12), 0.10, 0.39, crimson)
+        "Rogue":
+            # Long swept silver hair, asymmetrical violet cloak and two
+            # diagonal daggers give the agile class a different outline.
+            _ball(head, Vector3(0.0, 0.30, -0.18), 0.26, ivory,
+                Vector3(1.28, 0.56, 1.08))
+            for i in range(4):
+                var x: float = -0.30 + float(i) * 0.20
+                var point := _cone(head, Vector3(x, 0.53, -0.22),
+                    0.11, 0.39, ivory)
+                point.rotation.z = -0.31
+            _ball(head, Vector3(-0.35, 0.10, -0.30), 0.21,
+                ivory, Vector3(0.53, 1.32, 0.49))
+            _ball(chest, Vector3(0.0, 0.29, 0.06), 0.30,
+                Color("63428e"), Vector3(1.70, 0.30, 0.92))
+            for side in [-1.0, 1.0]:
+                var x: float = float(side)
+                var dagger := _block(chest, Vector3(x * 0.53, -0.08, 0.17),
+                    Vector3(0.085, 0.58, 0.09), steel, 0.5)
+                dagger.rotation.z = x * 0.40
+                _ball(chest, Vector3(x * 0.47, -0.35, 0.20),
+                    0.078, brass)
+        "Mage":
+            # Two enormous swept ember horns, an arcane crown, shoulders
+            # edged in flame and an illuminated staff head.
+            for side in [-1.0, 1.0]:
+                var x: float = float(side)
+                var horn := _cone(head, Vector3(x * 0.30, 0.48, -0.11),
+                    0.16, 0.62, Color("a72e1c"))
+                horn.rotation.z = -x * 0.37
+                var flame := _ball(chest, Vector3(x * 0.52, 0.17, -0.19),
+                    0.24, Color("ec531c"), Vector3(0.58, 1.90, 0.60))
+                flame.rotation.z = -x * 0.43
+                _ball(chest, Vector3(x * 0.39, 0.27, -0.13),
+                    0.12, Color("ffd263"), Vector3(0.70, 1.65, 0.70))
+            _cone(head, Vector3(0, 0.74, -0.08),
+                0.16, 0.64, Color("ff9822"))
+            _ball(chest, Vector3(0.57, 0.30, 0.30), 0.19,
+                Color("ffd36a"), Vector3(0.8, 1.1, 0.75))
+            _block(chest, Vector3(0.57, -0.19, 0.26),
+                Vector3(0.075, 0.93, 0.08), Color("543a46"), 0.2)
+        "Barbarian":
+            # Dusk Reaper: silver side locks, obsidian spiked armor,
+            # crimson cloak and a recognizable dark scythe silhouette.
+            _ball(head, Vector3(0.0, 0.38, -0.15), 0.29,
+                steel, Vector3(1.22, 0.48, 1.04))
+            for side in [-1.0, 1.0]:
+                var x: float = float(side)
+                var lock := _cone(head, Vector3(x * 0.33, 0.38, -0.23),
+                    0.18, 0.46, Color("f7ebec"))
+                lock.rotation.z = -x * 0.45
+                _ball(chest, Vector3(x * 0.38, 0.17, -0.04),
+                    0.24, Color("343343"), Vector3(1.35, 0.82, 1.08))
+                _cone(chest, Vector3(x * 0.43, 0.46, -0.08),
+                    0.16, 0.39, Color("b8b6c7"))
+            _block(chest, Vector3(0, -0.16, -0.22),
+                Vector3(0.74, 0.65, 0.10), crimson)
+            _block(chest, Vector3(0.57, -0.10, 0.09),
+                Vector3(0.075, 1.35, 0.09), steel, 0.55)
+            var scythe := _cone(chest, Vector3(0.40, 0.61, 0.10),
+                0.22, 0.54, crimson)
+            scythe.rotation.z = -0.87
+            _ball(chest, Vector3(0, 0.07, 0.31), 0.13,
+                Color("eb4560"), Vector3(0.8, 0.9, 0.42))
+
 func decorate_chibi(model: Node3D, kind: String) -> bool:
     if model == null:
         return false
@@ -298,5 +386,7 @@ func decorate_chibi(model: Node3D, kind: String) -> bool:
         _ball(chest, Vector3(0, 0.09, 0.23), 0.068, red)
         _block(chest, Vector3(0, -0.08, -0.16), Vector3(0.48, 0.40, 0.054), red)
         _block(chest, Vector3(0, -0.02, -0.20), Vector3(0.25, 0.32, 0.04), Color("2a2029"))
+    _hero_signature(head, chest, kind)
     model.set_meta("male_chibi_costume", kind)
+    model.set_meta("class_signature", kind)
     return true
