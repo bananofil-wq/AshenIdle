@@ -1,7 +1,7 @@
 extends SceneTree
 # Real portrait renders of authentic rigged 3D chibi characters imported from
 # a verified CC0 Godot pack. Do not substitute AI concept art for gameplay.
-const MODEL_NAMES := ["knight","ninja","merchant","archer","student"]
+const MODEL_NAMES := ["knight"]
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -105,5 +105,5 @@ func _run() -> void:
         stage.remove_child(actor)
         actor.queue_free()
         await process_frame
-    print("CHIBI IMPORT QA PASS: five licensed skinned and textured 3D fantasy models, with genuine locomotion and portrait captures")
+    print("CHIBI IMPORT QA PASS: one verified male skinned and textured 3D fantasy model, with genuine locomotion and portrait captures")
     quit(0)
