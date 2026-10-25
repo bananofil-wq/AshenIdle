@@ -1,6 +1,7 @@
 extends Control
 # Decorative frame painted in native Godot so that gameplay controls remain
 # interactive, scalable, and safe on both 720x1280 and tall phone displays.
+const PREMIUM_ATLAS: Texture2D = preload("res://assets/ui/premium_hud_atlas.svg")
 @export var mode: String = "panel"
 @export var accent: Color = Color("e6a65b")
 func _diamond(c: Vector2, radius: float, color: Color) -> void:
@@ -13,11 +14,27 @@ func _draw() -> void:
     var h: float = size.y
     if w < 10.0 or h < 10.0:
         return
+    var premium_region: Rect2 = Rect2()
+    match mode:
+        "hero": premium_region = Rect2(0, 0, 540, 288)
+        "journey": premium_region = Rect2(560, 0, 440, 288)
+        "banner": premium_region = Rect2(1010, 0, 650, 188)
+        "dock": premium_region = Rect2(0, 305, 940, 320)
+    if premium_region.size.x > 0.0:
+        draw_texture_rect_region(PREMIUM_ATLAS,
+            Rect2(Vector2.ZERO, size), premium_region, Color.WHITE, false)
+        return
     var trim: Color = accent
     var old_gold := Color("75401e")
     var pale := Color("ffe1a0")
     var dark := Color("071023")
-    if mode == "skill" or mode == "mini":
+    if mode == "skill":
+        # Each atlas ability includes its own full illuminated metal medallion.
+        # The interactive button keeps only its understated description plate.
+        draw_rect(Rect2(4,103,w-8,h-104), Color("081223",0.90), true)
+        draw_line(Vector2(13,h-8),Vector2(w-13,h-8),Color("c37f3e"),1.7,true)
+        return
+    if mode == "mini":
         # The approved reference has a circular medallion, NOT a
         # square ornate button wrapped around each skill.
         var radius: float = minf(w * 0.38, h * 0.34) if mode == "skill" else minf(w * 0.32, h * 0.32)
