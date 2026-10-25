@@ -234,6 +234,10 @@ func _run() -> void:
     game.set("grind_mode", false)
     game.call("_spawn_enemy")
     var enemies: Array = game.get("arena_mobs")
+    if not _check(int(game.get("horde_total")) >= 40 and enemies.size() <= 18,
+            "Horde chamber needs >=40 total foes but at most 18 active mobile models"):
+        quit(125)
+        return
     if not _check(enemies.size() >= 5, "Initial wave should contain several real enemies"):
         quit(11)
         return
@@ -268,6 +272,16 @@ func _run() -> void:
     if not _check((game.get("arena_mobs") as Array).is_empty(), "Individual kills should empty a wave"):
         quit(13)
         return
+    game.call("_complete_wave")
+    if not _check(int(game.get("dungeon_room_index")) == 1
+            and (game.get("arena_mobs") as Array).size() > 0,
+            "Clearing one pack must spawn the next pack, not leave the chamber"):
+        quit(126)
+        return
+    for foe in (game.get("arena_mobs") as Array).duplicate():
+        if is_instance_valid(foe):
+            foe.queue_free()
+    (game.get("arena_mobs") as Array).clear()
     var prior: int = int(game.get("stage"))
     # Stage advance must wait until the hero physically collects surviving
     # ground drops (if the cleared horde spawned one).
