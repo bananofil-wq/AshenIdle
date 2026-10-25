@@ -672,13 +672,45 @@ func _build_ui() -> void:
     auto_gear_button.tooltip_text = "Automatic equipment selection"
     auto_gear_button.add_theme_stylebox_override("normal", _hud_plate(Color("122c2bdc"), Color("75b787"), 40))
     auto_gear_button.add_theme_font_size_override("font_size", 15)
+    auto_gear_button.text = ""
     overlay.add_child(auto_gear_button)
+    _premium_trim(auto_gear_button, "skill")
+    var dock_icon_script: Script = preload("res://scripts/fantasy_dock_icon.gd")
+    var auto_glyph: Control = dock_icon_script.new() as Control
+    auto_glyph.name = "AutoGlyph"
+    auto_glyph.set("kind", "auto")
+    auto_glyph.size = Vector2(68, 68)
+    auto_glyph.position = Vector2(15, 4)
+    auto_glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    auto_gear_button.add_child(auto_glyph)
+    var auto_caption := _label("AUTO", 13, Color("ffe6bb"))
+    auto_caption.name = "AutoCaption"
+    auto_caption.position = Vector2(11, 74)
+    auto_caption.size = Vector2(77, 19)
+    auto_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    auto_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    auto_gear_button.add_child(auto_caption)
     quick_menu_button = _ornate_button("BAG\nMENU", _toggle_quick_menu, Vector2(99, 96))
     quick_menu_button.name = "QuickMenuButton"
     quick_menu_button.position = Vector2(594, overlay.size.y - 149)
     quick_menu_button.add_theme_stylebox_override("normal", _hud_plate(Color("282137ed"), Color("e6a65f"), 40))
     quick_menu_button.add_theme_font_size_override("font_size", 15)
+    quick_menu_button.text = ""
     overlay.add_child(quick_menu_button)
+    _premium_trim(quick_menu_button, "skill")
+    var bag_glyph: Control = dock_icon_script.new() as Control
+    bag_glyph.name = "BagGlyph"
+    bag_glyph.set("kind", "bag")
+    bag_glyph.size = Vector2(68, 68)
+    bag_glyph.position = Vector2(15, 4)
+    bag_glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    quick_menu_button.add_child(bag_glyph)
+    var bag_caption := _label("MENU", 13, Color("ffe6bb"))
+    bag_caption.position = Vector2(11, 74)
+    bag_caption.size = Vector2(77, 19)
+    bag_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    bag_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    quick_menu_button.add_child(bag_caption)
 
     # Secondary systems are reachable in ONE playful collapsible armory menu.
     # No loot/forge/progression control vanishes when decluttering the HUD.
@@ -2672,7 +2704,13 @@ func _refresh() -> void:
     details.text = "♥  %.0f / %.0f   DEF %.0f%%" % [hp, _max_hp(), _defense_reduction() * 100.0]
     power_label.text = "⚔  POWER %d" % int(_damage() * 90 + _max_hp() * 2)
     if auto_gear_button != null:
-        auto_gear_button.text = "AUTO\nON" if auto_equip else "AUTO\nOFF"
+        auto_gear_button.text = ""
+        var auto_label: Label = auto_gear_button.get_node_or_null("AutoCaption") as Label
+        if auto_label != null:
+            auto_label.text = "AUTO" if auto_equip else "MANUAL"
+        var auto_icon: Control = auto_gear_button.get_node_or_null("AutoGlyph") as Control
+        if auto_icon != null and bool(auto_icon.get("active")) != auto_equip:
+            auto_icon.set("active", auto_equip)
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
     if hero_mana_bar != null:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
