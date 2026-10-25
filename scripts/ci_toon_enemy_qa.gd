@@ -106,6 +106,11 @@ func _run() -> void:
                 + str(item[0]) + " raised=" + str(raised)
                 + " planted=" + str(planted))
             return
+        player.play("Idle")
+        player.advance(.18)
+        if gait.position.distance_to(rest_foot) > .014 or opposite.position.distance_to(opposite_rest) > .014:
+            _fail("Raised foot stays frozen in the air after returning to idle: "+str(item[0]))
+            return
         var attack: Animation = player.get_animation("Sword_Regular_A")
         if attack.get_track_count() < 2:
             _fail("No articulated attack for " + str(item[0]))
