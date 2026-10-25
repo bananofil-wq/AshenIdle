@@ -151,6 +151,8 @@ var forest_monster_data = FOREST_MONSTER_DATA.new()
 var hd_characters = HD_CHARACTER_REGISTRY.new()
 var hd_wolf_gait = HD_WOLF_GAIT.new()
 var stylized_hero_art = STYLIZED_HERO_ART.new()
+# Shared alpha texture avoids regenerating 4,096 pixels at each class respawn.
+var _cached_ground_shadow_material: StandardMaterial3D
 var toon_enemy_art = TOON_ENEMY_ART.new()
 var quality_budget = MOBILE_QUALITY.new()
 var mobile_visibility_timer: float = 0.0
@@ -3803,6 +3805,29 @@ func _attach_hero_clips(model: Node3D) -> void:
         receiver.add_animation_library("", result)
     donor.queue_free()
 
+func _add_actor_contact_shadow(actor: Node3D, enemy: bool = false) -> void:
+    # The imported male chibi hero previously returned before the existing
+    # grounding-shadow code. Its feet appeared to float over stone corridors.
+    if actor == null or actor.get_node_or_null("SoftContactShadow") != null:
+        return
+    if _cached_ground_shadow_material == null:
+        var shade_image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+        for sy in range(64):
+            for sx in range(64):
+                var distance: float = Vector2(float(sx) - 31.5, float(sy) - 31.5).length() / 31.5
+                var fade: float = (1.0 - smoothstep(0.13, 1.0, distance)) * 0.29
+                shade_image.set_pixel(sx, sy, Color(0.025, 0.020, 0.022, fade))
+        _cached_ground_shadow_material = StandardMaterial3D.new()
+        _cached_ground_shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+        _cached_ground_shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+        _cached_ground_shadow_material.albedo_texture = ImageTexture.create_from_image(shade_image)
+    var footprint := PlaneMesh.new()
+    footprint.size = Vector2(1.70 if enemy else 2.05, 1.70 if enemy else 2.05)
+    var contact_mesh: MeshInstance3D = _mesh(
+        actor, footprint, Vector3(0, 0.045, 0), _cached_ground_shadow_material)
+    contact_mesh.name = "SoftContactShadow"
+    contact_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
 func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> Node3D:
     # Player characters now use the same true chibi character architecture
     # as mobs/bosses, with independently animated limbs and oversized heads.
@@ -3828,6 +3853,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
                     cartoon_root.set_meta("visual_rest_position", male_model.position)
                     _bind_motion_driver(cartoon_root)
                     _play_actor_clip(cartoon_root, "Idle", 0.0, 1.0)
+                    _add_actor_contact_shadow(cartoon_root)
                     return cartoon_root
             cartoon_root.queue_free()
         # Keep the original procedural male hero as an asset-free fallback
@@ -3838,6 +3864,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
         if toon_enemy_art.build_hero(fallback_root, model_name):
             _bind_motion_driver(fallback_root)
             _play_actor_clip(fallback_root, "Idle", 0.0, 1.0)
+            _add_actor_contact_shadow(fallback_root)
             return fallback_root
         fallback_root.queue_free()
     var hero_hd: String = hd_characters.model_for_hero(model_name) if not enemy else ""
@@ -3873,23 +3900,7 @@ func _make_animated_character(model_name: String, at: Vector3, enemy: bool) -> N
     _bind_motion_driver(root)
     if not _play_actor_clip(root, "Idle", 0.0, 1.0):
         _pose_fantasy_skeleton(root, 0.0)
-    # A radial soft contact shadow grounds boots without the perpetual
-    # bright selection ring that made screenshots look like a toy prototype.
-    var shade_image := Image.create(64, 64, false, Image.FORMAT_RGBA8)
-    for sy in range(64):
-        for sx in range(64):
-            var distance: float = Vector2(float(sx) - 31.5, float(sy) - 31.5).length() / 31.5
-            var fade: float = (1.0 - smoothstep(0.13, 1.0, distance)) * 0.29
-            shade_image.set_pixel(sx, sy, Color(0.025, 0.020, 0.022, fade))
-    var footprint := PlaneMesh.new()
-    footprint.size = Vector2(1.70 if enemy else 2.05, 1.70 if enemy else 2.05)
-    var shadow_material := StandardMaterial3D.new()
-    shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-    shadow_material.albedo_texture = ImageTexture.create_from_image(shade_image)
-    var contact_mesh := _mesh(root, footprint, Vector3(0, 0.045, 0), shadow_material)
-    contact_mesh.name = "SoftContactShadow"
-    contact_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    _add_actor_contact_shadow(root, enemy)
     return root
 
 func _place_dungeon_model(asset_name: String, at: Vector3, yaw: float = 0.0, factor: float = 1.0) -> void:
