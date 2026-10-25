@@ -562,6 +562,56 @@ func build_hero(root: Node3D, hero_kind: String) -> bool:
     root.set_meta("toon_hero",hero_kind)
     return true
 
+func build_horde_enemy(root: Node3D, species: String, biome: int, role: String) -> bool:
+    # Compact readable silhouette: one animated rig, a small set of shared
+    # primitive meshes and no accessories, facial submeshes or expensive PBR.
+    var colors: Array = BIOME_COLORS[clampi(biome, 0, 9)]
+    var cloth := Color(colors[1])
+    var trim := Color(colors[2])
+    var shadow := Color(colors[3])
+    var upper := species.to_upper()
+    var beast: bool = upper.contains("WOLF") or upper.contains("HOUND") or upper.contains("SPIDER")
+    var body := Node3D.new()
+    body.name = "ToonVisual"
+    root.add_child(body)
+    var torso := Node3D.new()
+    torso.name = "Torso"
+    torso.position = Vector3(0, 0.91, 0)
+    body.add_child(torso)
+    _egg(torso, "Body", Vector3.ZERO, Vector3(0.62, 0.72, 0.51), cloth)
+    _egg(torso, "Breastplate", Vector3(0, 0.07, 0.26),
+        Vector3(0.51, 0.48, 0.16), trim, 0.18)
+    _block(torso, "Waist", Vector3(0, -0.29, 0.06),
+        Vector3(0.64, 0.12, 0.46), shadow)
+    var head := Node3D.new()
+    head.name = "Head"
+    head.position = Vector3(0, 1.60, 0.02)
+    body.add_child(head)
+    _egg(head, "Mask", Vector3.ZERO, Vector3(0.46, 0.46, 0.43), shadow)
+    _block(head, "Visor", Vector3(0, 0.015, 0.38),
+        Vector3(0.38, 0.10, 0.075), trim)
+    for side in [-1.0, 1.0]:
+        var x: float = float(side)
+        _horn(head, "Horn", Vector3(x * 0.25, 0.36, -0.05),
+            0.10, 0.27, trim, -x * 0.32)
+        var leg := Node3D.new()
+        leg.name = "LegLeft" if x < 0.0 else "LegRight"
+        leg.position = Vector3(x * 0.23, 0.53, 0)
+        body.add_child(leg)
+        _egg(leg, "Boot", Vector3(0, -0.22, 0.06),
+            Vector3(0.25, 0.50, 0.28), shadow)
+        var arm := Node3D.new()
+        arm.name = "ArmLeft" if x < 0.0 else "ArmRight"
+        arm.position = Vector3(x * 0.43, 1.15, 0)
+        body.add_child(arm)
+        _egg(arm, "Gauntlet", Vector3(x * 0.02, -0.25, 0.06),
+            Vector3(0.22, 0.52, 0.24), cloth)
+    _animate(root, body, beast, 2)
+    root.set_meta("lightweight_horde", true)
+    root.set_meta("toon_species", species)
+    return true
+
+
 func build_enemy(root: Node3D, species: String, biome: int, boss: bool,
         elite: bool, role: String) -> bool:
     var upper: String = species.to_upper()
