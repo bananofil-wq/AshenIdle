@@ -1342,22 +1342,24 @@ func _process(delta: float) -> void:
             var cost: float = float(CLASS_SKILL_COSTS[hero_class][i])
             var unlock_level: int = int(SKILL_UNLOCK_LEVELS[i])
             var unlocked: bool = level >= unlock_level
-            var should_disable: bool = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < cost or popup_shade.visible
+            var ranked_cost: float = cost + float(_skill_rank(i) - 1)
+            var should_disable: bool = not unlocked or float(skill_cooldowns[i]) > 0.0 or mp < ranked_cost or popup_shade.visible
             if skill_button.disabled != should_disable:
                 skill_button.disabled = should_disable
             var icon: Control = skill_button.get_node_or_null("AbilityGlyph") as Control
             if icon != null:
                 if int(icon.get("class_id")) != hero_class:
                     icon.set("class_id", hero_class)
-                if bool(icon.get("locked")) == unlocked:
-                    icon.set("locked", not unlocked)
+                var dim_icon: bool = not unlocked or mp < ranked_cost
+                if bool(icon.get("locked")) != dim_icon:
+                    icon.set("locked", dim_icon)
             var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
             var caption: Label = skill_button.get_node_or_null("AbilityCaption") as Label
             if caption != null:
                 if not unlocked:
                     caption.text = "LOCKED\nLVL %d" % unlock_level
                 else:
-                    caption.text = (skill_caption + "\n%.0f MP" % (cost + float(_skill_rank(i) - 1))
+                    caption.text = (skill_caption + "\n%.0f MP" % ranked_cost
                         if float(skill_cooldowns[i]) <= 0.0
                         else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
                 caption.modulate.a = 0.52 if should_disable else 1.0
