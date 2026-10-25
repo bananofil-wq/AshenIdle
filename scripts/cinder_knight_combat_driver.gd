@@ -67,8 +67,14 @@ func advance(delta: float) -> void:
     var strike_pitch := 1.45 if combo >= 2 else 0.52
     var current_pitch := lerpf(wind_pitch * charge, strike_pitch, swing) * (1.0 - recover)
     var roll := sign_dir * lerpf(-1.0 * charge, 0.95, swing) * (1.0 - recover)
+    # The attached hammer rotates independently, but its grip also follows a
+    # wide arc so the visible metal head does not merely spin in the palm.
     hammer.transform = hammer_rest
     hammer.rotation += Vector3(current_pitch, 0.12 * sign_dir * (1.0 - recover), roll)
+    hammer.position += Vector3(
+        sign_dir * 0.22 * sin(swing * PI) * (1.0 - recover),
+        (0.25 * charge - 0.31 * swing) * (1.0 - recover),
+        (0.13 * charge + 0.42 * swing) * (1.0 - recover))
     body.transform = body_rest
     body.rotation += Vector3(0.28 * swing * (1.0 - recover), sign_dir * 0.23 * sin(t * PI), sign_dir * 0.13 * sin(t * PI))
     body.position += Vector3(0, -0.16 * swing * (1.0 - recover), 0.28 * swing * (1.0 - recover))
