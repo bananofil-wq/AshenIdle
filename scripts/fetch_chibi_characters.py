@@ -14,12 +14,10 @@ import json
 import struct
 
 URL = "https://store.godotengine.org/asset/styloo/chibi/download/1373/"
+# Verified male character only. The other pack avatars are female or
+# not independently gender-verified, so do not download or ship them.
 MODELS = {
     "knight": "glb/knightpr.glb",
-    "ninja": "glb/ninjapr.glb",
-    "archer": "glb/archerpr.glb",
-    "merchant": "glb/merchantpr.glb",
-    "student": "glb/studentpr.glb",
 }
 OUT = Path("assets/models/chibi")
 OUT.mkdir(parents=True, exist_ok=True)
