@@ -2812,7 +2812,7 @@ func _refresh() -> void:
         var banner_parts: PackedStringArray = banner_event.split(" - ")
         banner_event = banner_parts[banner_parts.size() - 1]
     combat.text = banner_event.left(23)
-    info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
+    info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_kills, wave_size, kills, skill_points]
     offline.text = offline_note
     combat_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.02, 1.0)
     if stage != last_map_stage:
