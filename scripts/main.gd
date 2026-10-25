@@ -189,6 +189,9 @@ var skill_cooldowns: Array = [0.0, 0.0, 0.0]
 var last_target_pos := Vector3.ZERO
 var wave_kills := 0
 var wave_size := 1
+var horde_spawned := 0
+var horde_total := 0
+var horde_batch_index := 0
 var inventory_overlay: Panel
 var inventory_list: VBoxContainer
 var inventory_summary: Label
@@ -2258,6 +2261,11 @@ func _update_wave_health() -> void:
     boss_max = maxf(boss_max, 1.0)
 
 func _complete_wave() -> void:
+    # Keep sending bounded packs until the full room quota has been defeated.
+    if arena_mobs.is_empty() and horde_spawned < horde_total:
+        _spawn_horde_batch()
+        _update_wave_health()
+        return
     # Never jump to the next room while loot is still lying on the ground.
     if not ground_drops.is_empty() or not pending_comparison.is_empty():
         return
@@ -3544,16 +3552,28 @@ func _spawn_horde() -> void:
             mob.queue_free()
     arena_mobs.clear()
     wave_kills = 0
+    horde_spawned = 0
+    horde_batch_index = 0
+    # Three linked combat chambers per floor: hundreds of opponents overall.
+    # Only a bounded pack is instantiated at once to avoid mobile spikes.
+    horde_total = 40 + mini(20, int(stage / 12) * 2)
+    wave_size = horde_total
+    _spawn_horde_batch()
+
+
+func _spawn_horde_batch() -> void:
+    if horde_spawned >= horde_total:
+        return
     var is_boss: bool = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
     current_encounter = encounter_director.choose(stage, dungeon_room_index, hero_class,
         grind_mode, hp / maxf(1.0, _max_hp()), rng)
     encounter_started_ms = Time.get_ticks_msec()
-    var mob_count: int = (8 + mini(int(stage / 25), 2)) if is_boss else (8 + mini(int(stage / 18), 3))
-    mob_count = clampi(mob_count + int(current_encounter.get("count_bonus", 0)), 8, 12)
-    wave_size = mob_count
+    var active_cap: int = 10 if quality_budget.tier == 0 else 14 if quality_budget.tier == 1 else 18
+    var mob_count: int = mini(active_cap, horde_total - horde_spawned)
+    var final_batch: bool = horde_spawned + mob_count >= horde_total
     for i in range(mob_count):
-        var elite: bool = is_boss and i == 0
-        var mini_elite: bool = not is_boss and i == 0 and (stage + dungeon_room_index) % 4 == 0
+        var elite: bool = is_boss and final_batch and i == mob_count - 1
+        var mini_elite: bool = not is_boss and horde_batch_index % 5 == 4 and i == 0
         var ai_role: String = encounter_director.enemy_role(current_encounter, i, elite)
         var biome: int = _boss_variant()
         var species_pool: Array = MOB_FAMILIES[biome]
@@ -3572,7 +3592,7 @@ func _spawn_horde() -> void:
         var beast: bool = false
         var chibi_name: String = _chibi_model_for_enemy(species,ai_role,elite)
         var stylized_scene: PackedScene = _get_asset_scene(chibi_name) if chibi_name != "" else null
-        if stylized_scene != null:
+        if elite and stylized_scene != null:
             var costume: Node3D = stylized_scene.instantiate() as Node3D
             if costume != null:
                 root.add_child(costume)
@@ -3631,6 +3651,8 @@ func _spawn_horde() -> void:
         root.set_meta("speed", (0.22 + rng.randf_range(0.01, 0.10)) * art_speed)
         root.set_meta("phase", rng.randf_range(0.0, TAU))
         arena_mobs.append(root)
+    horde_spawned += mob_count
+    horde_batch_index += 1
     combat_note = "BOSS: " + BOSS_NAMES[_boss_variant()] if is_boss else BIOME_NAMES[_boss_variant()] + " - " + str(current_encounter.get("title", "HORDE APPROACHING"))
 
 func _impact(pos: Vector3, color: Color) -> void:
