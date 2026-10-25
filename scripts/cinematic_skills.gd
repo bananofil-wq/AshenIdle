@@ -60,7 +60,10 @@ func _process(delta: float) -> void:
         elif kind == "shock":
             node.scale = Vector3.ONE * (0.46 + 1.72 * t)
         elif kind == "firefront":
-            node.scale = Vector3.ONE * (0.34 + 1.60 * t)
+            node.scale = Vector3.ONE * (0.55 + 1.32 * t)
+        elif kind == "flame_column":
+            node.scale = Vector3(0.70 + 0.65 * t, 0.65 + 0.95 * sin(t * PI), 0.70 + 0.65 * t)
+            node.position.y += delta * 0.32
         elif kind == "fissure":
             node.scale = Vector3.ONE * (0.73 + 0.32 * minf(1.0, t * 4.0))
         elif kind == "beam":
@@ -223,9 +226,35 @@ func _inferno_fan(at: Vector3, radius: float, duration: float) -> void:
         tongue.scale = Vector3.ONE * 0.34
 
 
+func _inferno_columns(at: Vector3, count: int, spread: float) -> void:
+    # Fire tongues are tapered volumes, not flat floor decals.
+    # Reuse a small number of unshadowed meshes to protect mobile fill rate.
+    for i in range(count):
+        if effects.size() >= MAX_EFFECTS - 3:
+            break
+        var theta: float = TAU * float(i) / float(count)
+        var distance: float = spread * (0.55 + 0.34 * float(i % 3) / 2.0)
+        var point := at + Vector3(cos(theta) * distance, 0.33, sin(theta) * distance)
+        var flame := CylinderMesh.new()
+        flame.top_radius = 0.035
+        flame.bottom_radius = 0.17 + 0.055 * float(i % 3)
+        flame.height = 1.2 + 0.36 * float(i % 4)
+        flame.radial_segments = 7
+        var tint: Color = Color("ffde76") if i % 3 == 0 else Color("ff6a1d")
+        var node := _spawn(flame, point + Vector3(0, flame.height * 0.5, 0),
+            tint, 0.88, 0.65 + 0.07 * float(i % 3), "flame_column")
+        if node != null:
+            node.rotation.z = 0.12 * cos(theta)
+            node.rotation.x = 0.12 * sin(theta)
+
+
 func _inferno_impact(at: Vector3) -> void:
     # Silhouette, incandescent core and darker smoke have distinct roles.
-    _inferno_fan(at, 2.40, 0.68)
+    # Three separated heights and a hot center make Inferno readable
+    # through the zoomed-out Android camera, not only in an FX close-up.
+    _inferno_fan(at, 2.65, 0.82)
+    _inferno_fan(at + Vector3(0, 0.22, 0), 3.2, 0.70)
+    _inferno_columns(at, 10, 2.1)
     _ring(at, 1.10, 0.26, Color("fff3c8"), 0.20, "shock", 0.95)
     _ring(at, 1.75, 0.30, Color("ff6a16"), 0.60, "shock", 0.84)
     _smoke(at, 3.2, 1.2)
