@@ -217,6 +217,8 @@ var hero_hit_flash := 0.0
 # A transient visual-only animation on the imported skinned hero.
 # Never teleports the root actor or interferes with auto-pathfinding.
 var signature_pose: Dictionary = {}
+var knight_combat_driver: Node
+var knight_combo_counter := 0
 var earned_bosses: Dictionary = {}
 var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
 var bg_environment: WorldEnvironment
@@ -1384,6 +1386,8 @@ func _process(delta: float) -> void:
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
     _update_signature_pose(delta)
+    if knight_combat_driver != null:
+        knight_combat_driver.call("advance", delta)
     # Culling need only track meaningful steps, not process hundreds of nodes
     # on all 60 frames. Always retain the current and next dungeon chamber.
     mobile_visibility_timer += delta
@@ -1447,7 +1451,10 @@ func _fight() -> void:
         _burst_particles(impact_point + Vector3(0, 0.95, 0), _biome_fx_tint(), 5, 0.55, 0.14)
     _play_audio(0)
     attack_animation_index += 1
-    _actor_attack(hero, hero_class == 2)
+    if hero_class == 0:
+        _run_cinder_knight_attack(false)
+    else:
+        _actor_attack(hero, hero_class == 2)
     # Evolved assault branches learn a real cleave: each fifth basic hit
     # damages nearby enemies, and each ascension strengthens the impact.
     var assault_power: float = _evolution_weight(0)
@@ -2059,6 +2066,27 @@ func _update_signature_pose(delta: float) -> void:
     visual.rotation = rest_rotation + Vector3(pitch, 0, 0)
     if t >= 1.0:
         _end_signature_pose()
+
+
+func _run_cinder_knight_attack(ultimate: bool) -> void:
+    if hero == null or not is_instance_valid(hero):
+        return
+    if knight_combat_driver == null:
+        var script: Script = preload("res://scripts/cinder_knight_combat_driver.gd")
+        knight_combat_driver = script.new() as Node
+        add_child(knight_combat_driver)
+    if not bool(knight_combat_driver.call("configure", hero)):
+        _actor_attack(hero, false)
+        return
+    knight_combo_counter += 1
+    var step: int = posmod(knight_combo_counter - 1, 3)
+    knight_combat_driver.call("start_attack", step, ultimate)
+    # Suppress generic imported sword clips while the weighted hammer animation
+    # owns the character; avoid competing rotation and duplicated attacks.
+    var player: AnimationPlayer = hero.get_meta("animation_driver", null) as AnimationPlayer
+    if player != null and is_instance_valid(player):
+        player.stop()
+    hero.set_meta("action_until", Time.get_ticks_msec() + (780 if ultimate else 560))
 
 
 func _actor_attack(actor: Node3D, magic: bool = false) -> void:
@@ -3164,8 +3192,11 @@ func _use_skill(index: int) -> void:
     ]
     var tint: Color = palettes[hero_class][index]
     _cast_class_visual(index, tint)
-    _actor_attack(hero, true)
-    _begin_signature_pose(index)
+    if hero_class == 0 and index == 2:
+        _run_cinder_knight_attack(true)
+    else:
+        _actor_attack(hero, true)
+        _begin_signature_pose(index)
     # Heavy knight slam is the largest impulse. Ranger keeps visibility
     # during his arrow storm; mage gets crisp electric micro-shakes.
     var signature_shake: float = 0.11 if hero_class == 0 and index == 2 else 0.14 if hero_class == 1 and index == 2 else 0.19 if hero_class == 2 and index == 1 else 0.27 if hero_class == 3 and index == 2 else 0.22 if index == 2 else 0.09
