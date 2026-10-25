@@ -483,10 +483,12 @@ func _run() -> void:
     game.call("_spawn_enemy")
     for target_room in [2, 3]:
         for attempt in range(3):
-            game.call("_clear_ground_drops")
-            game.call("_complete_wave")
+            _complete_synthetic_room(game)
             if int(game.get("dungeon_room_index")) == target_room:
                 break
+    game.set("horde_spawned", int(game.get("horde_total")) - 1)
+    game.call("_spawn_horde_batch")
+    game.call("_update_wave_health")
     game.call("_update_boss_cast", 5.0)
     if not _check(float(game.get("boss_cast_windup")) > 0.0, "Boss cast must warn before impact"):
         quit(30)
