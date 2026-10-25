@@ -234,6 +234,8 @@ var sfx_toggle_button: Button
 var last_hit_sound_msec := 0
 var auto_equip := true
 var auto_gear_button: Button
+var quick_menu: PanelContainer
+var quick_menu_button: Button
 var ground_drops: Array = []   # Real loot: stays on ground until the hero reaches it.
 var drop_prompt: Panel
 var drop_comparison: Label
@@ -447,10 +449,12 @@ func _fit_hud() -> void:
     var height: float = overlay.size.y
     var bottom: Control = overlay.get_node_or_null("BottomHUD") as Control
     if bottom != null:
-        bottom.position.y = height - 156.0
+        bottom.position.y = height - 194.0
     var abilities: Control = overlay.get_node_or_null("SkillHUD") as Control
     if abilities != null:
-        abilities.position.y = height - 248.0
+        abilities.position.y = height - 183.0
+    if quick_menu != null:
+        quick_menu.position.y = height - 720.0
     if popup_shade != null:
         popup_shade.size = overlay.size
     for panel in [legendary_overlay, skill_overlay, hero_overlay, evolution_overlay, inventory_overlay, drop_prompt]:
@@ -467,158 +471,241 @@ func _build_ui() -> void:
     overlay.mouse_filter = Control.MOUSE_FILTER_PASS
     layer.add_child(overlay)
 
+    # The approved visual direction: two restrained bronze HUD plaques at the
+    # top; only three large abilities plus AUTO/MENU at the bottom. Keep the
+    # battle scene entirely free of the old nine-button control grids.
     var portrait := PanelContainer.new()
+    portrait.name = "HeroHUD"
     portrait.position = Vector2(14, 18)
-    portrait.size = Vector2(280, 171)
-    portrait.add_theme_stylebox_override("panel", _skin(Color("080c14f1"), Color("ac8058")))
+    portrait.size = Vector2(402, 181)
+    portrait.add_theme_stylebox_override("panel", _hud_plate(Color("0a111ef4"), Color("bb8550"), 18))
     overlay.add_child(portrait)
-    var portrait_box := VBoxContainer.new()
-    portrait.add_child(portrait_box)
-    portrait_box.add_child(_label("ASHEN IDLE  •  RECKONING", 17, Color("d9b78d")))
-    status = _label("", 21, Color("e7e2d6"))
-    portrait_box.add_child(status)
-    details = _label("", 15, Color("f1d7c1"))
-    portrait_box.add_child(details)
+    var hero_row := HBoxContainer.new()
+    hero_row.add_theme_constant_override("separation", 11)
+    portrait.add_child(hero_row)
+    var hero_portrait := PanelContainer.new()
+    hero_portrait.custom_minimum_size = Vector2(89, 89)
+    hero_portrait.add_theme_stylebox_override("panel", _hud_plate(Color("121b2c"), Color("dba354"), 44))
+    hero_row.add_child(hero_portrait)
+    var emblem_script: Script = preload("res://scripts/class_emblem.gd")
+    var hero_emblem: Control = emblem_script.new() as Control
+    hero_emblem.set("class_id", hero_class)
+    hero_emblem.set("accent", Color("d99b60"))
+    hero_emblem.custom_minimum_size = Vector2(75, 75)
+    hero_portrait.add_child(hero_emblem)
+    var hero_lines := VBoxContainer.new()
+    hero_lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    hero_lines.add_theme_constant_override("separation", 3)
+    hero_row.add_child(hero_lines)
+    hero_lines.add_child(_label("✦  ASHEN IDLE", 19, Color("f2c487")))
+    status = _label("", 17, Color("fff1d7"))
+    hero_lines.add_child(status)
+    details = _label("", 13, Color("f6ddd0"))
+    hero_lines.add_child(details)
+    var hp_back := ColorRect.new()
+    hp_back.color = Color("392432")
+    hp_back.custom_minimum_size = Vector2(252, 7)
+    hero_lines.add_child(hp_back)
     hero_heart = ColorRect.new()
-    hero_heart.color = Color("ab342a")
-    hero_heart.custom_minimum_size = Vector2(250, 5)
-    portrait_box.add_child(hero_heart)
-    hero_mana_label = _label("", 13, Color("9ac9f1"))
-    portrait_box.add_child(hero_mana_label)
+    hero_heart.color = Color("e8545a")
+    hero_heart.size = Vector2(252, 7)
+    hero_heart.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    hp_back.add_child(hero_heart)
+    hero_mana_label = _label("", 12, Color("9fcdff"))
+    hero_lines.add_child(hero_mana_label)
+    var mana_back := ColorRect.new()
+    mana_back.color = Color("242c43")
+    mana_back.custom_minimum_size = Vector2(252, 7)
+    hero_lines.add_child(mana_back)
     hero_mana_bar = ColorRect.new()
-    hero_mana_bar.color = Color("427fd8")
-    hero_mana_bar.custom_minimum_size = Vector2(250, 5)
-    portrait_box.add_child(hero_mana_bar)
-    power_label = _label("", 16, Color("ffd375"))
-    portrait_box.add_child(power_label)
+    hero_mana_bar.color = Color("58abff")
+    hero_mana_bar.size = Vector2(252, 7)
+    hero_mana_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    mana_back.add_child(hero_mana_bar)
+    power_label = _label("", 15, Color("f5bf6e"))
+    hero_lines.add_child(power_label)
 
     var map_panel := PanelContainer.new()
-    map_panel.position = Vector2(512, 18)
-    map_panel.size = Vector2(192, 177)
-    map_panel.add_theme_stylebox_override("panel", _skin(Color("080c14f1"), Color("ac8058")))
+    map_panel.name = "JourneyHUD"
+    map_panel.position = Vector2(475, 18)
+    map_panel.size = Vector2(229, 181)
+    map_panel.add_theme_stylebox_override("panel", _hud_plate(Color("0b1120f2"), Color("bb8550"), 17))
     overlay.add_child(map_panel)
     var map_column := VBoxContainer.new()
+    map_column.add_theme_constant_override("separation", 2)
     map_panel.add_child(map_column)
-    map_column.add_child(_label("THE LOST LANDS", 15, Color("cabbad")))
+    map_column.add_child(_label("THE LOST LANDS", 15, Color("f0c28b")))
     map_dots = Control.new()
-    map_dots.custom_minimum_size = Vector2(167, 103)
+    map_dots.custom_minimum_size = Vector2(180, 98)
     map_column.add_child(map_dots)
-    stage_banner = _label("", 13, Color("f0c997"))
+    stage_banner = _label("", 12, Color("f3d1aa"))
     map_column.add_child(stage_banner)
-    journey_caption = _label("PATH  0%", 12, Color("b7c9c5"))
+    journey_caption = _label("EXPLORING  0%", 11, Color("a2c5c8"))
     map_column.add_child(journey_caption)
     journey_track = ColorRect.new()
-    journey_track.color = Color("c88a5e")
-    journey_track.custom_minimum_size = Vector2(160, 3)
+    journey_track.color = Color("f2a658")
+    journey_track.custom_minimum_size = Vector2(180, 3)
     map_column.add_child(journey_track)
-    # Actual on-device frame counter, refreshed once per second rather than
-    # changing a label 60 times per second. Useful for confirming mobile lag.
-    fps_label = _label("FPS --", 14, Color("a4cbb7"))
-    fps_label.position = Vector2(617, 204)
-    fps_label.size = Vector2(88, 26)
+    fps_label = _label("FPS --", 12, Color("a4cbb7"))
+    fps_label.position = Vector2(612, 202)
+    fps_label.size = Vector2(90, 24)
     fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    fps_label.visible = OS.has_feature("editor")
     overlay.add_child(fps_label)
 
-    # Horizontal action strip: the previous left-side menu covered nearly
-    # 200px of the actual dungeon, leaving little combat space in portrait.
-    var controls := HBoxContainer.new()
-    controls.position = Vector2(14, 205)
-    controls.add_theme_constant_override("separation", 7)
-    overlay.add_child(controls)
-    controls.add_child(_ornate_button("LOOT", _show_inventory, Vector2(105, 43)))
-    evolution_action_button = _ornate_button("EVOLVE", _open_evolution_panel, Vector2(105, 43))
-    controls.add_child(evolution_action_button)
-    controls.add_child(_ornate_button("TALENT", _open_talent_panel, Vector2(105, 43)))
-    auto_gear_button = _ornate_button("AUTO GEAR", _toggle_auto_gear, Vector2(105, 43))
-    controls.add_child(auto_gear_button)
-
     var banner := PanelContainer.new()
-    banner.position = Vector2(168, 260)
-    banner.size = Vector2(384, 52)
-    banner.add_theme_stylebox_override("panel", _skin(Color("080c14db"), Color("be8b56")))
+    banner.name = "BiomeBanner"
+    banner.position = Vector2(167, 229)
+    banner.size = Vector2(386, 65)
+    banner.add_theme_stylebox_override("panel", _hud_plate(Color("080e1cda"), Color("d69a60"), 15))
     overlay.add_child(banner)
     var banner_column := VBoxContainer.new()
+    banner_column.add_theme_constant_override("separation", 0)
     banner.add_child(banner_column)
-    center_banner = _label("THE ASHEN HUNT", 19, Color("ffd08c"))
+    center_banner = _label("THE ASHEN HUNT", 21, Color("ffe3b3"))
     center_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(center_banner)
-    combat = _label("", 15, Color("ded4ce"))
+    combat = _label("", 13, Color("dbc6ac"))
     combat.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(combat)
+
     var boss_panel := PanelContainer.new()
-    boss_panel.position = Vector2(189, 322)
-    boss_panel.size = Vector2(342, 52)
-    boss_panel.add_theme_stylebox_override("panel", _skin(Color("100a12c9"), Color("aa5143")))
+    boss_panel.position = Vector2(172, 311)
+    boss_panel.size = Vector2(376, 54)
+    boss_panel.add_theme_stylebox_override("panel", _hud_plate(Color("240d17f0"), Color("d76d52"), 15))
     overlay.add_child(boss_panel)
     var boss_col := VBoxContainer.new()
     boss_panel.add_child(boss_col)
-    boss_hp_label = _label("ASHEN WARDEN", 17, Color("ffc5a0"))
+    boss_hp_label = _label("ASHEN WARDEN", 17, Color("ffe0b0"))
     boss_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     boss_col.add_child(boss_hp_label)
     boss_hp_bar = ColorRect.new()
     boss_hp_bar.color = Color("e13b46")
-    boss_hp_bar.custom_minimum_size = Vector2(310, 6)
+    boss_hp_bar.custom_minimum_size = Vector2(335, 7)
     boss_col.add_child(boss_hp_bar)
     boss_panel.name = "BossHPPanel"
 
-
+    # A single fixed bottom dock; battle remains visible above the controls.
     var bottom := PanelContainer.new()
     bottom.name = "BottomHUD"
-    bottom.position = Vector2(16, overlay.size.y - 156)
-    bottom.size = Vector2(688, 142)
-    bottom.add_theme_stylebox_override("panel", _skin(Color("090b11ea"), Color("68615c")))
+    bottom.position = Vector2(12, overlay.size.y - 194)
+    bottom.size = Vector2(696, 186)
+    bottom.add_theme_stylebox_override("panel", _hud_plate(Color("090f20f5"), Color("bd8754"), 24))
     overlay.add_child(bottom)
-    var col := VBoxContainer.new()
-    bottom.add_child(col)
-    info = _label("", 15, Color("c8bdad"))
-    col.add_child(info)
-    combat_bar = ColorRect.new()
-    combat_bar.color = Color("ba4d32")
-    combat_bar.custom_minimum_size = Vector2(640, 4)
-    col.add_child(combat_bar)
-    var action_line := HBoxContainer.new()
-    action_line.add_theme_constant_override("separation", 6)
-    col.add_child(action_line)
-    actions = action_line
-    action_line.add_child(_ornate_button("BOSS", _try_boss, Vector2(106, 46)))
-    action_line.add_child(_ornate_button("FARM", _grind, Vector2(106, 46)))
-    action_line.add_child(_ornate_button("PUSH", _forward, Vector2(106, 46)))
-    action_line.add_child(_ornate_button("FORGE", _forge_weakest, Vector2(106, 46)))
-    action_line.add_child(_ornate_button("SKILL+", _open_talent_panel, Vector2(106, 46)))
-    var scroll := ScrollContainer.new()
-    scroll.custom_minimum_size = Vector2(630, 27)
-    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-    col.add_child(scroll)
-    inventory = VBoxContainer.new()
-    inventory.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    scroll.add_child(inventory)
-    offline = _label("", 14, Color("ffce6c"))
-    col.add_child(offline)
+    var dock_title := _label("✦      ASHEN POWERS      ✦", 12, Color("a67b54"))
+    dock_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    dock_title.position = Vector2(180, 3)
+    dock_title.size = Vector2(340, 17)
+    bottom.add_child(dock_title)
 
     var skill_bar := HBoxContainer.new()
     skill_bar.name = "SkillHUD"
-    skill_bar.position = Vector2(380, overlay.size.y - 248)
+    skill_bar.position = Vector2(147, overlay.size.y - 183)
     skill_bar.add_theme_constant_override("separation", 7)
     overlay.add_child(skill_bar)
     for spell_name in CLASS_SPELLS[hero_class]:
         var slot_index: int = skill_buttons.size()
-        var b := _ornate_button(str(spell_name), _use_skill.bind(slot_index), Vector2(100, 76))
-        b.add_theme_font_size_override("font_size", 12)
-        b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
-        b.add_theme_stylebox_override("normal", _skin(Color("121724ed"), Color("a7775c")))
-        b.add_theme_stylebox_override("hover", _skin(Color("273044f7"), Color("deb879")))
-        skill_buttons.append(b)
-        skill_bar.add_child(b)
+        var ability: Button = _ornate_button("", _use_skill.bind(slot_index), Vector2(137, 152))
+        ability.name = "Skill%d" % slot_index
+        ability.tooltip_text = str(spell_name)
+        ability.add_theme_stylebox_override("normal", _hud_plate(Color("141b2ff9"), Color("d19451"), 56))
+        ability.add_theme_stylebox_override("hover", _hud_plate(Color("2b2840"), Color("ffce82"), 56))
+        ability.add_theme_stylebox_override("pressed", _hud_plate(Color("54402b"), Color("ffd37b"), 56))
+        ability.add_theme_stylebox_override("disabled", _hud_plate(Color("161b29dd"), Color("656574"), 56))
+        skill_bar.add_child(ability)
+        skill_buttons.append(ability)
         var glyph_script: Script = preload("res://scripts/ability_icon.gd")
         var glyph: Control = glyph_script.new() as Control
         glyph.name = "AbilityGlyph"
         glyph.set("class_id", hero_class)
         glyph.set("ability_id", slot_index)
-        glyph.position = Vector2(6, 5)
+        glyph.position = Vector2(29, 6)
         glyph.size = Vector2(34, 34)
+        glyph.scale = Vector2(2.30, 2.30)
         glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        b.add_child(glyph)
+        ability.add_child(glyph)
+        var caption := _label(str(spell_name), 13, Color("ffe6c8"))
+        caption.name = "AbilityCaption"
+        caption.position = Vector2(5, 92)
+        caption.size = Vector2(127, 45)
+        caption.autowrap_mode = TextServer.AUTOWRAP_OFF
+        caption.clip_text = true
+        caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+        caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        ability.add_child(caption)
 
+    auto_gear_button = _ornate_button("AUTO\nON", _toggle_auto_gear, Vector2(99, 96))
+    auto_gear_button.name = "AutoAction"
+    auto_gear_button.position = Vector2(29, overlay.size.y - 149)
+    auto_gear_button.tooltip_text = "Automatic equipment selection"
+    auto_gear_button.add_theme_stylebox_override("normal", _hud_plate(Color("122c2bdc"), Color("75b787"), 40))
+    auto_gear_button.add_theme_font_size_override("font_size", 15)
+    overlay.add_child(auto_gear_button)
+    quick_menu_button = _ornate_button("BAG\nMENU", _toggle_quick_menu, Vector2(99, 96))
+    quick_menu_button.name = "QuickMenuButton"
+    quick_menu_button.position = Vector2(594, overlay.size.y - 149)
+    quick_menu_button.add_theme_stylebox_override("normal", _hud_plate(Color("282137ed"), Color("e6a65f"), 40))
+    quick_menu_button.add_theme_font_size_override("font_size", 15)
+    overlay.add_child(quick_menu_button)
+
+    # Secondary systems are reachable in ONE playful collapsible armory menu.
+    # No loot/forge/progression control vanishes when decluttering the HUD.
+    quick_menu = PanelContainer.new()
+    quick_menu.name = "QuickMenu"
+    quick_menu.position = Vector2(88, overlay.size.y - 720)
+    quick_menu.size = Vector2(544, 515)
+    quick_menu.visible = false
+    quick_menu.z_index = 22
+    quick_menu.add_theme_stylebox_override("panel", _hud_plate(Color("0d1424f8"), Color("dc9e5b"), 20))
+    overlay.add_child(quick_menu)
+    var menu_col := VBoxContainer.new()
+    menu_col.add_theme_constant_override("separation", 6)
+    quick_menu.add_child(menu_col)
+    var menu_header := _label("✦  THE ASHEN ARMORY", 24, Color("f5cb8c"))
+    menu_header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    menu_col.add_child(menu_header)
+    info = _label("", 14, Color("c9b59e"))
+    menu_col.add_child(info)
+    combat_bar = ColorRect.new()
+    combat_bar.color = Color("b76545")
+    combat_bar.custom_minimum_size = Vector2(493, 4)
+    menu_col.add_child(combat_bar)
+    var menu_grid := GridContainer.new()
+    menu_grid.columns = 2
+    menu_grid.add_theme_constant_override("h_separation", 10)
+    menu_grid.add_theme_constant_override("v_separation", 7)
+    menu_col.add_child(menu_grid)
+    var menu_entries: Array = [
+        ["LOOT", _show_inventory],
+        ["TALENTS", _open_talent_panel],
+        ["EVOLVE", _open_evolution_panel],
+        ["HERO", _show_hero_panel],
+        ["BOSS", _try_boss],
+        ["FARM", _grind],
+        ["PUSH", _forward],
+        ["FORGE", _forge_weakest]
+    ]
+    for entry in menu_entries:
+        var menu_action: Button = _ornate_button(str(entry[0]), entry[1], Vector2(238, 47))
+        menu_action.pressed.connect(_dismiss_quick_menu)
+        menu_grid.add_child(menu_action)
+        if str(entry[0]) == "EVOLVE":
+            evolution_action_button = menu_action
+    actions = HBoxContainer.new()
+    actions.visible = false
+    menu_col.add_child(actions)
+    var loot_preview := ScrollContainer.new()
+    loot_preview.custom_minimum_size = Vector2(493, 70)
+    loot_preview.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    menu_col.add_child(loot_preview)
+    inventory = VBoxContainer.new()
+    inventory.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    loot_preview.add_child(inventory)
+    offline = _label("", 13, Color("ecc784"))
+    menu_col.add_child(offline)
+    var menu_close := _ornate_button("BACK TO BATTLE", _dismiss_quick_menu, Vector2(493, 47))
+    menu_col.add_child(menu_close)
 
     popup_shade = ColorRect.new()
     popup_shade.color = Color(0.015, 0.015, 0.024, 0.78)
@@ -1176,14 +1263,15 @@ func _process(delta: float) -> void:
                 if bool(icon.get("locked")) == unlocked:
                     icon.set("locked", not unlocked)
             var skill_caption: String = "CHAIN" if hero_class == 2 and i == 1 else str(CLASS_SPELLS[hero_class][i])
-            if not unlocked:
-                var locked_label: String = "LOCKED\nLVL %d" % unlock_level
-                if skill_button.text != locked_label:
-                    skill_button.text = locked_label
-            else:
-                var ready_label: String = (skill_caption + " R%d\n%.0f MP" % [_skill_rank(i), cost + float(_skill_rank(i) - 1)] if float(skill_cooldowns[i]) <= 0.0 else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
-                if skill_button.text != ready_label:
-                    skill_button.text = ready_label
+            var caption: Label = skill_button.get_node_or_null("AbilityCaption") as Label
+            if caption != null:
+                if not unlocked:
+                    caption.text = "LOCKED\nLVL %d" % unlock_level
+                else:
+                    caption.text = (skill_caption + "\n%.0f MP" % (cost + float(_skill_rank(i) - 1))
+                        if float(skill_cooldowns[i]) <= 0.0
+                        else skill_caption + "\n%.0fs" % float(skill_cooldowns[i]))
+                caption.modulate.a = 0.52 if should_disable else 1.0
     if not popup_shade.visible:
         boss_slow_timer = maxf(0.0, boss_slow_timer - delta)
         if boss_poison_timer > 0.0:
@@ -2469,7 +2557,7 @@ func _refresh() -> void:
     details.text = "HP %.0f / %.0f   DEF %.0f%%\nXP %d / %d" % [hp, _max_hp(), _defense_reduction() * 100.0, xp, level * 30]
     power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
     if auto_gear_button != null:
-        auto_gear_button.text = "IDLE: ON" if auto_equip else "MANUAL"
+        auto_gear_button.text = "AUTO\nON" if auto_equip else "AUTO\nOFF"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
     if hero_mana_bar != null:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
@@ -2612,6 +2700,30 @@ func _load_game() -> void:
 func _notification(what: int) -> void:
     if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
         _save_game()
+
+func _hud_plate(bg: Color, edge: Color, radius: int = 18) -> StyleBoxFlat:
+    var plate := StyleBoxFlat.new()
+    plate.bg_color = bg
+    plate.border_color = edge
+    plate.set_border_width_all(2)
+    plate.set_corner_radius_all(radius)
+    plate.shadow_color = Color(0.015, 0.008, 0.020, 0.62)
+    plate.shadow_size = 9
+    plate.anti_aliasing = true
+    plate.content_margin_left = 10
+    plate.content_margin_right = 10
+    plate.content_margin_top = 7
+    plate.content_margin_bottom = 7
+    return plate
+
+func _toggle_quick_menu() -> void:
+    if quick_menu == null or popup_shade == null or popup_shade.visible:
+        return
+    quick_menu.visible = not quick_menu.visible
+
+func _dismiss_quick_menu() -> void:
+    if quick_menu != null:
+        quick_menu.visible = false
 
 func _skin(bg: Color, edge: Color) -> StyleBoxFlat:
     var style := StyleBoxFlat.new()
