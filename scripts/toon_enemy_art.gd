@@ -563,51 +563,60 @@ func build_hero(root: Node3D, hero_kind: String) -> bool:
     return true
 
 func build_horde_enemy(root: Node3D, species: String, biome: int, role: String) -> bool:
-    # Compact readable silhouette: one animated rig, a small set of shared
-    # primitive meshes and no accessories, facial submeshes or expensive PBR.
-    var colors: Array = BIOME_COLORS[clampi(biome, 0, 9)]
-    var cloth := Color(colors[1])
-    var trim := Color(colors[2])
-    var shadow := Color(colors[3])
-    var upper := species.to_upper()
-    var beast: bool = upper.contains("WOLF") or upper.contains("HOUND") or upper.contains("SPIDER")
+    # Three reusable, matte, easy-to-read silhouettes. No faces, horns,
+    # emissive submeshes or accessory piles on common horde enemies.
+    var palette: Array = BIOME_COLORS[clampi(biome, 0, 9)]
+    var armor := Color(palette[1])
+    var accent := Color(palette[2])
+    var dark := Color(palette[3])
+    var archetype := "grunt"
+    if role == "flanker":
+        archetype = "runner"
+    elif role == "guardian":
+        archetype = "brute"
+    var fast: bool = archetype == "runner"
+    var heavy: bool = archetype == "brute"
+    var width: float = 0.70 if fast else 1.30 if heavy else 1.0
+    var height: float = 1.07 if fast else 1.16 if heavy else 1.0
     var body := Node3D.new()
     body.name = "ToonVisual"
+    body.scale = Vector3(width, height, width)
     root.add_child(body)
     var torso := Node3D.new()
     torso.name = "Torso"
     torso.position = Vector3(0, 0.91, 0)
     body.add_child(torso)
-    _egg(torso, "Body", Vector3.ZERO, Vector3(0.62, 0.72, 0.51), cloth)
-    _egg(torso, "Breastplate", Vector3(0, 0.07, 0.26),
-        Vector3(0.51, 0.48, 0.16), trim, 0.18)
-    _block(torso, "Waist", Vector3(0, -0.29, 0.06),
-        Vector3(0.64, 0.12, 0.46), shadow)
+    _egg(torso, "Armor", Vector3.ZERO, Vector3(0.64, 0.75, 0.50), armor)
     var head := Node3D.new()
     head.name = "Head"
-    head.position = Vector3(0, 1.60, 0.02)
+    head.position = Vector3(0, 1.56, 0.0)
     body.add_child(head)
-    _egg(head, "Mask", Vector3.ZERO, Vector3(0.46, 0.46, 0.43), shadow)
-    _block(head, "Visor", Vector3(0, 0.015, 0.38),
-        Vector3(0.38, 0.10, 0.075), trim)
+    _egg(head, "Helmet", Vector3.ZERO,
+        Vector3(0.39, 0.42, 0.39) if fast else Vector3(0.43, 0.44, 0.41), dark)
+    # One broad visor is readable at phone scale without an ugly face.
+    _block(head, "Visor", Vector3(0, 0.01, 0.345),
+        Vector3(0.34, 0.085, 0.055), accent)
     for side in [-1.0, 1.0]:
         var x: float = float(side)
-        _horn(head, "Horn", Vector3(x * 0.25, 0.36, -0.05),
-            0.10, 0.27, trim, -x * 0.32)
         var leg := Node3D.new()
         leg.name = "LegLeft" if x < 0.0 else "LegRight"
-        leg.position = Vector3(x * 0.23, 0.53, 0)
+        leg.position = Vector3(x * 0.21, 0.55, 0)
         body.add_child(leg)
-        _egg(leg, "Boot", Vector3(0, -0.22, 0.06),
-            Vector3(0.25, 0.50, 0.28), shadow)
+        _egg(leg, "Boot", Vector3(0, -0.23, 0.05), Vector3(0.25, 0.51, 0.28), dark)
         var arm := Node3D.new()
         arm.name = "ArmLeft" if x < 0.0 else "ArmRight"
-        arm.position = Vector3(x * 0.43, 1.15, 0)
+        arm.position = Vector3(x * 0.44, 1.16, 0)
         body.add_child(arm)
-        _egg(arm, "Gauntlet", Vector3(x * 0.02, -0.25, 0.06),
-            Vector3(0.22, 0.52, 0.24), cloth)
-    _animate(root, body, beast, 2)
+        _egg(arm, "Arm", Vector3(0, -0.23, 0.01), Vector3(0.23, 0.48, 0.24), armor)
+        if x > 0:
+            # One weapon mesh on the right arm; runner dagger, grunt blade,
+            # brute club. Separate weapon bones / tiny fittings are unnecessary.
+            _block(arm, "Weapon", Vector3(0.0, -0.51, 0.24),
+                Vector3(0.10, 0.41 if fast else 0.83 if heavy else 0.60,
+                    0.13 if fast else 0.26 if heavy else 0.17), accent)
+    _animate(root, body, false, 2)
     root.set_meta("lightweight_horde", true)
+    root.set_meta("horde_archetype", archetype)
     root.set_meta("toon_species", species)
     return true
 
