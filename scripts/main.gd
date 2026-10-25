@@ -165,7 +165,7 @@ var last_inventory_signature := ""
 var minimap_refresh_timer := 10.0
 var action_ui_timer := 0.0
 var last_map_stage := -1
-var skill_overlay: PanelContainer
+var skill_overlay: Panel
 var hero_overlay: PanelContainer
 var hero_return_button: Button
 var startup_selection := true
@@ -188,7 +188,7 @@ var skill_cooldowns: Array = [0.0, 0.0, 0.0]
 var last_target_pos := Vector3.ZERO
 var wave_kills := 0
 var wave_size := 1
-var inventory_overlay: PanelContainer
+var inventory_overlay: Panel
 var inventory_list: VBoxContainer
 var inventory_summary: Label
 var boss_hp_label: Label
@@ -816,14 +816,16 @@ func _build_ui() -> void:
     popup_buttons.add_child(_ornate_button("EQUIP", _equip_legendary, Vector2(230, 58)))
     popup_buttons.add_child(_ornate_button("KEEP", _hide_legendary, Vector2(230, 58)))
 
-    skill_overlay = PanelContainer.new()
-    skill_overlay.position = Vector2(92, (overlay.size.y - 815.0) * 0.5)
-    skill_overlay.size = Vector2(536, 815)
+    skill_overlay = Panel.new()
+    skill_overlay.position = Vector2(92, (overlay.size.y - 684.0) * 0.5)
+    skill_overlay.size = Vector2(536, 684)
     skill_overlay.visible = false
     skill_overlay.z_index = 41
-    skill_overlay.add_theme_stylebox_override("panel", _skin(Color("0e1019"), Color("9c79bc")))
+    skill_overlay.add_theme_stylebox_override("panel", _hud_plate(Color("0b1222f8"), Color("c99b72"), 22))
     overlay.add_child(skill_overlay)
     var talents := VBoxContainer.new()
+    talents.position = Vector2(18, 17)
+    talents.size = Vector2(500, 649)
     talents.add_theme_constant_override("separation", 7)
     skill_overlay.add_child(talents)
     var talent_title := _label("ASHEN TALENT TREE", 27, Color("edc99a"))
@@ -949,25 +951,27 @@ func _build_ui() -> void:
     evolution_close_button = _ornate_button("RETURN TO BATTLE", _close_evolution_panel, Vector2(510, 54))
     evolution_column.add_child(evolution_close_button)
 
-    inventory_overlay = PanelContainer.new()
-    inventory_overlay.position = Vector2(63, (overlay.size.y - 780.0) * 0.5)
-    inventory_overlay.size = Vector2(594, 780)
+    inventory_overlay = Panel.new()
+    inventory_overlay.position = Vector2(63, (overlay.size.y - 727.0) * 0.5)
+    inventory_overlay.size = Vector2(594, 727)
     inventory_overlay.visible = false
     inventory_overlay.z_index = 41
-    inventory_overlay.add_theme_stylebox_override("panel", _skin(Color("0e1019"), Color("bf955c")))
+    inventory_overlay.add_theme_stylebox_override("panel", _hud_plate(Color("0b1222f8"), Color("d1a36d"), 22))
     overlay.add_child(inventory_overlay)
     var inv_outer := VBoxContainer.new()
+    inv_outer.position = Vector2(18, 18)
+    inv_outer.size = Vector2(558, 688)
     inv_outer.add_theme_constant_override("separation", 9)
     inventory_overlay.add_child(inv_outer)
     var inv_title := _label("ASHEN ARMORY", 28, Color("f7cb7d"))
     inv_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     inv_outer.add_child(inv_title)
     inventory_summary = _label("", 17, Color("d5c6b4"))
-    inventory_summary.custom_minimum_size = Vector2(550, 118)
+    inventory_summary.custom_minimum_size = Vector2(550, 93)
     inv_outer.add_child(inventory_summary)
     inv_outer.add_child(_label("FOUND EQUIPMENT — TAP TO EQUIP", 19, Color("f1cb94")))
     var inv_scroll := ScrollContainer.new()
-    inv_scroll.custom_minimum_size = Vector2(550, 500)
+    inv_scroll.custom_minimum_size = Vector2(550, 405)
     inv_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     inv_outer.add_child(inv_scroll)
     inventory_list = VBoxContainer.new()
