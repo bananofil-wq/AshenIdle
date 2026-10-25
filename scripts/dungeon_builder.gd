@@ -9,9 +9,9 @@ const FOREST_ART = preload("res://scripts/forest_art.gd")
 const FOREST_TREE_ART = preload("res://scripts/forest_tree_art.gd")
 const THEMES := ["CAVE CRYPT", "ENCHANTED FOREST", "SWAMP OF DECAY", "FROZEN CAVERN", "INFERNAL WASTES",
     "HAUNTED GRAVE KINGDOM", "SUNSCAR DESERT", "STORM PEAKS", "CORRUPTED MOON TEMPLE", "CELESTIAL RIFT"]
-const FLOOR_COLORS := ["55505a", "425e35", "423e30", "879dad", "3d3437", "3c454b", "a88759", "65737c", "514362", "334b67"]
-const ACCENTS := ["eb864e", "b2dc73", "9ec044", "8bdcff", "ff6232", "8bc9aa", "f5c169", "87cfff", "b69cff", "70eeef"]
-const ROCKS := ["35313c", "3b4c37", "423d37", "50647a", "34262b", "41464a", "876e58", "414957", "454151", "34415b"]
+const FLOOR_COLORS := ["75677f", "729555", "667650", "a3d5e9", "654c57", "657779", "e7ac62", "829ec0", "886baf", "6d9ccb"]
+const ACCENTS := ["ffba66", "c6f67b", "ccdf68", "a8efff", "ff945c", "a4f3dd", "ffe18a", "b8e2ff", "d6b3ff", "88fff3"]
+const ROCKS := ["554768", "526c43", "5d5943", "6b93b0", "513f52", "52646b", "be814d", "596d96", "63548c", "507c9e"]
 const WIDTH := 9.0
 const DISTANCE := 14.0
 
@@ -1363,12 +1363,12 @@ func _set_materials() -> void:
     var diffuse_path: String = "res://assets/pbr/%s_diff_1k.jpg" % key
     if ResourceLoader.exists(diffuse_path):
         floor_material.albedo_texture = load(diffuse_path)
-        floor_material.albedo_color = [Color("919eaf"), Color("829c77"), Color("81916d"),
-            Color("8da5b8"), Color("857981"), Color("99a6a9"), Color("bda27b"),
-            Color("9cb7c4"), Color("b2a1c9"), Color("8bc3d3")][current_theme]
+        floor_material.albedo_color = [Color("b3a7c7"), Color("a5c99a"), Color("a2b27a"),
+            Color("bbdff1"), Color("aa8e9b"), Color("9dbab9"), Color("f4c791"),
+            Color("a9cbed"), Color("c7adea"), Color("abdfef")][current_theme]
     else:
         floor_material.albedo_texture = _terrain_texture()
-        floor_material.albedo_color = Color("c0c5c5")
+        floor_material.albedo_color = Color("f4e9d8")
     var normal_path: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % key
     if ResourceLoader.exists(normal_path):
         floor_material.normal_enabled = true
@@ -1380,7 +1380,7 @@ func _set_materials() -> void:
     floor_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
     # Painterly stone: broad matte surfaces, distinct color planes and
     # normal-mapped details instead of photorealistic shiny rocks.
-    floor_material.roughness = 0.94
+    floor_material.roughness = 0.85
     floor_material.metallic = 0.0
     rock_material = _solid(Color(ROCKS[current_theme]))
     rock_material.uv1_scale = Vector3(2.7, 2.7, 1.0)
@@ -1388,9 +1388,9 @@ func _set_materials() -> void:
     var cliff_path: String = "res://assets/pbr/%s_diff_1k.jpg" % cliff_key
     if ResourceLoader.exists(cliff_path):
         rock_material.albedo_texture = load(cliff_path)
-        rock_material.albedo_color = [Color("596477"), Color("617c62"), Color("756d55"),
-            Color("748ea3"), Color("544b52"), Color("777f85"), Color("c5aa86"),
-            Color("788b9c"), Color("a59abf"), Color("88a3b9")][current_theme]
+        rock_material.albedo_color = [Color("8f84a1"), Color("89ad78"), Color("9e986e"),
+            Color("95c7dc"), Color("856d88"), Color("90a6a5"), Color("e6b17d"),
+            Color("99b7d8"), Color("b49bd6"), Color("92cadd")][current_theme]
         var cliff_normal: String = "res://assets/pbr/%s_nor_gl_1k.jpg" % cliff_key
         if ResourceLoader.exists(cliff_normal):
             rock_material.normal_enabled = true

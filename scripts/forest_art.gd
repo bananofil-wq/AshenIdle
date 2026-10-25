@@ -86,17 +86,17 @@ func _ensure_assets() -> void:
         return
     _fern_material = StandardMaterial3D.new()
     _fern_material.vertex_color_use_as_albedo = true
-    _fern_material.albedo_color = Color("9db18b")
+    _fern_material.albedo_color = Color("b6dc90")
     _fern_material.roughness = 0.96
     _fern_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     _leaf_material = StandardMaterial3D.new()
     _leaf_material.vertex_color_use_as_albedo = true
-    _leaf_material.albedo_color = Color("d8c8a8")
+    _leaf_material.albedo_color = Color("e6dda2")
     _leaf_material.roughness = 1.0
     _leaf_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     _flower_material = StandardMaterial3D.new()
     _flower_material.vertex_color_use_as_albedo = true
-    _flower_material.albedo_color = Color("f0e8d5")
+    _flower_material.albedo_color = Color("fff2db")
     _flower_material.roughness = 1.0
     _flower_material.cull_mode = BaseMaterial3D.CULL_DISABLED
     _root_material = StandardMaterial3D.new()

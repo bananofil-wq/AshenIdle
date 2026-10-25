@@ -6,7 +6,7 @@ func _material(color: Color, metallic: float = 0.0, glow: bool = false) -> Stand
     var m := StandardMaterial3D.new()
     m.albedo_color = color
     m.metallic = metallic
-    m.roughness = 0.44
+    m.roughness = 0.34 if metallic > 0.2 else 0.59
     if glow:
         m.emission_enabled = true
         m.emission = color

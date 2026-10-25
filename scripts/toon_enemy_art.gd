@@ -8,16 +8,16 @@ var _materials: Dictionary = {}
 var _shape_cache: Dictionary = {}
 
 const BIOME_COLORS := [
-    ["f7b578", "773b35", "ffcf69", "453b53"],
-    ["bee6a2", "385c43", "ffe6ab", "26372b"],
-    ["b9e1ed", "3e5985", "e9f1ff", "344567"],
-    ["e7ad78", "66422c", "f5dd87", "402d30"],
-    ["e9b1e9", "633766", "f7d3ff", "302d4e"],
-    ["c1d3ec", "465c82", "ecf7ff", "2e3a62"],
-    ["91d8c1", "38655f", "d3fff2", "334d48"],
-    ["cfe3a1", "5e723d", "fff2ac", "354533"],
-    ["f0baae", "793748", "ffe8b0", "392a45"],
-    ["e59b70", "712c38", "ffca6a", "3b242d"]
+    ["fbc48c", "885b6d", "ffe594", "50395c"],
+    ["bdf49c", "4c8763", "fff0bb", "315347"],
+    ["a9efff", "5d82b8", "f4fbff", "405781"],
+    ["ffc48b", "966443", "fff1ac", "583c44"],
+    ["f3bcff", "9860ad", "ffe6ff", "583c7b"],
+    ["d5e7ff", "6e86c5", "ffffff", "465587"],
+    ["a3f1dd", "488c83", "e6fff2", "345d5c"],
+    ["e5f7b2", "809858", "fff6c2", "495c40"],
+    ["ffd3bc", "ad5c76", "fff1c7", "674761"],
+    ["ffc58a", "9f5661", "ffe49c", "603d54"]
 ]
 
 func _material(color: Color, metal: float = 0.0, glow: bool = false) -> StandardMaterial3D:
@@ -27,13 +27,13 @@ func _material(color: Color, metal: float = 0.0, glow: bool = false) -> Standard
     var m := StandardMaterial3D.new()
     m.albedo_color = color
     m.metallic = metal
-    m.roughness = 0.52 if metal > 0.2 else 0.74
+    m.roughness = 0.37 if metal > 0.2 else 0.64
     m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
     if glow:
         m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
         m.emission_enabled = true
         m.emission = color
-        m.emission_energy_multiplier = 0.56
+        m.emission_energy_multiplier = 1.15
     _materials[key] = m
     return m
 
