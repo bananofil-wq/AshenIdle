@@ -484,7 +484,23 @@ func _premium_trim(widget: Control, motif: String) -> void:
     frame.offset_bottom = 0
     widget.move_child(frame, 0)
     if widget is PanelContainer or widget is Panel:
-        widget.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+        var margin := StyleBoxEmpty.new()
+        if motif == "hero":
+            margin.content_margin_left = 15
+            margin.content_margin_right = 12
+            margin.content_margin_top = 23
+            margin.content_margin_bottom = 7
+        elif motif == "journey":
+            margin.content_margin_left = 16
+            margin.content_margin_right = 14
+            margin.content_margin_top = 23
+            margin.content_margin_bottom = 6
+        elif motif == "banner":
+            margin.content_margin_left = 15
+            margin.content_margin_right = 15
+            margin.content_margin_top = 20
+            margin.content_margin_bottom = 5
+        widget.add_theme_stylebox_override("panel", margin)
     elif widget is Button:
         for key in ["normal", "hover", "pressed", "focus", "disabled"]:
             widget.add_theme_stylebox_override(key, StyleBoxEmpty.new())
@@ -564,7 +580,7 @@ func _build_ui() -> void:
     map_panel.add_child(map_column)
     map_column.add_child(_label("THE LOST LANDS", 15, Color("f0c28b")))
     map_dots = Control.new()
-    map_dots.custom_minimum_size = Vector2(180, 98)
+    map_dots.custom_minimum_size = Vector2(180, 78)
     map_column.add_child(map_dots)
     stage_banner = _label("", 12, Color("f3d1aa"))
     map_column.add_child(stage_banner)
@@ -650,15 +666,15 @@ func _build_ui() -> void:
         glyph.name = "AbilityGlyph"
         glyph.set("class_id", hero_class)
         glyph.set("ability_id", slot_index)
-        glyph.position = Vector2(28, 10)
+        glyph.position = Vector2(20, 7)
         glyph.size = Vector2(78, 78)
-        glyph.scale = Vector2.ONE
+        glyph.scale = Vector2(1.25, 1.25)
         glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
         ability.add_child(glyph)
         var caption := _label(str(spell_name), 15, Color("ffe6c8"))
         caption.name = "AbilityCaption"
-        caption.position = Vector2(5, 92)
-        caption.size = Vector2(127, 45)
+        caption.position = Vector2(5, 105)
+        caption.size = Vector2(127, 32)
         caption.autowrap_mode = TextServer.AUTOWRAP_OFF
         caption.clip_text = true
         caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -674,7 +690,7 @@ func _build_ui() -> void:
     auto_gear_button.add_theme_font_size_override("font_size", 15)
     auto_gear_button.text = ""
     overlay.add_child(auto_gear_button)
-    _premium_trim(auto_gear_button, "skill")
+    _premium_trim(auto_gear_button, "mini")
     var dock_icon_script: Script = preload("res://scripts/fantasy_dock_icon.gd")
     var auto_glyph: Control = dock_icon_script.new() as Control
     auto_glyph.name = "AutoGlyph"
@@ -697,7 +713,7 @@ func _build_ui() -> void:
     quick_menu_button.add_theme_font_size_override("font_size", 15)
     quick_menu_button.text = ""
     overlay.add_child(quick_menu_button)
-    _premium_trim(quick_menu_button, "skill")
+    _premium_trim(quick_menu_button, "mini")
     var bag_glyph: Control = dock_icon_script.new() as Control
     bag_glyph.name = "BagGlyph"
     bag_glyph.set("kind", "bag")
