@@ -17,7 +17,22 @@ func _draw() -> void:
     var old_gold := Color("75401e")
     var pale := Color("ffe1a0")
     var dark := Color("071023")
-    var r: float = 19.0 if mode != "skill" else 24.0
+    if mode == "skill" or mode == "mini":
+        # The approved reference has a circular medallion, NOT a
+        # square ornate button wrapped around each skill.
+        var radius: float = minf(w * 0.38, h * 0.34) if mode == "skill" else minf(w * 0.32, h * 0.32)
+        var center := Vector2(w * 0.5, radius + (7.0 if mode == "skill" else 8.0))
+        draw_circle(center, radius + 7.0, Color("6a2d12", 0.5))
+        draw_circle(center, radius + 4.0, old_gold)
+        draw_circle(center, radius + 1.0, pale)
+        draw_circle(center, radius - 3.0, trim)
+        draw_circle(center, radius - 8.0, dark)
+        draw_arc(center,radius-2.0,PI*1.10,PI*1.90,35,pale,2.2,true)
+        if mode == "skill":
+            draw_rect(Rect2(11,107,w-22,h-113),Color("081323",0.87),true)
+            draw_line(Vector2(18,h-13),Vector2(w-18,h-13),trim,2.2,true)
+            _diamond(Vector2(w*.5,h-10),4.0,pale)
+        return
     # More than one thin outline: inset bevel, raised metal and dark glass.
     draw_rect(Rect2(3,4,w-6,h-8), Color(0.18,0.075,0.020,0.69), true)
     draw_rect(Rect2(8,7,w-16,h-14), dark, true)
@@ -26,14 +41,6 @@ func _draw() -> void:
     draw_rect(Rect2(11,11,w-22,h-22), Color("533921"), false, 1.0)
     draw_line(Vector2(20,14),Vector2(w-20,14),pale * Color(1,1,1,0.6),1.1,true)
     draw_line(Vector2(19,h-15),Vector2(w-19,h-15),old_gold,1.8,true)
-    if mode == "skill":
-        var radius: float = minf(w*0.43,h*0.41)
-        var center := Vector2(w*.5, radius+9.0)
-        draw_circle(center,radius+3,Color("51270f"))
-        draw_circle(center,radius,trim)
-        draw_circle(center,radius-5,Color("07142a"))
-        draw_circle(center,radius-10,Color("10233b"))
-        draw_arc(center,radius-2,PI*1.09,PI*1.91,32,pale,2.2,true)
     for sx in [0.0,1.0]:
         for sy in [0.0,1.0]:
             var origin := Vector2(7.0 if sx == 0.0 else w-7.0,
