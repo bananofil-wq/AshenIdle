@@ -556,8 +556,8 @@ func _play_signature_beat(cue: Dictionary) -> void:
                 var landing: Vector3 = target + Vector3(x * 5.6, 0.12, z * 5.3)
                 var launch: Vector3 = landing + Vector3(-2.2, 5.2 + float(i % 4) * 0.26, -1.1)
                 var bolt := CylinderMesh.new()
-                bolt.top_radius = 0.018
-                bolt.bottom_radius = 0.065
+                bolt.top_radius = 0.060
+                bolt.bottom_radius = 0.12
                 bolt.height = 0.94
                 bolt.radial_segments = 5
                 var arrow: MeshInstance3D = _spawn(bolt, launch,
@@ -571,6 +571,19 @@ func _play_signature_beat(cue: Dictionary) -> void:
                     if i % 3 == 0:
                         _beam(launch, launch.lerp(landing, 0.42), 0.028,
                             Color("a8eaff"), 0.29, 0.58)
+            # Arrowheads hit within a bright, physical dust-and-impact cloud.
+            var impact_mesh := SphereMesh.new()
+            impact_mesh.radius = 0.5
+            impact_mesh.height = 1.0
+            impact_mesh.radial_segments = 8
+            impact_mesh.rings = 5
+            for impact_id in range(5):
+                var direction: float = TAU * float(impact_id) / 5.0
+                var dust := _spawn(impact_mesh,
+                    target + Vector3(cos(direction) * 0.8, 0.27, sin(direction) * 0.8),
+                    Color("fbd69a"), 0.58, 0.38, "orb", false)
+                if dust != null:
+                    dust.scale = Vector3(0.7, 0.32, 0.7)
             _sigil(target, 2.35, Color("d9d7a3"), 0.65, 16)
         "chain_lightning":
             var current: Vector3 = start + Vector3(0, 1.42, 0)
@@ -589,6 +602,16 @@ func _play_signature_beat(cue: Dictionary) -> void:
             _smoke(start, 2.3, 0.66)
             _smoke(target, 3.1, 0.92)
             _scythe_sweep(target, 2.20)
+            # A visible void mass behind the slash, not only a thin purple arc.
+            var void_mesh := SphereMesh.new()
+            void_mesh.radius = 0.5
+            void_mesh.height = 1.0
+            void_mesh.radial_segments = 12
+            void_mesh.rings = 6
+            var void_core := _spawn(void_mesh, target + Vector3(0, 0.72, 0),
+                Color("7548bc"), 0.72, 0.53, "orb")
+            if void_core != null:
+                void_core.scale = Vector3(1.4, 0.72, 1.4)
             _fractures(target, 1.92, Color("71339c"), 1.18, 6)
             for n in range(mini(4, maxi(1, targets.size()))):
                 var victim: Vector3 = targets[n] as Vector3 if not targets.is_empty() else target
