@@ -245,8 +245,21 @@ func _hero_signature(head: BoneAttachment3D, chest: BoneAttachment3D, kind: Stri
     var crimson := Color("c82b38")
     match kind:
         "Knight":
-            # Tall scarlet knight crest, broad engraved shoulders, shield and
-            # a central royal insignia instead of just recolored body armor.
+            # Ivory-white cylindrical crusader helm with a CROSS-SLIT visor.
+            # This intentionally replaces the old red plume/blue shield look.
+            var helm := CylinderMesh.new()
+            helm.top_radius = 0.295
+            helm.bottom_radius = 0.320
+            helm.height = 0.52
+            helm.radial_segments = 12
+            _part(head, helm, Vector3(0, 0.15, 0), Color("f0eee5"), 0.60)
+            var dark_visor := Color("151b23")
+            _block(head, Vector3(0, 0.21, 0.305),
+                Vector3(0.44, 0.10, 0.085), dark_visor, 0.08)
+            _block(head, Vector3(0, 0.105, 0.323),
+                Vector3(0.088, 0.32, 0.09), dark_visor, 0.08)
+            _block(head, Vector3(0, 0.405, 0.02),
+                Vector3(0.53, 0.067, 0.58), brass, 0.65)
             for side in [-1.0, 1.0]:
                 var x: float = float(side)
                 _ball(chest, Vector3(x * 0.39, 0.15, -0.01), 0.23,
@@ -254,12 +267,12 @@ func _hero_signature(head: BoneAttachment3D, chest: BoneAttachment3D, kind: Stri
                 _block(chest, Vector3(x * 0.39, 0.23, 0.13),
                     Vector3(0.26, 0.055, 0.20), brass, 0.55)
             _block(chest, Vector3(-0.54, -0.11, 0.02),
-                Vector3(0.14, 0.63, 0.53), Color("245998"), 0.45)
+                Vector3(0.14, 0.63, 0.53), Color("e3e8e8"), 0.52)
             _ball(chest, Vector3(-0.62, -0.10, 0.31), 0.15,
                 brass, Vector3(0.35, 1.0, 1.0))
-            _ball(head, Vector3(0.0, 0.42, -0.08), 0.17,
-                crimson, Vector3(0.55, 2.05, 0.80))
-            _cone(head, Vector3(0, 0.75, -0.12), 0.10, 0.39, crimson)
+            _block(chest, Vector3(0, 0.02, 0.20),
+                Vector3(0.34, 0.32, 0.085), steel, 0.55)
+            _ball(chest, Vector3(0, 0.035, 0.27), 0.095, brass)
         "Rogue":
             # Long swept silver hair, asymmetrical violet cloak and two
             # diagonal daggers give the agile class a different outline.

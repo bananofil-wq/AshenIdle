@@ -1400,7 +1400,7 @@ func _process(delta: float) -> void:
     minimap_refresh_timer += delta
     if tick > 0.36 and popup_shade.visible:
         tick = 0.36
-    var attack_interval := 0.35 / (1.0 + minf(1.0, _bonus("speed") / 100.0) + 0.035 * _evolution_weight(0))
+    var attack_interval := (0.55 if hero_class == 0 else 0.35) / (1.0 + minf(1.0, _bonus("speed") / 100.0) + 0.035 * _evolution_weight(0))
     if tick >= attack_interval and not popup_shade.visible:
         tick -= attack_interval
         _fight()
@@ -1427,9 +1427,16 @@ func _fight() -> void:
     # The earlier long neon lines were stationary VFX. Rangers and casters
     # now launch a real traveling projectile from the weapon to the target.
     if cinematic_skills != null:
-        cinematic_skills.call("shoot_basic", hero_class,
-            hero.global_position + Vector3(0.0, 1.25, 0.0),
-            target.global_position + Vector3(0.0, 0.90, 0.0), crit)
+        if hero_class == 0:
+            # The knight is MELEE. A magic ball fired from the hammer made
+            # his heavy basic attacks read like a mage spell instead of steel.
+            cinematic_skills.call("swing_cinder_hammer",
+                hero.global_position, target.global_position, crit,
+                attack_animation_index)
+        else:
+            cinematic_skills.call("shoot_basic", hero_class,
+                hero.global_position + Vector3(0.0, 1.25, 0.0),
+                target.global_position + Vector3(0.0, 0.90, 0.0), crit)
     var impact_point: Vector3 = target.global_position
     _hit_mob(target, damage, crit)
     if hero_class == 3 and _evolution_weight(0) > 0.0:
@@ -2016,10 +2023,24 @@ func _update_signature_pose(delta: float) -> void:
     var vertical: float = 0.0
     match int(signature_pose["class"]):
         0:
-            # The knight compresses his weight, lunges and slams downward.
-            pitch = 0.32 * sin(t * PI * 1.55)
-            drift = facing * (0.40 * crest)
-            vertical = -0.18 * crest
+            # Inferno has three readable beats: heavy windup, driven hammer
+            # slam at exactly 0.42 seconds, then weight-bearing recovery.
+            # Keep the root still: only the imported character visual lunges.
+            var impact_t: float = 0.42 / float(signature_pose["duration"])
+            if t < 0.24:
+                pitch = lerpf(0.0, -0.35, smoothstep(0.0, 0.24, t))
+            elif t < impact_t:
+                pitch = lerpf(-0.35, 0.49, smoothstep(0.24, impact_t, t))
+            else:
+                pitch = lerpf(0.49, 0.0, smoothstep(impact_t, 1.0, t))
+            var slam_progress: float = smoothstep(0.22, impact_t, t)
+            var release: float = 1.0 - smoothstep(0.73, 1.0, t)
+            drift = facing * (0.55 * slam_progress * release)
+            vertical = -0.21 * slam_progress * release
+            if t >= impact_t and not bool(signature_pose.get("impact_shaken", false)):
+                signature_pose["impact_shaken"] = true
+                camera_shake = maxf(camera_shake, 0.56)
+                camera_kick = maxf(camera_kick, 1.15)
         1:
             # Backward evasive somersault, returning to a grounded firing pose.
             drift = -facing * (0.85 * crest)
@@ -3147,8 +3168,9 @@ func _use_skill(index: int) -> void:
     _begin_signature_pose(index)
     # Heavy knight slam is the largest impulse. Ranger keeps visibility
     # during his arrow storm; mage gets crisp electric micro-shakes.
-    var signature_shake: float = 0.56 if hero_class == 0 and index == 2 else 0.14 if hero_class == 1 and index == 2 else 0.19 if hero_class == 2 and index == 1 else 0.27 if hero_class == 3 and index == 2 else 0.22 if index == 2 else 0.09
-    camera_kick = maxf(camera_kick, 1.15 if hero_class == 0 and index == 2 else 0.9 if index == 2 else 0.4)
+    var signature_shake: float = 0.11 if hero_class == 0 and index == 2 else 0.14 if hero_class == 1 and index == 2 else 0.19 if hero_class == 2 and index == 1 else 0.27 if hero_class == 3 and index == 2 else 0.22 if index == 2 else 0.09
+    # The knight's heavy camera recoil happens on impact, not windup.
+    camera_kick = maxf(camera_kick, 0.20 if hero_class == 0 and index == 2 else 0.9 if index == 2 else 0.4)
     camera_shake = maxf(camera_shake, signature_shake)
     _play_audio(5 if hero_class == 2 and index == 1 else 3)
     var multiplier: float = float([1.25, 1.60, 2.80][index]) * (1.0 + float(rank - 1) * 0.16) * (1.0 + 0.12 * _evolution_weight(2))

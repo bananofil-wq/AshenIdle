@@ -21,6 +21,8 @@ var haze_texture: ImageTexture
 # Timed, class-specific attack beats. No 4-color version of one generic nova.
 var signature_cues: Array = []
 var signature_casts: Dictionary = {"inferno": 0, "arrowfall": 0, "chain_lightning": 0, "nightfall": 0}
+var hammer_basic_casts := 0
+var hammer_basic_impacts := 0
 
 func _ready() -> void:
     randomizer.seed = 41773
@@ -277,6 +279,34 @@ func _embers(at: Vector3, tint: Color, power: int = 10) -> void:
             tint.lightened(randomizer.randf_range(0.08, 0.45)), 0.45)
         sparks_total += 1
 
+func swing_cinder_hammer(start: Vector3, target: Vector3,
+        critical: bool = false, combo: int = 0) -> void:
+    # A short, directional blade-of-light follows the heavy hand-rigged mace.
+    # The impact arrives after the swing, never as a projectile from the hero.
+    hammer_basic_casts += 1
+    var toward: Vector3 = target - start
+    toward.y = 0.0
+    if toward.length_squared() < 0.02:
+        toward = Vector3.FORWARD
+    toward = toward.normalized()
+    var side := Vector3(-toward.z, 0.0, toward.x)
+    var handed: float = -1.0 if posmod(combo, 3) == 1 else 1.0
+    var path: Array = []
+    var previous: Vector3 = start + toward * 0.24 + side * handed * 0.72 + Vector3(0, 1.8, 0)
+    for j in range(1, 11):
+        var t: float = float(j) / 10.0
+        var next: Vector3 = start + toward * (0.24 + 1.30 * t)
+        next += side * handed * (0.72 - 1.44 * t)
+        next.y += 1.78 - 0.97 * t + 0.26 * sin(t * PI)
+        path.append([previous, next, 0.055 if critical else 0.038])
+        previous = next
+    if effects.size() < MAX_EFFECTS - 6:
+        _spawn(_mesh_from_strokes(path, 0.045), Vector3.ZERO,
+            Color("ffcf73") if critical else Color("f18138"),
+            0.65 if critical else 0.38, 0.21, "beam")
+    _queue_signature("cinder_basic", 0.19, start, target, [], 1)
+
+
 func shoot_basic(hero_class: int, origin: Vector3, target: Vector3, critical: bool = false) -> void:
     # A real moving mesh visibly travels FROM the actor TO the foe. Previous
     # combat used invisible instant damage and only drew a beam at the victim.
@@ -362,10 +392,19 @@ func _play_signature_beat(cue: Dictionary) -> void:
     var targets: Array = cue["targets"]
     var rank: int = int(cue["rank"])
     match kind:
+        "cinder_basic":
+            hammer_basic_impacts += 1
+            _ring(target, 0.30, 0.07, Color("ffb45d"), 0.23, "shock", 0.65)
+            _embers(target + Vector3(0, 0.20, 0), Color("f89141"), 3)
         "inferno":
             # Ground-shattering mace slam: incandescent deep fissures, a
             # three-layer expanding fire blast, then free embers rising.
-            var center: Vector3 = start + Vector3(0, 0.03, 0)
+            var toward: Vector3 = target - start
+            toward.y = 0.0
+            toward = toward.normalized() if toward.length_squared() > 0.01 else Vector3.FORWARD
+            # Crack beneath the hammer's forward landing point, not under
+            # the knight's feet behind the visible lunge.
+            var center: Vector3 = start + toward * 0.55 + Vector3(0, 0.03, 0)
             _fractures(center, 2.85 + float(rank) * 0.06,
                 Color("ff511b"), 1.38, 12)
             _ring(center, 1.25, 0.23, Color("ffedaf"), 0.33, "shock", 0.92)

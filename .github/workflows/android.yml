@@ -429,6 +429,39 @@ jobs:
           make_latest: false
           files: build/gameplay-motion.mp4
 
+      - name: Render dedicated Cinder Knight combat reel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/knight-motion
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" \
+            godot --resolution 720x1280 --path . --rendering-driver opengl3 \
+            --script res://scripts/ci_knight_motion.gd 2>&1 | tee build/knight-motion.log
+          grep -q "KNIGHT QA PASS" build/knight-motion.log
+          test "$(find build/knight-motion -name '*.jpg' | wc -l)" -eq 270
+          ffmpeg -hide_banner -loglevel error -y -framerate 30 \
+            -i build/knight-motion/%03d.jpg -c:v libx264 -preset veryfast -crf 23 \
+            -pix_fmt yuv420p -movflags +faststart build/cinder-knight-qa.mp4
+          test -s build/cinder-knight-qa.mp4
+          duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 build/cinder-knight-qa.mp4)"
+          awk -v d="$duration" 'BEGIN { exit !(d >= 8.95 && d <= 9.05) }'
+
+      - name: Upload dedicated Cinder Knight reel
+        uses: actions/upload-artifact@v4
+        with:
+          name: AshenIdle-CinderKnight-Video
+          path: build/cinder-knight-qa.mp4
+          retention-days: 30
+
+      - name: Attach Cinder Knight reel to Android preview release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: preview
+          prerelease: true
+          make_latest: false
+          files: build/cinder-knight-qa.mp4
+
       - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
