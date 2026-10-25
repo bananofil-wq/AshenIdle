@@ -83,6 +83,28 @@ func _render_test() -> void:
     if not await _save_capture(gameplay_name):
         quit(3)
         return
+    # The approved HUD has exactly three big abilities and a compact
+    # collapsible menu. Capture the OPEN drawer so a hidden or overflowing
+    # navigation panel cannot masquerade as a finished mobile interface.
+    var new_skills: Array = game.get("skill_buttons") as Array
+    if new_skills.size() != 3:
+        push_error("Compact fantasy HUD must have exactly three visible abilities")
+        quit(40)
+        return
+    var dock: Control = (game.get("overlay") as Control).get_node_or_null("BottomHUD")
+    if dock == null or not _check_modal_fits(dock, "Compact ability dock"):
+        quit(41)
+        return
+    game.call("_toggle_quick_menu")
+    await create_timer(0.10).timeout
+    var drawer: Control = game.get("quick_menu") as Control
+    if drawer == null or not drawer.visible or not _check_modal_fits(drawer, "Fantasy quick menu"):
+        quit(42)
+        return
+    if not await _save_capture("gameplay-preview-menu.png"):
+        quit(43)
+        return
+    game.call("_dismiss_quick_menu")
 
     if suffix == "tall":
         # Reference-video VFX QA: snapshot the actual 3D rune/crack/ultimate
@@ -215,6 +237,9 @@ func _render_test() -> void:
         game.call("_hide_legendary")
         game.call("_open_talent_panel")
         await create_timer(0.16).timeout
+        if not _check_modal_fits(game.get("skill_overlay") as Control, "Talent panel"):
+            quit(44)
+            return
         if not await _save_capture("talent-preview.png"):
             quit(6)
             return
@@ -237,6 +262,9 @@ func _render_test() -> void:
         game.call("_hide_legendary")
         game.call("_show_inventory")
         await create_timer(0.16).timeout
+        if not _check_modal_fits(game.get("inventory_overlay") as Control, "Inventory panel"):
+            quit(45)
+            return
         if not await _save_capture("inventory-preview.png"):
             quit(7)
             return
