@@ -65,6 +65,11 @@ func _run() -> void:
     for class_id in range(4):
         _choose_after_simulated_restart(game, class_id)
         var playable_hero: Node3D = game.get("hero") as Node3D
+        if not _check(playable_hero != null and
+                playable_hero.get_node_or_null("SoftContactShadow") is MeshInstance3D,
+                "Animated chibi feet need a translucent floor contact shadow"):
+            quit(108)
+            return
         var expected_costumes := ["Knight", "Rogue", "Mage", "Barbarian"]
         if not _check(playable_hero != null
                 and playable_hero.has_meta("chibi_character")
