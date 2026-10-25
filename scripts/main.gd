@@ -352,10 +352,10 @@ func _build_world() -> void:
     # Filmic readability, without the purple/blue ambient wash that erased
     # textures and made every biome look like a low-poly prototype.
     environment.adjustment_brightness = 1.055
-    environment.adjustment_contrast = 1.17
-    environment.adjustment_saturation = 0.92
+    environment.adjustment_contrast = 1.10
+    environment.adjustment_saturation = 1.11
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    environment.ambient_light_color = Color("8b9196")
+    environment.ambient_light_color = Color("adb6bd")
     environment.ambient_light_energy = 0.56
     environment.glow_enabled = false
     # Keep saturated spell silhouettes; aggressive glow had clipped the entire combat area white.
@@ -375,8 +375,8 @@ func _build_world() -> void:
     key_sun = sun
     add_child(sun)
     sun.rotation_degrees = Vector3(-58, -31, 0)
-    sun.light_color = Color("f5d7b6")
-    sun.light_energy = 1.42
+    sun.light_color = Color("fff0d5")
+    sun.light_energy = 1.57
     # Fake contact shadows remain beneath characters; full-scene shadows
     # over thousands of dungeon props were too expensive for mobile GLES3.
     sun.shadow_enabled = false
@@ -2122,10 +2122,10 @@ func _update_camera(delta: float) -> void:
     var random_shake := Vector3(sin(camera_time * 83.0) * camera_shake, cos(camera_time * 69.0) * camera_shake * 0.5, sin(camera_time * 51.0) * camera_shake * 0.5)
     # A modest dolly-in makes armor, monsters and impact detail legible while
     # retaining the tall portrait view of the route toward the next chamber.
-    var destination: Vector3 = camera_focus + Vector3(0, 17.4 if boss_fight else 15.9, 17.4) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
+    var destination: Vector3 = camera_focus + Vector3(0, 16.2 if boss_fight else 14.8, 16.4) + random_shake + Vector3(0, 0, -camera_kick * 0.18)
     camera_ref.global_position = camera_ref.global_position.lerp(destination, clampf(delta * 3.2, 0, 1))
     camera_ref.look_at(camera_focus, Vector3.UP)
-    camera_ref.fov = lerpf(camera_ref.fov, 46.5 if boss_fight else 45.5, clampf(delta * 1.5, 0, 1))
+    camera_ref.fov = lerpf(camera_ref.fov, 46.0 if boss_fight else 44.2, clampf(delta * 1.5, 0, 1))
     if fire_light != null:
         fire_light.position = hero.position + Vector3(2.8, 3.7, -1.4)
     if mystic_light != null:
