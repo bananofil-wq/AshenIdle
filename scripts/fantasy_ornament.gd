@@ -23,6 +23,21 @@ func _draw() -> void:
     if premium_region.size.x > 0.0:
         draw_texture_rect_region(PREMIUM_ATLAS,
             Rect2(Vector2.ZERO, size), premium_region, Color.WHITE, false)
+        if mode == "banner":
+            # Crest rises above the banner, like the agreed fantasy artwork.
+            var cx := w * 0.5
+            draw_circle(Vector2(cx, 0), 24, Color("47240f"))
+            draw_circle(Vector2(cx, 0), 21, Color("f3ba6c"))
+            draw_circle(Vector2(cx, 0), 17, Color("33170a"))
+            draw_colored_polygon(PackedVector2Array([
+                Vector2(cx + 0,-17),Vector2(cx + 8,-4),
+                Vector2(cx + 12,5),Vector2(cx + 4,13),
+                Vector2(cx - 8,12),Vector2(cx - 11,3),
+                Vector2(cx - 3,-9)]), Color("ff811f"))
+            draw_colored_polygon(PackedVector2Array([
+                Vector2(cx + 2,-7),Vector2(cx + 7,5),
+                Vector2(cx + 1,11),Vector2(cx - 5,7)]),
+                Color("fff3a9"))
         return
     var trim: Color = accent
     var old_gold := Color("75401e")
