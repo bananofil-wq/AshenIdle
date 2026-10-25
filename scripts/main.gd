@@ -3608,7 +3608,7 @@ func _spawn_horde_batch() -> void:
         else:
             # Wolves, spiders, tree giants and elemental bosses keep their own
             # articulated creature anatomy in the same stylized palette.
-            if toon_enemy_art.build_enemy(root,species,biome,elite,mini_elite,ai_role):
+            if (toon_enemy_art.build_enemy(root,species,biome,elite,mini_elite,ai_role) if elite else toon_enemy_art.build_horde_enemy(root,species,biome,ai_role)):
                 _bind_motion_driver(root)
                 _play_actor_clip(root,"Idle",0.0,1.0)
             else:
