@@ -67,8 +67,8 @@ func _run() -> void:
         if not style.decorate_chibi(model, hero_kind):
             _fail("Could not attach male chibi costume to skeleton " + hero_kind)
             return
-        if str(model.get_meta("male_chibi_costume", "")) != hero_kind:
-            _fail("Wrong hero costume identity " + hero_kind)
+        if str(model.get_meta("male_chibi_costume", "")) != hero_kind or str(model.get_meta("class_signature", "")) != hero_kind:
+            _fail("Missing class-specific male chibi silhouette " + hero_kind)
             return
         var costume_nodes: Array = model.find_children("*", "BoneAttachment3D", true, false)
         var decorated_count: int = 0
@@ -77,6 +77,14 @@ func _run() -> void:
                 decorated_count += 1
         if decorated_count < 2:
             _fail("Hero must have head and chest rig accessories " + hero_kind)
+            return
+        var costume_mesh_count: int = 0
+        for costume_bone in costume_nodes:
+            for art_part in (costume_bone as Node).find_children("*", "MeshInstance3D", true, false):
+                if art_part is MeshInstance3D:
+                    costume_mesh_count += 1
+        if costume_mesh_count < 16:
+            _fail("Class silhouette is too plain: " + hero_kind + " has " + str(costume_mesh_count) + " rigged props")
             return
         var moving: bool = false
         for player_node in animators:
