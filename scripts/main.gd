@@ -484,23 +484,9 @@ func _premium_trim(widget: Control, motif: String) -> void:
     frame.offset_bottom = 0
     widget.move_child(frame, 0)
     if widget is PanelContainer or widget is Panel:
-        var margin := StyleBoxEmpty.new()
-        if motif == "hero":
-            margin.content_margin_left = 15
-            margin.content_margin_right = 12
-            margin.content_margin_top = 23
-            margin.content_margin_bottom = 7
-        elif motif == "journey":
-            margin.content_margin_left = 16
-            margin.content_margin_right = 14
-            margin.content_margin_top = 23
-            margin.content_margin_bottom = 6
-        elif motif == "banner":
-            margin.content_margin_left = 15
-            margin.content_margin_right = 15
-            margin.content_margin_top = 20
-            margin.content_margin_bottom = 5
-        widget.add_theme_stylebox_override("panel", margin)
+        # A margin on PanelContainer's stylebox also offsets its decorative
+        # child frame. Keep the frame full size; pad CONTENT separately.
+        widget.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
     elif widget is Button:
         for key in ["normal", "hover", "pressed", "focus", "disabled"]:
             widget.add_theme_stylebox_override(key, StyleBoxEmpty.new())
@@ -523,9 +509,15 @@ func _build_ui() -> void:
     portrait.add_theme_stylebox_override("panel", _hud_plate(Color("0a111ef4"), Color("bb8550"), 18))
     overlay.add_child(portrait)
     _premium_trim(portrait, "hero")
+    var hero_padding := MarginContainer.new()
+    hero_padding.add_theme_constant_override("margin_left", 17)
+    hero_padding.add_theme_constant_override("margin_right", 13)
+    hero_padding.add_theme_constant_override("margin_top", 24)
+    hero_padding.add_theme_constant_override("margin_bottom", 9)
+    portrait.add_child(hero_padding)
     var hud_hero_row := HBoxContainer.new()
     hud_hero_row.add_theme_constant_override("separation", 11)
-    portrait.add_child(hud_hero_row)
+    hero_padding.add_child(hud_hero_row)
     var hero_portrait := PanelContainer.new()
     hero_portrait.custom_minimum_size = Vector2(96, 110)
     hero_portrait.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
@@ -575,9 +567,15 @@ func _build_ui() -> void:
     map_panel.add_theme_stylebox_override("panel", _hud_plate(Color("0b1120f2"), Color("bb8550"), 17))
     overlay.add_child(map_panel)
     _premium_trim(map_panel, "journey")
+    var journey_padding := MarginContainer.new()
+    journey_padding.add_theme_constant_override("margin_left", 15)
+    journey_padding.add_theme_constant_override("margin_right", 12)
+    journey_padding.add_theme_constant_override("margin_top", 24)
+    journey_padding.add_theme_constant_override("margin_bottom", 7)
+    map_panel.add_child(journey_padding)
     var map_column := VBoxContainer.new()
     map_column.add_theme_constant_override("separation", 2)
-    map_panel.add_child(map_column)
+    journey_padding.add_child(map_column)
     map_column.add_child(_label("THE LOST LANDS", 15, Color("f0c28b")))
     map_dots = Control.new()
     map_dots.custom_minimum_size = Vector2(180, 78)
@@ -604,9 +602,15 @@ func _build_ui() -> void:
     banner.add_theme_stylebox_override("panel", _hud_plate(Color("080e1cda"), Color("d69a60"), 15))
     overlay.add_child(banner)
     _premium_trim(banner, "banner")
+    var banner_padding := MarginContainer.new()
+    banner_padding.add_theme_constant_override("margin_left", 18)
+    banner_padding.add_theme_constant_override("margin_right", 18)
+    banner_padding.add_theme_constant_override("margin_top", 21)
+    banner_padding.add_theme_constant_override("margin_bottom", 5)
+    banner.add_child(banner_padding)
     var banner_column := VBoxContainer.new()
     banner_column.add_theme_constant_override("separation", 0)
-    banner.add_child(banner_column)
+    banner_padding.add_child(banner_column)
     center_banner = _label("THE ASHEN HUNT", 21, Color("ffe3b3"))
     center_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     banner_column.add_child(center_banner)
