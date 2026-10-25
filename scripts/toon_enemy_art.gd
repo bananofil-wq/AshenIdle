@@ -229,6 +229,61 @@ func _dress_humanoid(root: Node3D, species: String, biome: int,
         for k in range(4):
             _horn(head,"MoonwhiteLock",Vector3(-.32+.20*float(k),.61,-.14),
                 .13,.25,Color("f1e2e5"))
+    # Species identity must remain readable at phone resolution. Earlier all
+    # humanoid mobs looked like the same tiny person in different clothes.
+    # Sculpt head silhouettes, equipment and faces from each creature family.
+    if hero_kind == "":
+        var upper_species: String = species.to_upper()
+        if is_undead:
+            # Skull sockets, exposed teeth and a cracked bone crown.
+            for side in [-1.0,1.0]:
+                _egg(head,"HollowSkullSocket",Vector3(float(side)*.19,.14,.413),
+                    Vector3(.19,.20,.045),Color("241f2a"))
+                _egg(head,"UndeadEmberEye",Vector3(float(side)*.19,.14,.458),
+                    Vector3(.070,.075,.025),accent,0.0,true)
+            _block(head,"SkullTeeth",Vector3(0,-.21,.365),
+                Vector3(.34,.10,.10),Color("f5ecdc"))
+            for tooth in range(4):
+                _block(head,"IndividualFang",Vector3(-.12+float(tooth)*.08,-.27,.425),
+                    Vector3(.040,.085,.038),Color("594b44"))
+        elif upper_species.contains("GOBLIN") or upper_species.contains("IMP") or upper_species.contains("GREMLIN"):
+            for side in [-1.0,1.0]:
+                _horn(head,"LongGoblinEar",Vector3(float(side)*.49,.12,-.04),
+                    .20,.55,skin,-float(side)*1.05)
+            _egg(head,"GoblinHookNose",Vector3(0,-.09,.51),
+                Vector3(.18,.19,.29),skin.darkened(.14))
+        elif upper_species.contains("ORC") or upper_species.contains("TROLL") or upper_species.contains("OGRE"):
+            _egg(head,"BrutalJaw",Vector3(0,-.22,.24),
+                Vector3(.69,.31,.48),skin.darkened(.16))
+            for side in [-1.0,1.0]:
+                _horn(head,"UpwardTusks",Vector3(float(side)*.25,-.28,.47),
+                    .085,.26,Color("f9edcf"))
+            for side in [-1.0,1.0]:
+                _egg(hip,"OrcArmorSpike",Vector3(float(side)*.41,.30,.03),
+                    Vector3(.25,.32,.25),dark)
+        elif upper_species.contains("DEMON") or upper_species.contains("DEVIL") or upper_species.contains("FIEND"):
+            for side in [-1.0,1.0]:
+                _horn(head,"CurvedDemonHorn",Vector3(float(side)*.31,.59,-.11),
+                    .18,.62,dark,-float(side)*.48)
+            _egg(head,"DemonicForeheadSigil",Vector3(0,.43,.36),
+                Vector3(.13,.16,.045),accent,0.0,true)
+        elif upper_species.contains("CULT") or upper_species.contains("WARLOCK") or upper_species.contains("WITCH"):
+            _egg(head,"MaskedVisage",Vector3(0,.09,.35),
+                Vector3(.54,.47,.17),dark)
+            _horn(head,"OccultCrest",Vector3(0,.64,-.10),
+                .15,.49,accent)
+        elif upper_species.contains("KNIGHT") or upper_species.contains("SENTINEL") or upper_species.contains("GUARD"):
+            _block(head,"TowerHelmCrest",Vector3(0,.54,.00),
+                Vector3(.19,.28,.57),dark,.48)
+            _block(hip,"GuardianShield",Vector3(-.48,.02,.16),
+                Vector3(.12,.68,.52),accent,.48)
+        else:
+            # Even unnamed realm inhabitants get a recognizable monster mask,
+            # rather than the original generic human child face.
+            _egg(head,"RealmWarMask",Vector3(0,.09,.38),
+                Vector3(.51,.38,.12),dark)
+            _horn(head,"RealmCrest",Vector3(0,.63,-.08),
+                .13,.35,accent)
     if boss:
         # Every boss is crowned and larger, but the ten biome colorways stay
         # consistent with normal enemies of that realm.
@@ -239,6 +294,43 @@ func _dress_humanoid(root: Node3D, species: String, biome: int,
                 Vector3(.33,.32,.40),skin)
         _egg(hip,"BossHeart",Vector3(0,.04,.315),
             Vector3(.22,.24,.08),accent,0.0,true)
+        # A biome boss needs a unique silhouette, not just a scaled-up mob.
+        # Ten themed crowns, wings, elemental halos and armor shapes.
+        match biome:
+            0,9:
+                for side in [-1.0,1.0]:
+                    var x: float = float(side)
+                    var wing := _egg(hip,"CinderWing",Vector3(x*.72,.28,-.34),
+                        Vector3(.31,.92,.24),Color("d74324"))
+                    wing.rotation.z = -x*.55
+                    _horn(head,"InfernalFlameCrown",Vector3(x*.19,.91,-.13),
+                        .19,.52,Color("ffb339"),-x*.18)
+            1,7:
+                for side in [-1.0,1.0]:
+                    _horn(head,"AncientWoodAntler",Vector3(float(side)*.52,.92,-.13),
+                        .18,.91,Color("8c6b4c"),-float(side)*.54)
+                _egg(hip,"ForestHeart",Vector3(0,.12,.42),
+                    Vector3(.25,.27,.10),Color("8af39c"),0.0,true)
+            2,5:
+                for side in [-1.0,1.0]:
+                    _horn(head,"IceCrown",Vector3(float(side)*.33,.92,-.08),
+                        .17,.80,Color("b6f1ff"),-float(side)*.28)
+                _egg(hip,"FrostCore",Vector3(0,.09,.45),
+                    Vector3(.30,.28,.11),Color("b1edff"),0.0,true)
+            3,8:
+                for side in [-1.0,1.0]:
+                    var x: float = float(side)
+                    _horn(head,"GoldenCrown",Vector3(x*.33,.93,-.12),
+                        .19,.77,Color("f7d47c"),-x*.37)
+                    _block(hip,"RoyalShield",Vector3(x*.57,.02,.09),
+                        Vector3(.16,.77,.48),Color("9e6146"),.4)
+            4,6:
+                for side in [-1.0,1.0]:
+                    var x: float = float(side)
+                    _horn(head,"VoidAntler",Vector3(x*.37,.94,-.15),
+                        .20,.87,Color("6546a1"),-x*.42)
+                    _egg(hip,"VoidOrb",Vector3(x*.52,.21,.14),
+                        Vector3(.20,.22,.20),Color("bb83fa"),0.0,true)
     _animate(root,body,false,0)
 
 func _dress_wolf(root: Node3D, species: String, biome: int, boss: bool, elite: bool) -> void:
