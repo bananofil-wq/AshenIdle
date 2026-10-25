@@ -324,32 +324,6 @@ func _hero_signature(head: BoneAttachment3D, chest: BoneAttachment3D, kind: Stri
             _ball(chest, Vector3(0, 0.07, 0.31), 0.13,
                 Color("eb4560"), Vector3(0.8, 0.9, 0.42))
 
-# Remove the imported knight helmet only for non-knight classes. The male
-# skeleton, face, eyes, clothing and native movement remain unchanged.
-# Query names AND source material textures because GLB mesh node names differ.
-func _hide_shared_knight_helmet(model: Node3D, kind: String) -> int:
-    if kind == "Knight":
-        return 0
-    var hidden: int = 0
-    for item in model.find_children("*", "MeshInstance3D", true, false):
-        var part: MeshInstance3D = item as MeshInstance3D
-        if part.mesh == null:
-            continue
-        var signature: String = part.name.to_lower()
-        for surface in range(part.mesh.get_surface_count()):
-            var material: BaseMaterial3D = part.get_active_material(surface) as BaseMaterial3D
-            if material == null:
-                continue
-            signature += " " + material.resource_name.to_lower()
-            if material.albedo_texture != null:
-                signature += " " + material.albedo_texture.resource_path.to_lower()
-                signature += " " + material.albedo_texture.resource_name.to_lower()
-        if signature.contains("armorhelmet") or signature.contains("armor_helmet") or signature.contains("knighthelmet") or signature.contains("knight_helmet") or signature.contains("helmet"):
-            part.visible = false
-            hidden += 1
-    model.set_meta("original_helmet_hidden", hidden)
-    return hidden
-
 func decorate_chibi(model: Node3D, kind: String) -> bool:
     if model == null:
         return false
@@ -368,7 +342,9 @@ func decorate_chibi(model: Node3D, kind: String) -> bool:
     if head == null or chest == null:
         return false
     _tint_chibi_armor(model, kind)
-    _hide_shared_knight_helmet(model, kind)
+    # Keep the enclosed male knight helmet: the source pack's unmasked
+    # face has delicate eyelashes inconsistent with our male-only art brief.
+    # Class silhouettes instead differ through rigged costume and headgear.
     var silver := Color("d8e8f1")
     var gold := Color("f6bf52")
     var blue := Color("285bad")
