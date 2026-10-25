@@ -429,10 +429,12 @@ func _run() -> void:
     game.call("_spawn_enemy")
     for target_room in [2, 3]:
         for attempt in range(3):
-            game.call("_clear_ground_drops")
-            game.call("_complete_wave")
+            _complete_synthetic_room(game)
             if int(game.get("dungeon_room_index")) == target_room:
                 break
+    game.set("horde_spawned", int(game.get("horde_total")) - 1)
+    game.call("_spawn_horde_batch")
+    game.call("_update_wave_health")
     if not _check(int(game.call("_boss_variant")) == 1 and float(game.get("boss_health")) > 0.0, "Second boss must be at end of floor 20 with distinct identity"):
         quit(25)
         return
