@@ -23,11 +23,11 @@ func _capture() -> void:
     game.call("_spawn_enemy")
     game.call("_refresh")
     DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://build/motion"))
-    for frame in range(96):
+    for frame in range(210):
         # Camera and skeletal animation run naturally in _process every frame.
-        if frame == 16 or frame == 57:
+        if frame in [16, 57, 116, 168]:
             game.set("skill_cooldowns", [0.0, 0.0, 0.0])
-            game.call("_use_skill", 0 if frame == 16 else 2)
+            game.call("_use_skill", 0 if frame in [16, 116] else 2)
         # The live game already advances movement, AI and camera through
         # _process each rendered frame. Do not call them a second time here:
         # the old recording artificially doubled walking speed and made
@@ -47,5 +47,5 @@ func _capture() -> void:
         push_error("MOTION QA FAIL: hero did not traverse the dungeon")
         quit(5)
         return
-    print("MOTION QA PASS: 96 Godot-rendered frames, native movement/AI/camera updated exactly once per live frame")
+    print("MOTION QA PASS: 210 Godot-rendered frames (7 seconds at 30 FPS), native movement/AI/camera updated exactly once per live frame")
     quit(0)
