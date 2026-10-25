@@ -71,9 +71,10 @@ func _render_test() -> void:
     game.call("_hide_legendary")
     game.set("stage", 8)
     game.set("highest", 8)
-    game.set("level", 9)
+    game.set("level", 12)
     game.set("gold", 840)
     game.set("hp", game.call("_max_hp"))
+    game.set("mp", game.call("_max_mp"))
     game.call("_spawn_enemy")
     game.call("_refresh")
     await create_timer(0.45).timeout
