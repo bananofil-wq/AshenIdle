@@ -59,6 +59,8 @@ func _process(delta: float) -> void:
             node.rotation.y += delta * 0.33
         elif kind == "shock":
             node.scale = Vector3.ONE * (0.46 + 1.72 * t)
+        elif kind == "firefront":
+            node.scale = Vector3.ONE * (0.34 + 1.60 * t)
         elif kind == "fissure":
             node.scale = Vector3.ONE * (0.73 + 0.32 * minf(1.0, t * 4.0))
         elif kind == "beam":
@@ -194,6 +196,40 @@ func _fire_wave(at: Vector3, radius: float, lifetime: float = 0.54) -> void:
     if flame != null:
         flame.scale = Vector3.ONE * 0.46
 
+
+
+func _inferno_fan(at: Vector3, radius: float, duration: float) -> void:
+    # One contiguous double-sided triangle mesh for a full fire-front,
+    # replacing individual tooth-like orange shards.
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for i in range(48):
+        var angle: float = TAU * float(i) / 48.0
+        var next_angle: float = TAU * float(i + 1) / 48.0
+        var wave: float = 0.22 * sin(float(i) * 2.45)
+        var tip_height: float = 0.75 + 0.35 * sin(float(i) * 1.91)
+        var inner_a := Vector3(cos(angle) * radius * 0.72, 0.10, sin(angle) * radius * 0.72)
+        var inner_b := Vector3(cos(next_angle) * radius * 0.72, 0.10, sin(next_angle) * radius * 0.72)
+        var peak := Vector3(cos(angle + 0.045) * (radius + wave),
+            tip_height, sin(angle + 0.045) * (radius + wave))
+        for point in [inner_a, inner_b, peak]:
+            tool.add_vertex(point)
+    var mesh: Mesh = tool.commit()
+    if mesh == null:
+        return
+    var tongue: MeshInstance3D = _spawn(mesh, at + Vector3(0, 0.10, 0),
+        Color("ffad39"), 0.90, duration, "firefront")
+    if tongue != null:
+        tongue.scale = Vector3.ONE * 0.34
+
+
+func _inferno_impact(at: Vector3) -> void:
+    # Silhouette, incandescent core and darker smoke have distinct roles.
+    _inferno_fan(at, 2.40, 0.68)
+    _ring(at, 1.10, 0.26, Color("fff3c8"), 0.20, "shock", 0.95)
+    _ring(at, 1.75, 0.30, Color("ff6a16"), 0.60, "shock", 0.84)
+    _smoke(at, 3.2, 1.2)
+    _embers(at + Vector3(0, 0.35, 0), Color("ffbd50"), 15)
 
 func _beam(a: Vector3, b: Vector3, width: float, tint: Color,
         duration: float = 0.30, alpha: float = 0.94) -> void:
@@ -437,6 +473,7 @@ func _play_signature_beat(cue: Dictionary) -> void:
                 Color("ff511b"), 1.38, 12)
             # The previous impact displayed only thin glowing ground lines.
             # A raised fiery crown creates an actual, directional blast.
+            _inferno_impact(center)
             _fire_wave(center, 1.05 + float(rank) * 0.015, 0.54)
             _fire_wave(center + Vector3(0, 0.08, 0), 1.35, 0.67)
             _ring(center, 1.25, 0.23, Color("ffedaf"), 0.33, "shock", 0.92)

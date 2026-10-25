@@ -271,7 +271,16 @@ func _hero_signature(head: BoneAttachment3D, chest: BoneAttachment3D, kind: Stri
             _ball(chest, Vector3(-0.62, -0.10, 0.31), 0.15,
                 brass, Vector3(0.35, 1.0, 1.0))
             _block(chest, Vector3(0, 0.02, 0.20),
-                Vector3(0.34, 0.32, 0.085), steel, 0.55)
+                Vector3(0.48, 0.42, 0.12), Color("596572"), 0.72)
+            _block(chest, Vector3(0, 0.075, 0.274),
+                Vector3(0.30, 0.20, 0.035), steel, 0.60)
+            for side in [-1.0, 1.0]:
+                var pauldron_side: float = float(side)
+                var ridge := _block(chest, Vector3(pauldron_side * 0.42, 0.30, 0.14),
+                    Vector3(0.27, 0.085, 0.33), brass, 0.66)
+                ridge.rotation.z = pauldron_side * 0.20
+                _ball(chest, Vector3(pauldron_side * 0.39, 0.15, 0.27),
+                    0.058, Color("ffd083"))
             _ball(chest, Vector3(0, 0.035, 0.27), 0.095, brass)
         "Rogue":
             # Long swept silver hair, asymmetrical violet cloak and two
@@ -368,7 +377,22 @@ func _equip_cinder_hammer(skeleton: Skeleton3D, chest: BoneAttachment3D) -> void
         _block(hammer, Vector3(0, -0.53 + float(band) * 0.10, 0), Vector3(0.123, 0.033, 0.127), Color("c2924c"), 0.56)
     _ball(hammer, Vector3(0, -0.76, 0), 0.12, Color("737b83"))
     _block(hammer, Vector3(0, 0.57, 0), Vector3(0.22, 0.29, 0.21), Color("a3a9b1"), 0.75)
-    _block(hammer, Vector3(0, 0.76, 0), Vector3(0.74, 0.41, 0.43), Color("414b59"), 0.76)
+    # Multi-layer forged silhouette: heavy beveled face, recessed metal and
+    # cast-brass studs, not one perfectly square toy brick.
+    _block(hammer, Vector3(0, 0.76, 0), Vector3(0.88, 0.47, 0.49), Color("323c49"), 0.81)
+    _block(hammer, Vector3(0, 0.76, 0.0), Vector3(0.72, 0.36, 0.55), Color("535965"), 0.75)
+    for side in [-1.0, 1.0]:
+        var blade_side: float = float(side)
+        var facing := CylinderMesh.new()
+        facing.top_radius = 0.32
+        facing.bottom_radius = 0.34
+        facing.height = 0.16
+        facing.radial_segments = 8
+        var endcap := _part(hammer, facing,
+            Vector3(blade_side * 0.52, 0.76, 0.0), Color("aeb9c0"), 0.79)
+        endcap.rotation.z = PI * 0.5
+        _ball(hammer, Vector3(blade_side * 0.61, 0.76, 0),
+            0.12, Color("edbb63"), Vector3(0.26, 1.0, 1.0))
     for side in [-1.0, 1.0]:
         var x: float = float(side)
         _block(hammer, Vector3(x * 0.41, 0.76, 0), Vector3(0.13, 0.47, 0.48), Color("c3ccd0"), 0.79)
