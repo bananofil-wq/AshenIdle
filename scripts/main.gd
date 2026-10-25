@@ -234,7 +234,7 @@ var sfx_toggle_button: Button
 var last_hit_sound_msec := 0
 var auto_equip := true
 var auto_gear_button: Button
-var quick_menu: PanelContainer
+var quick_menu: Panel
 var quick_menu_button: Button
 var ground_drops: Array = []   # Real loot: stays on ground until the hero reaches it.
 var drop_prompt: Panel
@@ -655,7 +655,7 @@ func _build_ui() -> void:
 
     # Secondary systems are reachable in ONE playful collapsible armory menu.
     # No loot/forge/progression control vanishes when decluttering the HUD.
-    quick_menu = PanelContainer.new()
+    quick_menu = Panel.new()
     quick_menu.name = "QuickMenu"
     quick_menu.position = Vector2(88, overlay.size.y - 720)
     quick_menu.size = Vector2(544, 515)
@@ -664,6 +664,8 @@ func _build_ui() -> void:
     quick_menu.add_theme_stylebox_override("panel", _hud_plate(Color("0d1424f8"), Color("dc9e5b"), 20))
     overlay.add_child(quick_menu)
     var menu_col := VBoxContainer.new()
+    menu_col.position = Vector2(12, 13)
+    menu_col.size = Vector2(520, 489)
     menu_col.add_theme_constant_override("separation", 6)
     quick_menu.add_child(menu_col)
     var menu_header := _label("✦  THE ASHEN ARMORY", 24, Color("f5cb8c"))
