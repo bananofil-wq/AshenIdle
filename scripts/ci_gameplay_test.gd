@@ -64,6 +64,15 @@ func _run() -> void:
         return
     for class_id in range(4):
         _choose_after_simulated_restart(game, class_id)
+        var playable_hero: Node3D = game.get("hero") as Node3D
+        var expected_costumes := ["Knight", "Rogue", "Mage", "Barbarian"]
+        if not _check(playable_hero != null
+                and playable_hero.has_meta("chibi_character")
+                and str(playable_hero.get_meta("chibi_character")) == "knight"
+                and str(playable_hero.get_meta("male_chibi_costume", "")) == str(expected_costumes[class_id]),
+                "All four playable characters must use the same verified male 3D rig and distinct class costumes as character selection"):
+            quit(107)
+            return
         if not _check(game.call("_max_mp") >= 65.0, "Each hero needs a real class-specific MP pool"):
             quit(48)
             return
@@ -171,7 +180,16 @@ func _run() -> void:
             return
     game.call("_actor_attack", actor, false)
     var attack_clip: String = str(actor.get_meta("clip_state", "")).to_lower()
-    var attacking: bool = attack_clip.contains("push") if actor.has_meta("chibi_character") else attack_clip.contains("slash") if actor.has_meta("hd_character") else attack_clip.contains("sword")
+    var attacking: bool = false
+    if actor.has_meta("chibi_character"):
+        for verb in ["attack", "slash", "sword", "punch", "push", "kick"]:
+            if attack_clip.contains(verb):
+                attacking = true
+                break
+    elif actor.has_meta("hd_character"):
+        attacking = attack_clip.contains("slash")
+    else:
+        attacking = attack_clip.contains("sword")
     if not _check(attacking,
             "Basic sword and spell attacks must select a real rigged action clip"):
         quit(42)
