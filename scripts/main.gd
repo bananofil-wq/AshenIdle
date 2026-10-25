@@ -2744,7 +2744,12 @@ func _refresh() -> void:
         boss_hp_bar.color = _biome_fx_tint()
         boss_hp_bar.scale.x = clampf(boss_health / maxf(1.0, boss_max), 0.03, 1.0)
     center_banner.modulate.a = 0.87 + sin(chaos_time * 4.0) * 0.13
-    combat.text = combat_note
+    # The location banner is intentionally brief; the unabridged combat
+    # log is still retained in combat_note for the rest of the game.
+    var banner_event: String = combat_note
+    if banner_event.contains(" - "):
+        banner_event = banner_event.split(" - ").back()
+    combat.text = banner_event.left(23)
     info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
     offline.text = offline_note
     combat_bar.scale.x = clampf(enemy_hp / maxf(1.0, enemy_max), 0.02, 1.0)
