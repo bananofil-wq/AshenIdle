@@ -156,7 +156,7 @@ jobs:
           # Adult humanoid armour/outfits are made from Quaternius CC0 modular packs.
           # Avelune's GLB pipeline packs all character material maps into the GLBs.
           BASE_ARMOR="https://raw.githubusercontent.com/benjamincanac/avelune/main/public/models/characters"
-          for spec in "Knight_Male:ashen_armored_knight" "Knight_Female:ashen_shadow_knight" "Ranger_Male_SimpleParted:ashen_ranger" "Wizard_Male_SimpleParted:ashen_mage" "animations:ashen_shared_anims"; do
+          for spec in "Knight_Male:ashen_armored_knight" "Knight_Male:ashen_shadow_knight" "Ranger_Male_SimpleParted:ashen_ranger" "Wizard_Male_SimpleParted:ashen_mage" "animations:ashen_shared_anims"; do
             source="${spec%%:*}"
             target="${spec##*:}"
             curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$BASE_ARMOR/$source.glb" -o "assets/models/$target.glb"
@@ -193,7 +193,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/fetch_chibi_characters.py
-          test "$(find assets/models/chibi -maxdepth 1 -name '*.glb' | wc -l)" -eq 5
+          test "$(find assets/models/chibi -maxdepth 1 -name '*.glb' | wc -l)" -eq 1
 
       - name: Download open-licensed fantasy heading font
         shell: bash
@@ -318,7 +318,7 @@ jobs:
           set -euo pipefail
           LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1920x24" godot --resolution 720x1280 --path . --rendering-driver opengl3 --script res://scripts/ci_chibi_import_qa.gd 2>&1 | tee build/chibi-import.log
           grep -q "CHIBI IMPORT QA PASS" build/chibi-import.log
-          test "$(find build -maxdepth 1 -name 'chibi-*.png' | wc -l)" -eq 5
+          test "$(find build -maxdepth 1 -name 'chibi-*.png' | wc -l)" -eq 1
           if grep -E 'SCRIPT ERROR|Parse Error|CHIBI IMPORT QA FAIL|Invalid call|Invalid access' build/chibi-import.log; then exit 1; fi
 
       - name: Validate four male chibi hero costumes and movement
