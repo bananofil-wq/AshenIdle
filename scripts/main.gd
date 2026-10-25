@@ -2225,7 +2225,9 @@ func _kill_mob(target: Node3D) -> void:
         hp = minf(_max_hp(), hp + _max_hp() * kill_heal)
     gold += stage * 2 + (25 if boss else 3)
     xp += 5 + stage * 2 + (60 if boss else 0)
-    if boss or rng.randf() < 0.22:
+    # Hundreds of enemies must not generate dozens of 3D ground drops.
+    # Award routine loot less frequently; bosses still always drop.
+    if boss or rng.randf() < 0.035:
         _drop_loot_at(drop_pos, boss)
     if boss:
         _burst_particles(drop_pos + Vector3(0, 1.1, 0), Color("ff9142"), 160, 5.6, 1.15)
@@ -3591,7 +3593,7 @@ func _spawn_horde_batch() -> void:
         # underneath, no static costume glued to a walking model.
         var beast: bool = false
         var chibi_name: String = _chibi_model_for_enemy(species,ai_role,elite)
-        var stylized_scene: PackedScene = _get_asset_scene(chibi_name) if chibi_name != "" else null
+        var stylized_scene: PackedScene = _get_asset_scene(chibi_name) if elite and chibi_name != "" else null
         if elite and stylized_scene != null:
             var costume: Node3D = stylized_scene.instantiate() as Node3D
             if costume != null:
