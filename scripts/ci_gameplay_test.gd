@@ -26,6 +26,7 @@ func _complete_synthetic_room(game: Node) -> void:
     var encounter: Dictionary = game.get("current_encounter")
     encounter["loot_bonus"] = false
     game.set("current_encounter", encounter)
+    game.set("horde_spawned", game.get("horde_total"))
     game.call("_complete_wave")
 
 
@@ -319,6 +320,9 @@ func _run() -> void:
     if not _check(int(game.get("dungeon_room_index")) == 3, "Boss must guard final room after two regular encounters"):
         quit(57)
         return
+    # Bosses are deliberately saved for the final pack of the final room.
+    game.set("horde_spawned", int(game.get("horde_total")) - 1)
+    game.call("_spawn_horde_batch")
     var has_boss := false
     for mob in (game.get("arena_mobs") as Array):
         if bool(mob.get_meta("boss", false)):
