@@ -128,6 +128,7 @@ var hit_texts: Array = []
 var overlay: Control
 var center_banner: Label
 var stage_banner: Label
+var hero_portrait_art: Control
 var power_label: Label
 var map_dots: Control
 var journey_track: ColorRect
@@ -510,45 +511,45 @@ func _build_ui() -> void:
     hud_hero_row.add_theme_constant_override("separation", 11)
     portrait.add_child(hud_hero_row)
     var hero_portrait := PanelContainer.new()
-    hero_portrait.custom_minimum_size = Vector2(89, 89)
-    hero_portrait.add_theme_stylebox_override("panel", _hud_plate(Color("121b2c"), Color("dba354"), 44))
+    hero_portrait.custom_minimum_size = Vector2(96, 110)
+    hero_portrait.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
     hud_hero_row.add_child(hero_portrait)
-    var emblem_script: Script = preload("res://scripts/class_emblem.gd")
-    var hero_emblem: Control = emblem_script.new() as Control
-    hero_emblem.set("class_id", hero_class)
-    hero_emblem.set("accent", Color("d99b60"))
-    hero_emblem.custom_minimum_size = Vector2(75, 75)
-    hero_portrait.add_child(hero_emblem)
+    var portrait_script: Script = preload("res://scripts/fantasy_portrait.gd")
+    hero_portrait_art = portrait_script.new() as Control
+    hero_portrait_art.name = "FantasyHeroPortrait"
+    hero_portrait_art.set("class_id", hero_class)
+    hero_portrait_art.custom_minimum_size = Vector2(92, 104)
+    hero_portrait.add_child(hero_portrait_art)
     var hero_lines := VBoxContainer.new()
     hero_lines.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    hero_lines.add_theme_constant_override("separation", 3)
+    hero_lines.add_theme_constant_override("separation", 4)
     hud_hero_row.add_child(hero_lines)
-    hero_lines.add_child(_label("✦  ASHEN IDLE", 19, Color("f2c487")))
-    status = _label("", 17, Color("fff1d7"))
+    hero_lines.add_child(_label("♨  ASHEN IDLE", 22, Color("ffd18d")))
+    status = _label("", 19, Color("fff1d7"))
     hero_lines.add_child(status)
-    details = _label("", 13, Color("f6ddd0"))
+    details = _label("", 14, Color("f6ddd0"))
     hero_lines.add_child(details)
     var hp_back := ColorRect.new()
     hp_back.color = Color("392432")
-    hp_back.custom_minimum_size = Vector2(252, 7)
+    hp_back.custom_minimum_size = Vector2(219, 9)
     hero_lines.add_child(hp_back)
     hero_heart = ColorRect.new()
     hero_heart.color = Color("e8545a")
-    hero_heart.size = Vector2(252, 7)
+    hero_heart.size = Vector2(219, 9)
     hero_heart.mouse_filter = Control.MOUSE_FILTER_IGNORE
     hp_back.add_child(hero_heart)
     hero_mana_label = _label("", 12, Color("9fcdff"))
     hero_lines.add_child(hero_mana_label)
     var mana_back := ColorRect.new()
     mana_back.color = Color("242c43")
-    mana_back.custom_minimum_size = Vector2(252, 7)
+    mana_back.custom_minimum_size = Vector2(219, 9)
     hero_lines.add_child(mana_back)
     hero_mana_bar = ColorRect.new()
     hero_mana_bar.color = Color("58abff")
-    hero_mana_bar.size = Vector2(252, 7)
+    hero_mana_bar.size = Vector2(219, 9)
     hero_mana_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
     mana_back.add_child(hero_mana_bar)
-    power_label = _label("", 15, Color("f5bf6e"))
+    power_label = _label("", 17, Color("ffd38e"))
     hero_lines.add_child(power_label)
 
     var map_panel := PanelContainer.new()
@@ -621,7 +622,7 @@ func _build_ui() -> void:
     bottom.add_theme_stylebox_override("panel", _hud_plate(Color("090f20f5"), Color("bd8754"), 24))
     overlay.add_child(bottom)
     _premium_trim(bottom, "dock")
-    var dock_title := _label("✦      ASHEN POWERS      ✦", 12, Color("a67b54"))
+    var dock_title := _label("", 12, Color("a67b54"))
     dock_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     dock_title.position = Vector2(180, 3)
     dock_title.size = Vector2(340, 17)
@@ -654,7 +655,7 @@ func _build_ui() -> void:
         glyph.scale = Vector2.ONE
         glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
         ability.add_child(glyph)
-        var caption := _label(str(spell_name), 13, Color("ffe6c8"))
+        var caption := _label(str(spell_name), 15, Color("ffe6c8"))
         caption.name = "AbilityCaption"
         caption.position = Vector2(5, 92)
         caption.size = Vector2(127, 45)
@@ -1564,7 +1565,7 @@ func _update_journey_hud() -> void:
     if segment.length_squared() > 0.05:
         travelled = clampf((hero.position - previous).dot(segment) / segment.length_squared(), 0.0, 1.0)
     var full_progress: float = (float(next_index - 1) + travelled) / 3.0
-    var caption_text := "EXPLORING  %d%%" % int(full_progress * 100.0)
+    var caption_text := "ACT %d  •  ROOM %d / 3" % [int((stage - 1) / BOSS_INTERVAL) + 1, dungeon_room_index]
     if journey_caption.text != caption_text:
         journey_caption.text = caption_text
     journey_track.scale.x = maxf(0.025, full_progress)
@@ -2663,19 +2664,21 @@ func _refresh() -> void:
     if status == null or inventory == null:
         return
     var ascension_count: int = EVO.total_evolutions(_evolution_picks())
-    status.text = "%s   LVL %d  %s" % [CLASSES[hero_class], level, "✦" + str(ascension_count) if ascension_count > 0 else ""]
+    status.text = "%s    Lv. %d" % [CLASSES[hero_class], level]
+    if hero_portrait_art != null and int(hero_portrait_art.get("class_id")) != hero_class:
+        hero_portrait_art.set("class_id", hero_class)
     if evolution_action_button != null:
         evolution_action_button.text = "EVOLVE!" if EVO.next_tier(level, _evolution_picks()) >= 0 else "EVOLVE"
-    details.text = "HP %.0f / %.0f   DEF %.0f%%\nXP %d / %d" % [hp, _max_hp(), _defense_reduction() * 100.0, xp, level * 30]
-    power_label.text = "POWER %d   GOLD %d" % [int(_damage() * 90 + _max_hp() * 2), gold]
+    details.text = "♥  %.0f / %.0f   DEF %.0f%%" % [hp, _max_hp(), _defense_reduction() * 100.0]
+    power_label.text = "⚔  POWER %d" % int(_damage() * 90 + _max_hp() * 2)
     if auto_gear_button != null:
         auto_gear_button.text = "AUTO\nON" if auto_equip else "AUTO\nOFF"
     hero_heart.scale.x = clampf(hp / maxf(1.0, _max_hp()), 0.03, 1.0)
     if hero_mana_bar != null:
         hero_mana_bar.scale.x = clampf(mp / maxf(1.0, _max_mp()), 0.01, 1.0)
     if hero_mana_label != null:
-        hero_mana_label.text = "MP %.0f / %.0f   +%.0f / sec" % [mp, _max_mp(), _mana_regeneration()]
-    stage_banner.text = "ACT %d   FLOOR %d/10   ROOM %d/3" % [floori(float(stage - 1) / float(BOSS_INTERVAL)) + 1, posmod(stage - 1, BOSS_INTERVAL) + 1, dungeon_room_index]
+        hero_mana_label.text = "◆  %.0f / %.0f MP" % [mp, _max_mp()]
+    stage_banner.text = "FLOOR %d / 10" % (posmod(stage - 1, BOSS_INTERVAL) + 1)
     var boss_panel: Control = overlay.get_node_or_null("BossHPPanel") as Control
     if boss_panel != null:
         boss_panel.visible = stage % BOSS_INTERVAL == 0 and dungeon_room_index == 3
@@ -2936,33 +2939,35 @@ func _refresh_minimap() -> void:
         return
     for child in map_dots.get_children():
         child.queue_free()
-    var current: int = posmod(stage - 1, BOSS_INTERVAL)
-    # Two rows, five stages per row: all ten gates remain legible in portrait.
-    for row_index in range(2):
-        var rail := ColorRect.new()
-        rail.color = Color("65534b")
-        rail.position = Vector2(19, 28 + row_index * 28)
-        rail.size = Vector2(140, 2)
-        map_dots.add_child(rail)
-    for i in range(BOSS_INTERVAL):
+    var step: int = posmod(stage - 1, BOSS_INTERVAL) + 1
+    var first: int = 1 if step <= 5 else 6
+    # Five large gold journey milestones read clearly on a portrait phone.
+    var rail := ColorRect.new()
+    rail.color = Color("ac743d")
+    rail.position = Vector2(15, 27)
+    rail.size = Vector2(149, 2)
+    map_dots.add_child(rail)
+    for i in range(5):
+        var floor_number: int = first + i
         var node := PanelContainer.new()
-        var col_index: int = posmod(i, 5)
-        var row_index: int = int(i / 5)
-        node.position = Vector2(11 + col_index * 34, 17 + row_index * 28)
-        node.size = Vector2(20, 20)
+        node.position = Vector2(5 + i * 36, 13)
+        node.size = Vector2(29, 29)
         var style := StyleBoxFlat.new()
-        style.bg_color = Color("d7ba8b") if i < current else Color("db603d") if i == current else Color("1c2330")
-        style.border_color = Color("edc78f") if i <= current else Color("736253")
-        style.set_border_width_all(1)
-        style.set_corner_radius_all(10)
+        style.bg_color = Color("f7cc83") if floor_number < step else Color("ffb353") if floor_number == step else Color("182237")
+        style.border_color = Color("ffe6a3") if floor_number <= step else Color("7e8590")
+        style.set_border_width_all(2 if floor_number == step else 1)
+        style.set_corner_radius_all(15)
+        style.shadow_size = 7 if floor_number == step else 0
+        style.shadow_color = Color("ffbd49", 0.7)
         node.add_theme_stylebox_override("panel", style)
         map_dots.add_child(node)
-        var numeral := _label(str(i + 1), 10, Color("10131b") if i <= current else Color("c4b6ae"))
+        var numeral := _label(str(floor_number), 16,
+            Color("251c17") if floor_number <= step else Color("f1e0d2"))
         numeral.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
         node.add_child(numeral)
-    var hint := _label("BOSS ON FLOOR 10", 12, Color("d8b37d"))
-    hint.position = Vector2(8, 79)
-    hint.size = Vector2(165, 20)
+    var hint := _label("☠  BOSS ON FLOOR 10", 12, Color("edc490"))
+    hint.position = Vector2(3, 54)
+    hint.size = Vector2(188, 24)
     hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     map_dots.add_child(hint)
 
