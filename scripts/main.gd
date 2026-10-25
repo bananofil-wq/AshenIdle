@@ -213,6 +213,9 @@ var boss_cast_windup := 0.0
 var boss_warning_center := Vector3.ZERO
 var boss_dodges := 0
 var hero_hit_flash := 0.0
+# A transient visual-only animation on the imported skinned hero.
+# Never teleports the root actor or interferes with auto-pathfinding.
+var signature_pose: Dictionary = {}
 var earned_bosses: Dictionary = {}
 var battle_statistics: Dictionary = {"bosses": 0, "loot": 0, "forged": 0}
 var bg_environment: WorldEnvironment
@@ -1302,6 +1305,7 @@ func _process(delta: float) -> void:
         screen_flash_fade = maxf(0.0, screen_flash_fade - delta * 2.8)
         screen_flash.modulate.a = screen_flash_fade
     _move_hero(delta)
+    _update_signature_pose(delta)
     # Culling need only track meaningful steps, not process hundreds of nodes
     # on all 60 frames. Always retain the current and next dungeon chamber.
     mobile_visibility_timer += delta
@@ -1882,6 +1886,81 @@ func _animate_actor(actor: Node3D, speed: float) -> void:
             model.position.y = lerpf(model.position.y, rest.y + bob, clampf(get_process_delta_time() * 9.0, 0.0, 1.0))
     if not has_motion:
         _pose_fantasy_skeleton(actor, speed)
+
+func _begin_signature_pose(index: int) -> void:
+    var special: bool = (hero_class == 0 and index == 2
+        or hero_class == 1 and index == 2
+        or hero_class == 2 and index == 1
+        or hero_class == 3 and index == 2)
+    if not special or hero == null or hero.get_child_count() == 0:
+        return
+    var visual: Node3D = hero.get_child(0) as Node3D
+    if visual == null:
+        return
+    if not signature_pose.is_empty():
+        _end_signature_pose()
+    signature_pose = {
+        "hero": hero, "visual": visual, "time": 0.0,
+        "duration": [0.75, 0.84, 0.78, 0.59][hero_class],
+        "class": hero_class,
+        "rest": visual.position,
+        "rotation": visual.rotation,
+        "scale": visual.scale
+    }
+
+
+func _end_signature_pose() -> void:
+    if not signature_pose.is_empty():
+        var visual: Node3D = signature_pose.get("visual") as Node3D
+        if is_instance_valid(visual):
+            visual.position = signature_pose.get("rest", visual.position)
+            visual.rotation = signature_pose.get("rotation", visual.rotation)
+            visual.scale = signature_pose.get("scale", visual.scale)
+    signature_pose.clear()
+
+
+func _update_signature_pose(delta: float) -> void:
+    if signature_pose.is_empty():
+        return
+    var visual: Node3D = signature_pose.get("visual") as Node3D
+    if not is_instance_valid(visual) or signature_pose.get("hero") != hero:
+        signature_pose.clear()
+        return
+    signature_pose["time"] = float(signature_pose["time"]) + delta
+    var t: float = clampf(float(signature_pose["time"])
+        / float(signature_pose["duration"]), 0.0, 1.0)
+    var rest: Vector3 = signature_pose["rest"]
+    var rest_rotation: Vector3 = signature_pose["rotation"]
+    var crest: float = sin(t * PI)
+    var facing: Vector3 = hero.global_transform.basis.z
+    var drift: Vector3 = Vector3.ZERO
+    var pitch: float = 0.0
+    var vertical: float = 0.0
+    match int(signature_pose["class"]):
+        0:
+            # The knight compresses his weight, lunges and slams downward.
+            pitch = 0.32 * sin(t * PI * 1.55)
+            drift = facing * (0.40 * crest)
+            vertical = -0.18 * crest
+        1:
+            # Backward evasive somersault, returning to a grounded firing pose.
+            drift = -facing * (0.85 * crest)
+            pitch = -TAU * smoothstep(0.09, 0.83, t)
+            vertical = 0.46 * crest
+        2:
+            # Ember Mage levitates while the native cast clip moves his arms.
+            vertical = 0.54 * crest
+            pitch = -0.10 * crest
+        3:
+            # Reaper dissolves into a black-smoke dash and recoils from his sweep.
+            drift = facing * (1.05 * smoothstep(0.12, 0.50, t) * (1.0 - t))
+            vertical = 0.16 * crest
+            pitch = -0.30 * crest
+    visual.position = rest + drift + Vector3(0, vertical, 0)
+    visual.rotation = rest_rotation + Vector3(pitch, 0, 0)
+    if t >= 1.0:
+        _end_signature_pose()
+
 
 func _actor_attack(actor: Node3D, magic: bool = false) -> void:
     if actor == null or not is_instance_valid(actor):
@@ -2971,8 +3050,12 @@ func _use_skill(index: int) -> void:
     var tint: Color = palettes[hero_class][index]
     _cast_class_visual(index, tint)
     _actor_attack(hero, true)
-    camera_kick = maxf(camera_kick, 0.9 if index == 2 else 0.4)
-    camera_shake = maxf(camera_shake, 0.28 if index == 2 else 0.09)
+    _begin_signature_pose(index)
+    # Heavy knight slam is the largest impulse. Ranger keeps visibility
+    # during his arrow storm; mage gets crisp electric micro-shakes.
+    var signature_shake: float = 0.56 if hero_class == 0 and index == 2 else 0.14 if hero_class == 1 and index == 2 else 0.19 if hero_class == 2 and index == 1 else 0.27 if hero_class == 3 and index == 2 else 0.22 if index == 2 else 0.09
+    camera_kick = maxf(camera_kick, 1.15 if hero_class == 0 and index == 2 else 0.9 if index == 2 else 0.4)
+    camera_shake = maxf(camera_shake, signature_shake)
     _play_audio(5 if hero_class == 2 and index == 1 else 3)
     var multiplier: float = float([1.25, 1.60, 2.80][index]) * (1.0 + float(rank - 1) * 0.16) * (1.0 + 0.12 * _evolution_weight(2))
     if hero_class == 2:
@@ -3009,6 +3092,10 @@ func _use_skill(index: int) -> void:
                 var ray_color: Color = Color("e82745") if hero_class == 3 else Color("a86bff")
                 _signature_ray(hero.global_position + Vector3(0.0, 1.45, 0.0), mob.global_position + Vector3(0.0, 1.03, 0.0), ray_color, 1.20 if i == 0 else 0.76)
             _hit_mob(mob, _damage() * multiplier, index == 2)
+    # The Dusk Reaper's sweeping ultimate returns stolen life immediately,
+    # on top of the lingering Nightfall zone's smaller siphon pulses.
+    if hero_class == 3 and index == 2 and target_count > 0:
+        hp = minf(_max_hp(), hp + _damage() * multiplier * float(target_count) * 0.072)
     combat_note = str(CLASS_SPELLS[hero_class][index]) + "!"
     if index == 2:
         var final_target: Node3D = _choose_target()
