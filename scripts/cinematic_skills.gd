@@ -167,6 +167,34 @@ func _ring(at: Vector3, radius: float, width: float, tint: Color,
     if node != null and style == "shock":
         node.scale = Vector3.ONE * 0.46
 
+func _fire_wave(at: Vector3, radius: float, lifetime: float = 0.54) -> void:
+    # Radial, multi-height tongues: unlike a flat luminous torus this has
+    # visible silhouette and height from a portrait isometric camera.
+    # All 32 flames share one low-poly ArrayMesh (one draw call per layer).
+    var tool := SurfaceTool.new()
+    tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for i in range(32):
+        var angle: float = TAU * float(i) / 32.0
+        var outward := Vector3(cos(angle), 0, sin(angle))
+        var tangent := Vector3(-sin(angle), 0, cos(angle))
+        var width: float = 0.16 + 0.025 * float(i % 4)
+        var base: Vector3 = outward * radius
+        var a: Vector3 = base - tangent * width
+        var b: Vector3 = base + tangent * width
+        var c: Vector3 = base + outward * (0.15 + 0.03 * float(i % 5))
+        c.y = 0.60 + 0.11 * float(i % 4)
+        for vertex in [a, b, c]:
+            tool.add_vertex(vertex)
+    tool.generate_normals()
+    var mesh: Mesh = tool.commit()
+    if mesh == null:
+        return
+    var flame := _spawn(mesh, at + Vector3(0, 0.20, 0),
+        Color("ff8324"), 0.94, lifetime, "shock")
+    if flame != null:
+        flame.scale = Vector3.ONE * 0.46
+
+
 func _beam(a: Vector3, b: Vector3, width: float, tint: Color,
         duration: float = 0.30, alpha: float = 0.94) -> void:
     if a.distance_squared_to(b) < 0.004:
@@ -407,6 +435,10 @@ func _play_signature_beat(cue: Dictionary) -> void:
             var center: Vector3 = start + toward * 0.55 + Vector3(0, 0.03, 0)
             _fractures(center, 2.85 + float(rank) * 0.06,
                 Color("ff511b"), 1.38, 12)
+            # The previous impact displayed only thin glowing ground lines.
+            # A raised fiery crown creates an actual, directional blast.
+            _fire_wave(center, 1.05 + float(rank) * 0.015, 0.54)
+            _fire_wave(center + Vector3(0, 0.08, 0), 1.35, 0.67)
             _ring(center, 1.25, 0.23, Color("ffedaf"), 0.33, "shock", 0.92)
             _ring(center, 1.80, 0.32, Color("ff9c29"), 0.59, "shock", 0.87)
             _ring(center, 2.40, 0.19, Color("d63714"), 0.78, "shock", 0.76)
