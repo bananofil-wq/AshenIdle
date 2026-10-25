@@ -21,8 +21,9 @@ func configure(character: Node3D) -> bool:
     if body == null or weapons.is_empty():
         return false
     hammer = weapons[0] as Node3D
-    body_rest = body.transform
-    hammer_rest = hammer.transform
+    if not active:
+        body_rest = body.transform
+        hammer_rest = hammer.transform
     return true
 
 func start_attack(step: int, ultimate: bool = false) -> bool:
