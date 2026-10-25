@@ -28,11 +28,10 @@ func _capture() -> void:
         if frame == 16 or frame == 57:
             game.set("skill_cooldowns", [0.0, 0.0, 0.0])
             game.call("_use_skill", 0 if frame == 16 else 2)
-        # Drive the normal AI/animation path deterministically for a travel preview.
-        # This is a real in-engine simulation, not a slideshow of posed models.
-        game.call("_move_hero", 1.0 / 30.0)
-        game.call("_update_chaos", 1.0 / 30.0)
-        game.call("_update_camera", 1.0 / 30.0)
+        # The live game already advances movement, AI and camera through
+        # _process each rendered frame. Do not call them a second time here:
+        # the old recording artificially doubled walking speed and made
+        # enemies look as though they were sliding across the floor.
         await RenderingServer.frame_post_draw
         var image: Image = root.get_texture().get_image()
         if image.is_empty():
@@ -44,5 +43,9 @@ func _capture() -> void:
             push_error("Could not save animation frame " + filename)
             quit(4)
             return
-    print("MOTION QA PASS: 96 Godot-rendered frames of actual moving dungeon traversal at 30 FPS")
+    if float(game.get("dungeon_travel_distance")) < 0.25:
+        push_error("MOTION QA FAIL: hero did not traverse the dungeon")
+        quit(5)
+        return
+    print("MOTION QA PASS: 96 Godot-rendered frames, native movement/AI/camera updated exactly once per live frame")
     quit(0)
