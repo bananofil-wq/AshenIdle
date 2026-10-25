@@ -439,7 +439,7 @@ func _cast_signature(hero_class: int, skill: int, rank: int, start: Vector3,
         signature_casts["inferno"] = int(signature_casts["inferno"]) + 1
         _sigil(start, 1.1, Color("ffb35a"), 0.32, 16)
         _embers(start, Color("ffac59"), 4)
-        _queue_signature("inferno", 0.24, start, destination, targets, rank)
+        _queue_signature("inferno", 0.42, start, destination, targets, rank)
         return true
     if hero_class == 1 and skill == 2:
         signature_casts["arrowfall"] = int(signature_casts["arrowfall"]) + 1
