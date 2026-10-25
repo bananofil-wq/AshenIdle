@@ -2748,7 +2748,8 @@ func _refresh() -> void:
     # log is still retained in combat_note for the rest of the game.
     var banner_event: String = combat_note
     if banner_event.contains(" - "):
-        banner_event = banner_event.split(" - ").back()
+        var banner_parts: PackedStringArray = banner_event.split(" - ")
+        banner_event = banner_parts[banner_parts.size() - 1]
     combat.text = banner_event.left(23)
     info.text = "%.0f DMG  •  %d/%d FOES  •  %d KILLS  •  %d SKILLS" % [_damage(), wave_size - arena_mobs.size(), wave_size, kills, skill_points]
     offline.text = offline_note
