@@ -499,16 +499,36 @@ func _animate(root: Node3D, body: Node3D, beast: bool, legs: int) -> void:
                 if dying:
                     values = [Vector3.ZERO,Vector3(-.45,0,0),Vector3(-.6,0,0)]
                 _rotation(animation,"ToonVisual/%s:rotation" % pivot.name,duration,values)
+                if walking:
+                    # Independently lift the swinging foot instead of only
+                    # spinning the leg around its hip. Opposite feet alternate
+                    # their planted and airborne phases, including beast legs.
+                    var rest_foot: Vector3 = pivot.position
+                    var clearance: float = .105 if beast else .075
+                    var stride: float = .09 if beast else .055
+                    var airborne: Vector3 = rest_foot + Vector3(0, clearance, stride)
+                    var trailing: Vector3 = rest_foot + Vector3(0, 0, -stride * .35)
+                    var foot_positions: Array = [
+                        rest_foot, airborne, rest_foot, trailing, rest_foot
+                    ] if phase > 0.0 else [
+                        rest_foot, trailing, rest_foot, airborne, rest_foot
+                    ]
+                    _rotation(animation,"ToonVisual/%s:position" % pivot.name,
+                        duration,foot_positions)
             elif pivot.name.begins_with("Arm"):
                 var arc: Array = [Vector3(.09*phase,0,0),Vector3(-.09*phase,0,0),Vector3(.09*phase,0,0)] if walking else [Vector3.ZERO,Vector3.ZERO,Vector3.ZERO]
                 if striking:
                     arc = [Vector3(-.8,0,phase*.08),Vector3(.96,0,-phase*.2),Vector3.ZERO]
                 _rotation(animation,"ToonVisual/%s:rotation" % pivot.name,duration,arc)
         if walking:
-            # Grounded weight shift. Quadrupeds get a softer lateral sway,
-            # while humanoids subtly counterbalance each step.
+            # Grounded weight shift and a small opposite shoulder turn make
+            # each step read as a run rather than a sliding, rigid pawn.
             _rotation(animation,"ToonVisual:position",duration,
-                [Vector3.ZERO,Vector3(0,.055 if beast else .035,0),Vector3.ZERO])
+                [Vector3.ZERO,Vector3(0,.038 if beast else .022,0),Vector3.ZERO])
+            if body.has_node("Torso"):
+                _rotation(animation,"ToonVisual/Torso:rotation",duration,[
+                    Vector3(0,-.055,-.025),Vector3(0,.055,.025),
+                    Vector3(0,-.055,-.025)])
         if beast:
             var tail_pivot: Node3D = body.get_node_or_null("Tail") as Node3D
             if tail_pivot != null:
