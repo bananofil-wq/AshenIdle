@@ -428,14 +428,17 @@ func decorate_chibi(model: Node3D, kind: String) -> bool:
     var blue := Color("285bad")
     var red := Color("d53b3a")
     if kind == "Knight":
-        # Silver armored guardian, blue mantle and upright crimson crest.
-        _block(chest, Vector3(0, 0.0, 0.16), Vector3(0.32, 0.27, 0.075), silver, 0.65)
-        _ball(chest, Vector3(0, 0.04, 0.22), 0.061, gold)
-        _ball(head, Vector3(0, 0.24, -0.02), 0.085, red, Vector3(0.78, 1.85, 0.85))
-        _cone(head, Vector3(0, 0.36, -0.05), 0.055, 0.23, red)
+        # Bright, premium mobile-fantasy read: pale enclosed helmet, warm
+        # gold accents, cyan core and blue cloth. No exposed face or plume.
+        _block(chest, Vector3(0, 0.0, 0.16), Vector3(0.40, 0.34, 0.09), silver, 0.65)
+        _ball(chest, Vector3(0, 0.04, 0.26), 0.090, Color("39dcf8"))
         for side in [-1.0, 1.0]:
-            _ball(chest, Vector3(float(side) * 0.24, 0.12, 0), 0.105, silver)
-        _block(chest, Vector3(0, -0.15, -0.15), Vector3(0.34, 0.31, 0.055), blue)
+            var x: float = float(side)
+            _ball(chest, Vector3(x * 0.28, 0.14, 0), 0.14, silver)
+            _block(chest, Vector3(x * 0.29, 0.17, 0.12),
+                Vector3(0.14, 0.055, 0.20), gold, 0.55)
+        _block(chest, Vector3(0, -0.18, -0.16), Vector3(0.42, 0.37, 0.055), blue)
+        _block(chest, Vector3(0, -0.18, -0.22), Vector3(0.24, 0.32, 0.045), Color("438fdf"))
     elif kind == "Rogue":
         # White ponytail, orange leather and purple scarf: clear at phone scale.
         _ball(head, Vector3(0, 0.19, -0.025), 0.21, Color("f7e6ca"), Vector3(1.15, 0.43, 0.97))
